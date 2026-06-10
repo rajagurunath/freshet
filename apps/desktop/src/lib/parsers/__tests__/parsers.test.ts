@@ -323,6 +323,119 @@ describe("parseCodex", () => {
   });
 });
 
+// ─── parseClaude – /compact awareness ────────────────────────────────────────
+
+const COMPACT_FIXTURE = [
+  // summary line (the /compact output)
+  JSON.stringify({
+    type: "summary",
+    summary: "The agent fixed the S3 retry bug by adding exponential backoff.",
+    sessionId: "sess-compact-001",
+  }),
+  // post-compact continuation marker user message
+  JSON.stringify({
+    type: "user",
+    message: {
+      role: "user",
+      content:
+        "This session is being continued from a previous conversation that ran out of context. The previous conversation summary was: The agent fixed the S3 retry bug by adding exponential backoff.",
+    },
+    timestamp: "2026-06-08T10:00:00Z",
+    sessionId: "sess-compact-001",
+    cwd: "/Users/alice/work/backend",
+  }),
+  // a real user message after compaction
+  JSON.stringify({
+    type: "user",
+    message: { role: "user", content: "Can you now add tests for the retry logic?" },
+    timestamp: "2026-06-08T10:01:00Z",
+    sessionId: "sess-compact-001",
+  }),
+  // assistant reply
+  JSON.stringify({
+    type: "assistant",
+    message: {
+      role: "assistant",
+      model: "claude-opus-4-8",
+      id: "msg-3",
+      content: [{ type: "text", text: "I will add tests for the retry logic now." }],
+      usage: { input_tokens: 500, output_tokens: 100 },
+    },
+    timestamp: "2026-06-08T10:02:00Z",
+  }),
+].join("\n");
+
+describe("parseClaude – compact awareness", () => {
+  const session = parseClaude(
+    COMPACT_FIXTURE,
+    "/Users/alice/.claude/projects/-Users-alice-work-backend/sess-compact-001.jsonl"
+  );
+
+  it("sets compacted=true when a summary line is present", () => {
+    expect(session.compacted).toBe(true);
+  });
+
+  it("captures the summary text as compactSummary", () => {
+    expect(session.compactSummary).toBe(
+      "The agent fixed the S3 retry bug by adding exponential backoff."
+    );
+  });
+
+  it("flags the continuation user message as kind:compact-marker", () => {
+    const marker = session.messages.find((m) => m.kind === "compact-marker");
+    expect(marker).toBeDefined();
+    expect(marker?.role).toBe("user");
+  });
+
+  it("does not use the compact-marker message as session title", () => {
+    expect(session.title).toBe("Can you now add tests for the retry logic?");
+  });
+
+  it("still captures subsequent real user messages", () => {
+    const realUser = session.messages.find(
+      (m) => m.role === "user" && m.kind !== "compact-marker" && m.text.includes("add tests")
+    );
+    expect(realUser).toBeDefined();
+  });
+});
+
+const MULTI_COMPACT_FIXTURE = [
+  // first compact summary
+  JSON.stringify({
+    type: "summary",
+    summary: "First session summary here.",
+    sessionId: "sess-multi-001",
+  }),
+  // second compact summary (last one wins)
+  JSON.stringify({
+    type: "summary",
+    summary: "Updated session summary after further work.",
+    sessionId: "sess-multi-001",
+  }),
+  JSON.stringify({
+    type: "user",
+    message: { role: "user", content: "What did we accomplish?" },
+    timestamp: "2026-06-08T11:00:00Z",
+    sessionId: "sess-multi-001",
+    cwd: "/tmp/proj",
+  }),
+].join("\n");
+
+describe("parseClaude – multiple summary lines", () => {
+  const session = parseClaude(
+    MULTI_COMPACT_FIXTURE,
+    "/path/.claude/projects/-tmp-proj/sess-multi-001.jsonl"
+  );
+
+  it("last summary wins when multiple summary lines present", () => {
+    expect(session.compactSummary).toBe("Updated session summary after further work.");
+  });
+
+  it("compacted remains true", () => {
+    expect(session.compacted).toBe(true);
+  });
+});
+
 // ─── parseKilo ───────────────────────────────────────────────────────────────
 
 const KILO_API_FIXTURE = JSON.stringify([

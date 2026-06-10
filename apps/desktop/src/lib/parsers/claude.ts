@@ -63,7 +63,13 @@ interface RawAssistantLine {
   timestamp?: string;
 }
 
-type RawLine = RawUserLine | RawAssistantLine | { type: string; [k: string]: unknown };
+interface RawSummaryLine {
+  type: "summary";
+  summary: string;
+  sessionId?: string;
+}
+
+type RawLine = RawUserLine | RawAssistantLine | RawSummaryLine | { type: string; [k: string]: unknown };
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -97,6 +103,16 @@ function isSystemLikeText(text: string): boolean {
   );
 }
 
+/**
+ * True when a user message is the post-compact continuation marker that
+ * Claude Code emits after a /compact operation.
+ */
+function isCompactContinuationMarker(text: string): boolean {
+  return text.trimStart().startsWith(
+    "This session is being continued from a previous conversation"
+  );
+}
+
 function extractUserText(content: string | RawContentBlock[]): string {
   if (typeof content === "string") return content;
   const parts: string[] = [];
@@ -120,6 +136,8 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
   let totalInput = 0;
   let totalOutput = 0;
   let msgIdx = 0;
+  let compacted = false;
+  let compactSummary: string | undefined;
 
   // Try to derive cwd from dir name
   const parts = filePath.replace(/\\/g, "/").split("/");
@@ -137,7 +155,15 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
       continue;
     }
 
-    if (parsed.type === "user") {
+    if (parsed.type === "summary") {
+      // /compact output: capture the summary and mark the session as compacted.
+      // Last summary line wins (multiple compactions in one file are rare but
+      // handled by keeping the most recent).
+      const summaryLine = parsed as RawSummaryLine;
+      compacted = true;
+      compactSummary = summaryLine.summary;
+      if (summaryLine.sessionId) sessionId = summaryLine.sessionId;
+    } else if (parsed.type === "user") {
       const line = parsed as RawUserLine;
       const ts = line.timestamp;
       if (ts) {
@@ -153,6 +179,17 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
 
       if (typeof content === "string") {
         if (isSystemLikeText(content)) continue;
+        // Detect the post-compact continuation marker.
+        if (isCompactContinuationMarker(content)) {
+          messages.push({
+            id: `m${msgIdx++}`,
+            role: "user",
+            text: content,
+            timestamp: ts,
+            kind: "compact-marker",
+          });
+          continue;
+        }
         messages.push({
           id: `m${msgIdx++}`,
           role: "user",
@@ -165,7 +202,19 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
         for (const block of content) {
           if (block.type === "text") {
             const t = (block as RawContentText).text;
-            if (!isSystemLikeText(t)) userText += (userText ? "\n" : "") + t;
+            if (isSystemLikeText(t)) {
+              // skip
+            } else if (isCompactContinuationMarker(t)) {
+              messages.push({
+                id: `m${msgIdx++}`,
+                role: "user",
+                text: t,
+                timestamp: ts,
+                kind: "compact-marker",
+              });
+            } else {
+              userText += (userText ? "\n" : "") + t;
+            }
           } else if (block.type === "tool_result") {
             const tr = block as RawContentToolResult;
             let resultText = "";
@@ -251,8 +300,10 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
     // summary / last-prompt / mode lines → skip
   }
 
-  // derive title/preview from first real user message
-  const firstUser = messages.find((m) => m.role === "user" && m.text.trim().length > 0);
+  // derive title/preview from first real user message, skipping compact-marker lines
+  const firstUser = messages.find(
+    (m) => m.role === "user" && m.kind !== "compact-marker" && m.text.trim().length > 0
+  );
   const previewText = firstUser?.text ?? "";
   const preview = previewText.slice(0, 240);
   const title = previewText.slice(0, 80) || sessionId;
@@ -279,5 +330,7 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
     tokens,
     preview,
     filePath,
+    compacted,
+    compactSummary,
   };
 }

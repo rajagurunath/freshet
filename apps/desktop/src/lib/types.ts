@@ -33,7 +33,17 @@ export type Visibility = NonNullable<GenIngestRequest["visibility"]>;
 
 export type Author = GenAuthor;
 export type SessionLink = GenSessionLink;
-export type SessionMessage = GenMessage;
+
+/**
+ * A session message, extended with desktop-side `kind` for special display.
+ * `kind: "compact-marker"` marks the Claude Code post-compact continuation
+ * message ("This session is being continued from a previous conversation…")
+ * so the UI can render it as a visible compaction divider instead of a
+ * regular user bubble.
+ */
+export type SessionMessage = GenMessage & {
+  kind?: "compact-marker";
+};
 
 /** Parsers always set both counts (wire contract defaults them to 0). */
 export type SessionTokenUsage = WithRequired<GenTokenCounts, "input" | "output">;
@@ -49,14 +59,20 @@ export type QueryResponse = Omit<GenQueryResponse, "citations"> & {
  * The normalized session, identical shape across all assistants.
  * Parsers always populate the list/scalar fields, so they are required here
  * even though the wire contract allows them to be omitted (server defaults).
+ *
+ * `messages` is overridden to use the desktop-extended `SessionMessage` type
+ * so that compact-marker and other display-only `kind` values are available.
  */
 export type NormalizedSession = Omit<
   WithRequired<
     GenNormalizedSession,
     "messageCount" | "messages" | "models" | "preview" | "filePath"
   >,
-  "tokens"
-> & { tokens?: SessionTokenUsage };
+  "tokens" | "messages"
+> & {
+  tokens?: SessionTokenUsage;
+  messages: SessionMessage[];
+};
 
 /** What the desktop app POSTs to /v1/sessions (snake_cased on the wire). */
 export type PushEnvelope = Omit<

@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, MessageSquare, Zap } from "lucide-react";
+import { CheckCircle2, MessageSquare, Scissors, Zap } from "lucide-react";
 import { cn } from "./ui/cn";
 import { ToolChip } from "./ToolChip";
 import type { NormalizedSession } from "@/lib/types";
@@ -51,6 +51,15 @@ export function SessionRow({ session, pushed = false, onClick, className }: Sess
         <div className="flex items-center gap-2 flex-wrap">
           <ToolChip tool={session.tool} />
           <span className="text-body font-medium text-ink truncate">{session.title}</span>
+          {session.compacted && (
+            <span
+              className="flex items-center gap-1 text-micro text-amber-600 font-medium px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200"
+              title="This session was compacted with /compact"
+            >
+              <Scissors size={11} />
+              compacted
+            </span>
+          )}
           {pushed && (
             <span className="flex items-center gap-1 text-micro text-success font-medium">
               <CheckCircle2 size={12} />

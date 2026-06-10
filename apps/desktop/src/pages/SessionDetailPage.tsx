@@ -95,7 +95,8 @@ export function SessionDetailPage() {
 
   const stats = useMemo(() => (session ? sessionStats(session) : null), [session]);
 
-  const [summary, setSummary] = useState("");
+  // Pre-fill with compactSummary when available — cheaper than calling the LLM.
+  const [summary, setSummary] = useState(session?.compactSummary ?? "");
   const [summarizing, setSummarizing] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
 

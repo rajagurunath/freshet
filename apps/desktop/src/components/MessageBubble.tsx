@@ -8,6 +8,7 @@ import {
   Wrench,
   User,
   Sparkles,
+  Scissors,
 } from "lucide-react";
 import { cn } from "./ui/cn";
 import { Markdown } from "./Markdown";
@@ -25,13 +26,59 @@ function formatTime(ts?: string): string | null {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * Renders a visible compaction divider in the transcript where a /compact
+ * operation occurred. The divider is collapsible and shows the compact summary
+ * text when expanded.
+ */
+function CompactDivider({ message, className }: MessageBubbleProps) {
+  const [open, setOpen] = useState(false);
+  const summaryText = message.text.trim();
+
+  return (
+    <div className={cn("px-5 py-3", className)}>
+      <div className="rounded-[8px] border border-amber-200 bg-amber-50 overflow-hidden">
+        <button
+          onClick={() => summaryText && setOpen((v) => !v)}
+          className={cn(
+            "w-full flex items-center gap-2 px-3 py-2 text-left",
+            summaryText && "hover:bg-amber-100/60 transition-colors duration-120"
+          )}
+          aria-expanded={open}
+        >
+          <Scissors size={13} className="text-amber-600 shrink-0" />
+          <span className="text-small font-medium text-amber-700 flex-1">
+            — context compacted here —
+          </span>
+          {summaryText && (
+            <span className="text-micro text-amber-500 font-medium mr-1">summary</span>
+          )}
+          {summaryText && (
+            open ? (
+              <ChevronDown size={13} className="text-amber-600" />
+            ) : (
+              <ChevronRight size={13} className="text-amber-600" />
+            )
+          )}
+        </button>
+        {summaryText && open && (
+          <div className="px-3 py-2.5 text-small text-amber-900 bg-amber-50/80 border-t border-amber-200">
+            <Markdown>{summaryText}</Markdown>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function MessageBubble({ message, className }: MessageBubbleProps) {
   const [thinkingOpen, setThinkingOpen] = useState(false);
   const [toolOpen, setToolOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const isTool = message.role === "tool" || Boolean(message.toolName);
-  const isUser = message.role === "user" && !isTool;
+  const isCompactMarker = message.kind === "compact-marker";
+  const isTool = !isCompactMarker && (message.role === "tool" || Boolean(message.toolName));
+  const isUser = !isCompactMarker && message.role === "user" && !isTool;
   const isAssistant = message.role === "assistant" && !isTool;
   const isSystem = message.role === "system" && !isTool;
   const time = formatTime(message.timestamp);
@@ -45,6 +92,12 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
       /* clipboard unavailable */
     }
   };
+
+  // Compact-marker messages render as a visible compaction divider with a
+  // collapsible summary showing the captured /compact output.
+  if (isCompactMarker) {
+    return <CompactDivider message={message} className={className} />;
+  }
 
   // System notices render as a slim divider.
   if (isSystem) {
