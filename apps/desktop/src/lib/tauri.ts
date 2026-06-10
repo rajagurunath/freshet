@@ -54,3 +54,16 @@ export async function statFile(path: string): Promise<ScanFileInfo> {
     size: meta.size ?? 0,
   };
 }
+
+/**
+ * Start the Rust `notify` file watcher for the given root directories.
+ * The watcher debounces events by 2 s and emits `session-file-changed` Tauri
+ * events with `{ path: string }` payloads whenever a session file changes.
+ *
+ * No-ops in browser/dev mode.
+ */
+export async function startWatching(roots: string[]): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke<void>("start_watching", { roots });
+}

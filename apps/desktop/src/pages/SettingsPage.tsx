@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { CheckCircle, XCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw, ShieldCheck, Activity } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 import { useSettings } from "@/store/settings";
+import { useApp } from "@/store/app";
 import { makeApiClient, type ProviderInfo } from "@/lib/api/client";
 import type { Category, Visibility, Tool } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
@@ -110,6 +111,7 @@ function SectionDivider() {
 
 export function SettingsPage() {
   const settings = useSettings();
+  const { syncState } = useApp();
   const { success } = useToast();
 
   // local state for controlled inputs
@@ -414,6 +416,44 @@ export function SettingsPage() {
                 </p>
               </div>
             )}
+
+            {/* Sync status row */}
+            <div className="flex items-start gap-3 p-3 rounded-[8px] bg-bg-sunken border border-border">
+              <Activity
+                size={16}
+                className={cn(
+                  "shrink-0 mt-0.5",
+                  isAutoSync ? "text-accent" : "text-ink-faint",
+                )}
+              />
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <p className="text-small font-medium text-ink">Auto-sync status</p>
+                <p className="text-micro text-ink-faint">
+                  {syncState.lastRunAt
+                    ? `Last run: ${new Date(syncState.lastRunAt).toLocaleString()}`
+                    : "Not yet run this session."}
+                </p>
+                {syncState.queueLength > 0 && (
+                  <p className="text-micro text-ink-soft">
+                    {syncState.queueLength} file{syncState.queueLength !== 1 ? "s" : ""} queued
+                  </p>
+                )}
+                {Object.keys(syncState.syncErrors).length > 0 && (
+                  <details className="mt-1">
+                    <summary className="text-micro text-warn cursor-pointer">
+                      {Object.keys(syncState.syncErrors).length} error{Object.keys(syncState.syncErrors).length !== 1 ? "s" : ""}
+                    </summary>
+                    <ul className="mt-1 space-y-0.5">
+                      {Object.entries(syncState.syncErrors).map(([fp, err]) => (
+                        <li key={fp} className="text-micro text-ink-faint truncate">
+                          <span className="font-mono">{fp.split("/").pop()}</span>: {err}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            </div>
           </section>
 
           <SectionDivider />

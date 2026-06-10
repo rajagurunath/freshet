@@ -7,6 +7,7 @@ import { persist } from "zustand/middleware";
 import type { NormalizedSession, Tool } from "../lib/types";
 import { scanLocalSessions } from "../lib/parsers/index";
 import type { ScanCache } from "../lib/scan-cache";
+import type { SyncState } from "../lib/autosync";
 
 // ─── sort / filter types ──────────────────────────────────────────────────────
 
@@ -43,6 +44,10 @@ export interface AppState {
   /** mtime/size cache used to skip re-parsing unchanged files. */
   scanCache: ScanCache;
 
+  // ── auto-sync state (persisted) ─────────────────────────────────────────
+  /** Persisted state for the auto-sync engine (hashes, errors, queue length). */
+  syncState: SyncState;
+
   // ── actions ─────────────────────────────────────────────────────────────
   loadSessions: () => Promise<void>;
   /** Re-scan local files (incremental — only parses new/changed files). */
@@ -54,6 +59,10 @@ export interface AppState {
   isPushed: (id: string) => boolean;
   /** Update sort + filter preferences. */
   setListPrefs: (prefs: Partial<SessionListPrefs>) => void;
+  /** Update auto-sync engine state. */
+  setSyncState: (state: SyncState) => void;
+  /** Replace pushedIds with a reconciled list (hub-confirmed ids only). */
+  reconcilePushed: (confirmedIds: string[]) => void;
 }
 
 const DEFAULT_LIST_PREFS: SessionListPrefs = {
@@ -61,6 +70,13 @@ const DEFAULT_LIST_PREFS: SessionListPrefs = {
   sortOrder: "desc",
   dateRange: "all",
   compactedOnly: false,
+};
+
+const DEFAULT_SYNC_STATE: SyncState = {
+  lastSyncedHash: {},
+  syncErrors: {},
+  lastRunAt: null,
+  queueLength: 0,
 };
 
 export const useApp = create<AppState>()(
@@ -72,6 +88,7 @@ export const useApp = create<AppState>()(
       pushedIds: [],
       listPrefs: DEFAULT_LIST_PREFS,
       scanCache: {},
+      syncState: DEFAULT_SYNC_STATE,
 
       loadSessions: async () => {
         set({ loading: true, error: null });
@@ -130,14 +147,23 @@ export const useApp = create<AppState>()(
           listPrefs: { ...state.listPrefs, ...prefs },
         }));
       },
+
+      setSyncState: (state: SyncState) => {
+        set({ syncState: state });
+      },
+
+      reconcilePushed: (confirmedIds: string[]) => {
+        set({ pushedIds: confirmedIds });
+      },
     }),
     {
       name: "context-hub-app",
-      // Persist pushedIds, listPrefs, and scanCache; sessions & loading are transient
+      // Persist pushedIds, listPrefs, scanCache, and syncState; sessions & loading are transient
       partialize: (state) => ({
         pushedIds: state.pushedIds,
         listPrefs: state.listPrefs,
         scanCache: state.scanCache,
+        syncState: state.syncState,
       }),
     }
   )

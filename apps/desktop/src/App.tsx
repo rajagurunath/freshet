@@ -21,6 +21,9 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import { useApp } from "@/store/app";
 import { useSettings } from "@/store/settings";
 import { makeApiClient } from "@/lib/api/client";
+import { startAutoSync, reconcilePushedIds, type AutoSyncDeps } from "@/lib/autosync";
+import { redactSession } from "@/lib/redact";
+import { getSessionRoots, startWatching, statFile } from "@/lib/tauri";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -32,7 +35,16 @@ const navItems = [
 type HealthState = "unknown" | "ok" | "error";
 
 function AppShell() {
-  const { loadSessions, rescan, sessions } = useApp();
+  const {
+    loadSessions,
+    rescan,
+    sessions,
+    pushedIds,
+    syncState,
+    setSyncState,
+    markPushed,
+    reconcilePushed,
+  } = useApp();
   const settings = useSettings();
   const [health, setHealth] = useState<HealthState>("unknown");
 
@@ -47,6 +59,88 @@ function AppShell() {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [rescan]);
+
+  // ── Auto-sync engine ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (settings.syncMode !== "auto") return;
+
+    // Start Tauri watcher (no-op in browser mode)
+    void getSessionRoots().then((roots) => {
+      if (roots.length > 0) {
+        void startWatching(roots).catch(() => {
+          // Watcher is best-effort; silence failures
+        });
+      }
+    });
+
+    const deps: AutoSyncDeps = {
+      push: async (envelope) => {
+        const client = makeApiClient(settings.apiBaseUrl, settings.apiKey);
+        return client.pushSession(envelope);
+      },
+      markPushed,
+      setSyncState,
+      redactSession,
+    };
+
+    const getFileInfos = async (): Promise<Record<string, { mtime: number; size: number }>> => {
+      const infos: Record<string, { mtime: number; size: number }> = {};
+      await Promise.all(
+        sessions
+          .filter((s) => s.filePath)
+          .map(async (s) => {
+            try {
+              const info = await statFile(s.filePath!);
+              infos[s.filePath!] = info;
+            } catch {
+              // File may be gone; skip
+            }
+          }),
+      );
+      return infos;
+    };
+
+    const stop = startAutoSync(
+      () => ({
+        syncMode: settings.syncMode,
+        autoSyncTools: settings.autoSyncTools,
+        redactBeforePush: settings.redactBeforePush,
+        defaultCategory: settings.defaultCategory,
+        defaultVisibility: settings.defaultVisibility,
+        apiBaseUrl: settings.apiBaseUrl,
+        apiKey: settings.apiKey,
+        author: settings.author,
+      }),
+      () => syncState,
+      deps,
+      () => sessions,
+      getFileInfos,
+    );
+
+    return stop;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.syncMode, settings.autoSyncTools.join(",")]);
+
+  // ── Reconcile pushedIds when connected ───────────────────────────────────
+  useEffect(() => {
+    if (!settings.apiBaseUrl || pushedIds.length === 0) return;
+    void (async () => {
+      try {
+        const client = makeApiClient(settings.apiBaseUrl, settings.apiKey);
+        const rows = await client.listHubSessions({
+          author: settings.author.id || settings.author.email || undefined,
+        });
+        const hubIds = new Set(rows.map((r) => r.id));
+        const reconciled = reconcilePushedIds(pushedIds, hubIds);
+        if (reconciled.length !== pushedIds.length) {
+          reconcilePushed(reconciled);
+        }
+      } catch {
+        // Hub unreachable — keep local pushedIds as-is
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.apiBaseUrl, settings.apiKey]);
 
   // Poll API health when a baseUrl is configured
   useEffect(() => {
@@ -145,7 +239,12 @@ function AppShell() {
         <div className="p-3 border-t border-border space-y-2">
           {/* Sync mode pill */}
           <div className="flex items-center gap-2 px-2 py-1">
-            <RefreshCw size={12} className="text-ink-faint" />
+            <RefreshCw
+              size={12}
+              className={cn(
+                settings.syncMode === "auto" ? "text-accent" : "text-ink-faint",
+              )}
+            />
             <span className="text-micro text-ink-faint">
               {settings.syncMode === "auto" ? "Auto sync" : "Manual sync"}
             </span>
@@ -157,7 +256,11 @@ function AppShell() {
                   : "bg-bg-sunken text-ink-faint",
               )}
             >
-              {settings.syncMode ?? "manual"}
+              {settings.syncMode === "auto"
+                ? syncState.queueLength > 0
+                  ? `${syncState.queueLength} queued`
+                  : "auto"
+                : "manual"}
             </span>
           </div>
 
