@@ -13,6 +13,18 @@
         "name": {
           "title": "Name",
           "type": "string"
+        },
+        "team": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Team"
         }
       },
       "required": [
@@ -647,6 +659,18 @@
           ],
           "default": null,
           "title": "Summary"
+        },
+        "team": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Team"
         },
         "title": {
           "title": "Title",

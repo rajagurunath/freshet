@@ -60,8 +60,36 @@ class Settings(BaseSettings):
 
     @property
     def api_key_list(self) -> list[str]:
-        """Return the parsed list of allowed API keys."""
-        return [k.strip() for k in self.api_keys.split(",") if k.strip()]
+        """Return the parsed list of allowed API keys (bare key only, for backward compat)."""
+        return [triple[0] for triple in self.api_key_triples]
+
+    @property
+    def api_key_triples(self) -> list[tuple[str, str | None, str | None]]:
+        """Parse API_KEYS into (key, user_id, team) triples.
+
+        Format: ``key`` (bare, anonymous) or ``key:user_id:team``.
+        Comma-separated.  Missing user_id/team fields are returned as None.
+
+        Examples::
+            "dev-key"                             → [("dev-key", None, None)]
+            "k1:alice:team-red,k2:bob:team-blue"  → [("k1","alice","team-red"),
+                                                      ("k2","bob","team-blue")]
+            "k1:alice:team-red,k2"                → [("k1","alice","team-red"),
+                                                      ("k2", None, None)]
+        """
+        result: list[tuple[str, str | None, str | None]] = []
+        for raw in self.api_keys.split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            parts = raw.split(":")
+            key = parts[0].strip()
+            if not key:
+                continue
+            user_id: str | None = parts[1].strip() if len(parts) >= 2 and parts[1].strip() else None
+            team: str | None = parts[2].strip() if len(parts) >= 3 and parts[2].strip() else None
+            result.append((key, user_id, team))
+        return result
 
     @property
     def cors_origin_list(self) -> list[str]:

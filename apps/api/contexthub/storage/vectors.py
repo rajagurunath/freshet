@@ -81,6 +81,7 @@ def _chunks_schema(dim: int) -> pa.Schema:
         pa.field("tool", pa.string()),
         pa.field("category", pa.string()),
         pa.field("author", pa.string()),          # author.id
+        pa.field("team", pa.string()),            # author's team (for team-scoped visibility)
         pa.field("project", pa.string()),
         pa.field("visibility", pa.string()),
         pa.field("text", pa.string()),
@@ -96,6 +97,7 @@ def _sessions_schema() -> pa.Schema:
         pa.field("title", pa.string()),
         pa.field("category", pa.string()),
         pa.field("author", pa.string()),
+        pa.field("team", pa.string()),               # author's team (for team-scoped visibility)
         pa.field("project", pa.string()),
         pa.field("visibility", pa.string()),
         pa.field("message_count", pa.int64()),
@@ -297,15 +299,19 @@ class VectorStore:
         top_k: int,
         filters: Optional[dict[str, Any]] = None,
         mode: str = "hybrid",
+        caller_user_id: Optional[str] = None,
+        caller_team: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """Search chunks using vector, FTS, or hybrid (RRF-fused) strategy.
 
         Args:
-            query:     Raw query string (used for FTS).
-            query_vec: Query embedding (used for vector search).
-            top_k:     Maximum number of results to return.
-            filters:   Optional metadata equality filters (key→value).
-            mode:      "hybrid" (default), "vector", or "keyword".
+            query:           Raw query string (used for FTS).
+            query_vec:       Query embedding (used for vector search).
+            top_k:           Maximum number of results to return.
+            filters:         Optional metadata equality filters (key→value).
+            mode:            "hybrid" (default), "vector", or "keyword".
+            caller_user_id:  Authenticated caller's user_id (for visibility).
+            caller_team:     Authenticated caller's team (for visibility).
 
         Returns:
             List of row dicts, each augmented with a ``_score`` field carrying
@@ -315,16 +321,17 @@ class VectorStore:
         tbl = self._get_chunks_table()
         candidate_limit = top_k * 3  # oversample before RRF merge
 
-        # Build a LanceDB WHERE clause from filters
-        where_clause: Optional[str] = None
+        # Build a LanceDB WHERE clause combining metadata filters and visibility
+        meta_parts: list[str] = []
         if filters:
-            parts = []
             for key, val in filters.items():
                 if val is not None:
                     safe = str(val).replace("'", "''")
-                    parts.append(f"{key} = '{safe}'")
-            if parts:
-                where_clause = " AND ".join(parts)
+                    meta_parts.append(f"{key} = '{safe}'")
+
+        vis_clause = self.build_visibility_clause(caller_user_id, caller_team)
+        all_parts = meta_parts + [vis_clause]
+        where_clause: str = " AND ".join(all_parts)
 
         # Helper: run vector ANN search
         def _vector_search() -> list[dict[str, Any]]:
@@ -399,6 +406,39 @@ class VectorStore:
         return output
 
     # ------------------------------------------------------------------
+    # Visibility filtering
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def build_visibility_clause(
+        caller_user_id: Optional[str],
+        caller_team: Optional[str],
+    ) -> str:
+        """Return a LanceDB WHERE clause enforcing the visibility rules.
+
+        Rules:
+          - company  → always visible to all authenticated callers
+          - team     → visible when the row's team equals the caller's team
+          - private  → visible only when the row's author equals the caller's user_id
+
+        For anonymous callers (user_id=None, team=None), only company-wide
+        sessions are returned.
+
+        The returned clause is safe to combine with other clauses via AND.
+        """
+        parts: list[str] = ["visibility = 'company'"]
+
+        if caller_team is not None:
+            safe_team = caller_team.replace("'", "''")
+            parts.append(f"(visibility = 'team' AND team = '{safe_team}')")
+
+        if caller_user_id is not None:
+            safe_uid = caller_user_id.replace("'", "''")
+            parts.append(f"(visibility = 'private' AND author = '{safe_uid}')")
+
+        return "(" + " OR ".join(parts) + ")"
+
+    # ------------------------------------------------------------------
     # Catalog queries (paginated + sorted)
     # ------------------------------------------------------------------
 
@@ -409,12 +449,18 @@ class VectorStore:
         offset: int = 0,
         sort: str = "created_at",
         order: str = "desc",
+        caller_user_id: Optional[str] = None,
+        caller_team: Optional[str] = None,
     ) -> dict[str, Any]:
         """Return a paginated, sorted catalog result dict with keys:
         ``items``, ``total``, ``limit``, ``offset``.
 
         ``sort`` must be one of SORT_FIELDS; unknown values are silently
         replaced with ``created_at``.  ``order`` is ``asc`` or ``desc``.
+
+        Visibility is enforced via a WHERE clause generated by
+        ``build_visibility_clause``.  Callers with no user_id/team (anonymous)
+        see only company-wide sessions.
         """
         if sort not in SORT_FIELDS:
             logger.warning("Unknown sort field %r, defaulting to created_at", sort)
@@ -424,24 +470,24 @@ class VectorStore:
 
         tbl = self._get_sessions_table()
 
-        where_clause: Optional[str] = None
+        # Build metadata filter clause
+        meta_parts: list[str] = []
         if filters:
-            where_parts = []
             for key, val in filters.items():
                 if val is not None:
                     safe = str(val).replace("'", "''")
-                    where_parts.append(f"{key} = '{safe}'")
-            if where_parts:
-                where_clause = " AND ".join(where_parts)
+                    meta_parts.append(f"{key} = '{safe}'")
+
+        # Always enforce visibility
+        vis_clause = self.build_visibility_clause(caller_user_id, caller_team)
+        all_parts = meta_parts + [vis_clause]
+        where_clause: str = " AND ".join(all_parts)
 
         # Fetch all rows matching the filter (LanceDB doesn't yet support
         # SQL-style ORDER BY + LIMIT + OFFSET in a single call on all backends,
         # so we do sort/slice in Python after fetching the matching set).
         try:
-            if where_clause:
-                arrow_tbl = tbl.search().where(where_clause).limit(100_000).to_arrow()
-            else:
-                arrow_tbl = tbl.to_arrow()
+            arrow_tbl = tbl.search().where(where_clause).limit(100_000).to_arrow()
         except Exception:
             logger.exception("list_sessions scan failed")
             raise
@@ -465,11 +511,34 @@ class VectorStore:
 
         return {"items": items, "total": total, "limit": limit, "offset": offset}
 
-    def get_session(self, session_id: str) -> Optional[dict[str, Any]]:
-        """Return a single catalog row by id, or None."""
+    def get_session(
+        self,
+        session_id: str,
+        caller_user_id: Optional[str] = None,
+        caller_team: Optional[str] = None,
+        enforce_visibility: bool = False,
+    ) -> Optional[dict[str, Any]]:
+        """Return a single catalog row by id, or None.
+
+        When ``enforce_visibility=True`` the visibility clause is combined with
+        the id filter so that rows the caller is not allowed to see are
+        returned as None (same effect as 404 in the route).  Pass
+        caller_user_id/caller_team from the authenticated Caller.
+
+        When ``enforce_visibility=False`` (default, used internally for hash
+        checks and chunk ownership lookups) visibility is not applied.
+        """
         tbl = self._get_sessions_table()
         safe_id = session_id.replace("'", "''")
-        rows = tbl.search().where(f"id = '{safe_id}'").limit(1).to_list()
+        id_clause = f"id = '{safe_id}'"
+
+        if enforce_visibility:
+            vis_clause = self.build_visibility_clause(caller_user_id, caller_team)
+            where = f"{id_clause} AND {vis_clause}"
+        else:
+            where = id_clause
+
+        rows = tbl.search().where(where).limit(1).to_list()
         return rows[0] if rows else None
 
     # ------------------------------------------------------------------

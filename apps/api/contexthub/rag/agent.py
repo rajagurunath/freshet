@@ -99,17 +99,22 @@ def answer_query(
     vectors: VectorStore,
     embedder: Embedder,
     settings: Settings,
+    caller_user_id: Optional[str] = None,
+    caller_team: Optional[str] = None,
 ) -> QueryResponse:
     """Execute a RAG query and return a grounded answer with citations.
 
     Args:
-        req:      The incoming query request (question + filters + top_k).
-        vectors:  Initialised VectorStore.
-        embedder: Initialised embedder matching the stored vector dimension.
-        settings: Application settings (API key, model name, etc.).
+        req:             The incoming query request (question + filters + top_k).
+        vectors:         Initialised VectorStore.
+        embedder:        Initialised embedder matching the stored vector dimension.
+        settings:        Application settings (API key, model name, etc.).
+        caller_user_id:  Authenticated caller's user_id (for visibility enforcement).
+        caller_team:     Authenticated caller's team (for visibility enforcement).
 
     Returns:
-        QueryResponse with answer and citations.
+        QueryResponse with answer and citations.  Only sessions the caller is
+        authorised to see are included.
     """
     # 1. Embed the question
     query_vec = embedder.embed_query(req.question)
@@ -126,13 +131,15 @@ def answer_query(
         if req.filters.author:
             raw_filters["author"] = req.filters.author
 
-    # 3. Search — use hybrid (FTS + vector + RRF) by default
+    # 3. Search — use hybrid (FTS + vector + RRF) by default; visibility enforced
     results = vectors.hybrid_search(
         query=req.question,
         query_vec=query_vec,
         top_k=req.top_k,
         filters=raw_filters or None,
         mode=req.mode,
+        caller_user_id=caller_user_id,
+        caller_team=caller_team,
     )
 
     if not results:

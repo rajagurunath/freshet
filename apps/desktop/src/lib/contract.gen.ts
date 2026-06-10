@@ -11,6 +11,7 @@ export interface Author {
   email: string;
   id: string;
   name: string;
+  team?: string;
 }
 
 export interface Citation {
@@ -105,6 +106,7 @@ export interface SessionCatalogRow {
   preview?: string;
   project?: string;
   summary?: string;
+  team?: string;
   title: string;
   tokensInput?: number;
   tokensOutput?: number;

@@ -23,7 +23,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from contexthub.config import Settings, get_settings
-from contexthub.deps import require_api_key
+from contexthub.deps import Caller, require_api_key
 from contexthub.embeddings import get_embedder
 from contexthub.ingest.chunker import build_chunks
 from contexthub.ingest.redact import redact_text
@@ -64,7 +64,7 @@ def healthz():
 
 @router.get("/v1/providers", tags=["meta"])
 def providers(
-    _token: str = Depends(require_api_key),
+    _caller: Caller = Depends(require_api_key),
     settings: Settings = Depends(get_settings),
 ):
     """Report which LLM providers are usable on this host + the current default."""
@@ -108,6 +108,7 @@ def _row_to_catalog(r: dict) -> SessionCatalogRow:
         title=r["title"],
         category=r["category"],
         author=r.get("author") or None,
+        team=r.get("team") or None,
         project=r.get("project") or None,
         visibility=r["visibility"],
         message_count=int(r.get("message_count", 0)),
@@ -130,7 +131,7 @@ def _row_to_catalog(r: dict) -> SessionCatalogRow:
 @router.post("/v1/sessions", response_model=IngestResponse, tags=["sessions"])
 def ingest_session(
     body: IngestRequest,
-    _token: str = Depends(require_api_key),
+    caller: Caller = Depends(require_api_key),
     settings: Settings = Depends(get_settings),
 ):
     """Ingest a session envelope.
@@ -203,6 +204,8 @@ def ingest_session(
     tokens_output = session.tokens.output if session.tokens else 0
     tokens_total = tokens_input + tokens_output
 
+    author_team = body.author.team or ""
+
     chunk_rows = [
         {
             "id": chunk.id,
@@ -210,6 +213,7 @@ def ingest_session(
             "tool": session.tool,
             "category": body.category,
             "author": body.author.id,
+            "team": author_team,
             "project": session.project or "",
             "visibility": body.visibility,
             "text": chunk.text,
@@ -235,6 +239,7 @@ def ingest_session(
         "title": session.title,
         "category": body.category,
         "author": body.author.id,
+        "team": author_team,
         "project": session.project or "",
         "visibility": body.visibility,
         "message_count": session.message_count,
@@ -278,7 +283,7 @@ def list_sessions(
     offset: int = Query(0, ge=0),
     sort: str = Query("created_at"),
     order: str = Query("desc"),
-    _token: str = Depends(require_api_key),
+    caller: Caller = Depends(require_api_key),
 ):
     """Return a paginated, sorted catalog page.
 
@@ -288,6 +293,11 @@ def list_sessions(
       sort    — one of: created_at | updated_at | message_count | tokens_input |
                         tokens_output | tokens_total | project | tool | title
       order   — asc | desc (default desc)
+
+    Visibility is enforced per the caller's identity:
+      company-wide sessions are visible to all authenticated callers;
+      team-scoped sessions are visible only to callers on the same team;
+      private sessions are visible only to the owning user.
     """
     if sort not in SORT_FIELDS:
         sort = "created_at"
@@ -311,6 +321,8 @@ def list_sessions(
         offset=offset,
         sort=sort,
         order=order,
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
     )
 
     items = [_row_to_catalog(r) for r in result["items"]]
@@ -325,11 +337,21 @@ def list_sessions(
 @router.get("/v1/sessions/{session_id}", response_model=SessionDetail, tags=["sessions"])
 def get_session(
     session_id: str,
-    _token: str = Depends(require_api_key),
+    caller: Caller = Depends(require_api_key),
 ):
-    """Return SessionDetail (catalog row + raw blob JSON) for a specific session."""
+    """Return SessionDetail (catalog row + raw blob JSON) for a specific session.
+
+    Returns 404 when the session does not exist OR when the caller is not
+    authorised to view it (i.e. visibility enforcement — private sessions
+    appear as missing to other callers).
+    """
     vectors = get_vector_store()
-    row = vectors.get_session(session_id)
+    row = vectors.get_session(
+        session_id,
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
+        enforce_visibility=True,
+    )
     if not row:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
 
@@ -352,7 +374,7 @@ def get_session(
 @router.post("/v1/summarize", response_model=SummarizeResponse, tags=["rag"])
 def summarize(
     body: SummarizeRequest,
-    _token: str = Depends(require_api_key),
+    _caller: Caller = Depends(require_api_key),
     settings: Settings = Depends(get_settings),
 ):
     """Generate a structured summary for a session (does not ingest it)."""
@@ -367,13 +389,24 @@ def summarize(
 @router.post("/v1/query", response_model=QueryResponse, tags=["rag"])
 def query(
     body: QueryRequest,
-    _token: str = Depends(require_api_key),
+    caller: Caller = Depends(require_api_key),
     settings: Settings = Depends(get_settings),
 ):
-    """RAG query across all ingested sessions."""
+    """RAG query across all ingested sessions.
+
+    Visibility is enforced: the caller will only receive citations from
+    sessions they are authorised to read.
+    """
     embedder = get_embedder()
     vectors = get_vector_store(embedding_dim=embedder.dim)
-    return answer_query(req=body, vectors=vectors, embedder=embedder, settings=settings)
+    return answer_query(
+        req=body,
+        vectors=vectors,
+        embedder=embedder,
+        settings=settings,
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +415,7 @@ def query(
 
 @router.get("/v1/stats", response_model=StatsResponse, tags=["meta"])
 def stats(
-    _token: str = Depends(require_api_key),
+    _caller: Caller = Depends(require_api_key),
 ):
     """Aggregate statistics: total sessions, chunks, breakdown by tool/category."""
     vectors = get_vector_store()

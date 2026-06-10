@@ -70,6 +70,7 @@ class Author(BaseModel):
     id: str
     email: str
     name: str
+    team: Optional[str] = None  # author's team (for team-scoped visibility)
 
 
 CategoryLiteral = Literal["engineering", "sales", "marketing", "research", "ops", "other"]
@@ -156,6 +157,7 @@ class SessionCatalogRow(BaseModel):
     title: str
     category: str
     author: Optional[str] = None
+    team: Optional[str] = None      # author's team (from Author.team)
     project: Optional[str] = None
     visibility: str
     message_count: int
