@@ -90,6 +90,9 @@ class IngestResponse(BaseModel):
     blob_uri: str
     chunks_indexed: int
     summary_used: bool
+    skipped: bool = False          # True when re-ingest found identical content_hash
+    created_at: Optional[str] = None  # ISO timestamp; preserved on skip
+    updated_at: Optional[str] = None  # ISO timestamp; set on every write
 
 
 # ---------------------------------------------------------------------------
@@ -157,8 +160,28 @@ class SessionCatalogRow(BaseModel):
     models: list[str] = Field(default_factory=list)
     preview: str = ""
     created_at: str
+    updated_at: Optional[str] = None
     blob_uri: str
     summary: Optional[str] = None
+    tokens_input: int = 0
+    tokens_output: int = 0
+    tokens_total: int = 0          # tokens_input + tokens_output (denormalised for sorting)
+
+
+class SessionPage(BaseModel):
+    """Paginated list of catalog rows."""
+
+    items: list[SessionCatalogRow]
+    total: int
+    limit: int
+    offset: int
+
+
+class SessionDetail(BaseModel):
+    """Full detail response for a single session (catalog row + raw blob)."""
+
+    catalog: SessionCatalogRow
+    raw: Optional[dict] = None
 
 
 class StatsResponse(BaseModel):

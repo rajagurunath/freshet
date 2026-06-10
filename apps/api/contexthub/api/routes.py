@@ -2,8 +2,8 @@
 
 Endpoints:
   POST   /v1/sessions         — ingest a session envelope
-  GET    /v1/sessions         — list catalog (with optional filters)
-  GET    /v1/sessions/{id}    — fetch catalog row + raw blob
+  GET    /v1/sessions         — list catalog (paginated, sorted, filtered)
+  GET    /v1/sessions/{id}    — fetch SessionDetail (catalog + raw blob)
   POST   /v1/summarize        — summarize a session
   POST   /v1/query            — RAG query
   GET    /v1/stats            — aggregate statistics
@@ -14,6 +14,7 @@ All endpoints except /healthz require a valid Bearer token.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -32,6 +33,8 @@ from contexthub.models import (
     QueryRequest,
     QueryResponse,
     SessionCatalogRow,
+    SessionDetail,
+    SessionPage,
     StatsResponse,
     SummarizeRequest,
     SummarizeResponse,
@@ -39,11 +42,14 @@ from contexthub.models import (
 from contexthub.rag.agent import answer_query
 from contexthub.rag.summarize import summarize_session
 from contexthub.storage.blob import get_blob_store
-from contexthub.storage.vectors import get_vector_store
+from contexthub.storage.vectors import SORT_FIELDS, get_vector_store
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+_DEFAULT_LIMIT = 50
+_MAX_LIMIT = 200
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +78,52 @@ def providers(
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _compute_content_hash(body: IngestRequest, summary: Optional[str]) -> str:
+    """Compute a deterministic SHA-256 hash of the canonical session content.
+
+    The hash covers the session JSON (sorted keys) plus the effective summary,
+    so that a re-ingest with identical content is idempotent.
+    """
+    session_dict = body.session.model_dump(mode="json")
+    canonical = json.dumps(session_dict, sort_keys=True, ensure_ascii=False)
+    combined = canonical + "\n---\n" + (summary or "")
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+
+def _row_to_catalog(r: dict) -> SessionCatalogRow:
+    """Convert a raw LanceDB sessions row to a SessionCatalogRow."""
+    models_raw = r.get("models") or []
+    if isinstance(models_raw, str):
+        try:
+            models_raw = json.loads(models_raw)
+        except Exception:
+            models_raw = []
+
+    return SessionCatalogRow(
+        id=r["id"],
+        tool=r["tool"],
+        title=r["title"],
+        category=r["category"],
+        author=r.get("author") or None,
+        project=r.get("project") or None,
+        visibility=r["visibility"],
+        message_count=int(r.get("message_count", 0)),
+        models=list(models_raw),
+        preview=r.get("preview", ""),
+        created_at=r.get("created_at", ""),
+        updated_at=r.get("updated_at") or None,
+        blob_uri=r.get("blob_uri", ""),
+        summary=r.get("summary") or None,
+        tokens_input=int(r.get("tokens_input") or 0),
+        tokens_output=int(r.get("tokens_output") or 0),
+        tokens_total=int(r.get("tokens_total") or 0),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Ingest
 # ---------------------------------------------------------------------------
 
@@ -84,22 +136,52 @@ def ingest_session(
     """Ingest a session envelope.
 
     Pipeline:
+      0. Compute content_hash; if identical to stored hash → skip (idempotent).
       1. Optionally re-redact text fields if body.redacted is False.
       2. Store raw JSON in blob store (S3 or local).
       3. Build text chunks (summary + sliding window over messages).
       4. Embed chunks.
-      5. Upsert chunks + catalog row into LanceDB.
+      5. Atomic upsert chunks + catalog row into LanceDB (merge_insert).
     """
     session = body.session
+    now = datetime.now(timezone.utc).isoformat()
 
-    # Optional server-side redaction (belt-and-suspenders)
+    # Determine effective summary early (needed for hash computation)
+    effective_summary: Optional[str] = body.summary
+    # Note: we do NOT call summarize_session here — that is sync-heavy and will
+    # be moved to the jobs subsystem in Task 5. If no summary is provided we
+    # fall back to a stub/empty so ingest stays fast.
+    if not effective_summary:
+        effective_summary = summarize_session(session, settings)
+
+    # 0. Idempotency check
+    content_hash = _compute_content_hash(body, effective_summary)
+    vectors = get_vector_store(embedding_dim=get_embedder().dim)
+    existing = vectors.get_session(session.id)
+
+    if existing and existing.get("content_hash") == content_hash:
+        # Identical content — skip re-embedding and re-writing
+        return IngestResponse(
+            session_id=session.id,
+            blob_uri=existing.get("blob_uri", ""),
+            chunks_indexed=0,
+            summary_used=bool(existing.get("summary")),
+            skipped=True,
+            created_at=existing.get("created_at", now),
+            updated_at=existing.get("updated_at", now),
+        )
+
+    # Preserve original created_at on re-ingest with new content
+    original_created_at = existing.get("created_at", now) if existing else now
+
+    # 1. Optional server-side redaction (belt-and-suspenders)
     if not body.redacted:
         for msg in session.messages:
             msg.text, _ = redact_text(msg.text)
             if msg.thinking:
                 msg.thinking, _ = redact_text(msg.thinking)
 
-    # 1. Persist raw JSON
+    # 2. Persist raw JSON
     blob = get_blob_store()
     raw_json = body.model_dump_json()
     blob_uri = blob.put_session(
@@ -107,11 +189,6 @@ def ingest_session(
         session_id=session.id,
         raw_json=raw_json,
     )
-
-    # 2. Determine summary
-    effective_summary: Optional[str] = body.summary
-    if not effective_summary:
-        effective_summary = summarize_session(session, settings)
 
     # 3. Build chunks
     chunks = build_chunks(session, summary=effective_summary)
@@ -121,9 +198,10 @@ def ingest_session(
     texts = [c.text for c in chunks]
     vectors_list = embedder.embed_texts(texts) if texts else []
 
-    # 5. Upsert into LanceDB
-    vectors = get_vector_store(embedding_dim=embedder.dim)
-    created_at = datetime.now(timezone.utc).isoformat()
+    # 5. Atomic upsert into LanceDB
+    tokens_input = session.tokens.input if session.tokens else 0
+    tokens_output = session.tokens.output if session.tokens else 0
+    tokens_total = tokens_input + tokens_output
 
     chunk_rows = [
         {
@@ -136,7 +214,7 @@ def ingest_session(
             "visibility": body.visibility,
             "text": chunk.text,
             "vector": vec,
-            "created_at": created_at,
+            "created_at": original_created_at,
         }
         for chunk, vec in zip(chunks, vectors_list)
     ]
@@ -151,11 +229,16 @@ def ingest_session(
         "project": session.project or "",
         "visibility": body.visibility,
         "message_count": session.message_count,
-        "models": json.dumps(session.models),
+        "models": list(session.models),
         "preview": session.preview,
-        "created_at": created_at,
+        "created_at": original_created_at,
+        "updated_at": now,
         "blob_uri": blob_uri,
         "summary": effective_summary or "",
+        "content_hash": content_hash,
+        "tokens_input": tokens_input,
+        "tokens_output": tokens_output,
+        "tokens_total": tokens_total,
     }
     vectors.upsert_session(catalog_row)
 
@@ -165,6 +248,9 @@ def ingest_session(
         blob_uri=blob_uri,
         chunks_indexed=len(chunks),
         summary_used=bool(effective_summary),
+        skipped=False,
+        created_at=original_created_at,
+        updated_at=now,
     )
 
 
@@ -172,16 +258,31 @@ def ingest_session(
 # Session catalog
 # ---------------------------------------------------------------------------
 
-@router.get("/v1/sessions", response_model=list[SessionCatalogRow], tags=["sessions"])
+@router.get("/v1/sessions", response_model=SessionPage, tags=["sessions"])
 def list_sessions(
     category: Optional[str] = Query(None),
     tool: Optional[str] = Query(None),
     project: Optional[str] = Query(None),
     author: Optional[str] = Query(None),
     visibility: Optional[str] = Query(None),
+    limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    offset: int = Query(0, ge=0),
+    sort: str = Query("created_at"),
+    order: str = Query("desc"),
     _token: str = Depends(require_api_key),
 ):
-    """Return catalog rows, optionally filtered by metadata fields."""
+    """Return a paginated, sorted catalog page.
+
+    Query params:
+      limit   — page size (1–200, default 50)
+      offset  — number of rows to skip (default 0)
+      sort    — one of: created_at | updated_at | message_count | tokens_input |
+                        tokens_output | tokens_total | project | tool | title
+      order   — asc | desc (default desc)
+    """
+    if sort not in SORT_FIELDS:
+        sort = "created_at"
+
     filters: dict = {}
     if category:
         filters["category"] = category
@@ -195,33 +296,29 @@ def list_sessions(
         filters["visibility"] = visibility
 
     vectors = get_vector_store()
-    rows = vectors.list_sessions(filters or None)
-    result = []
-    for r in rows:
-        result.append(SessionCatalogRow(
-            id=r["id"],
-            tool=r["tool"],
-            title=r["title"],
-            category=r["category"],
-            author=r.get("author"),
-            project=r.get("project"),
-            visibility=r["visibility"],
-            message_count=int(r.get("message_count", 0)),
-            models=json.loads(r.get("models") or "[]"),
-            preview=r.get("preview", ""),
-            created_at=r.get("created_at", ""),
-            blob_uri=r.get("blob_uri", ""),
-            summary=r.get("summary") or None,
-        ))
-    return result
+    result = vectors.list_sessions(
+        filters=filters or None,
+        limit=limit,
+        offset=offset,
+        sort=sort,
+        order=order,
+    )
+
+    items = [_row_to_catalog(r) for r in result["items"]]
+    return SessionPage(
+        items=items,
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+    )
 
 
-@router.get("/v1/sessions/{session_id}", tags=["sessions"])
+@router.get("/v1/sessions/{session_id}", response_model=SessionDetail, tags=["sessions"])
 def get_session(
     session_id: str,
     _token: str = Depends(require_api_key),
 ):
-    """Return catalog row plus the raw blob JSON for a specific session."""
+    """Return SessionDetail (catalog row + raw blob JSON) for a specific session."""
     vectors = get_vector_store()
     row = vectors.get_session(session_id)
     if not row:
@@ -232,10 +329,11 @@ def get_session(
     author_id = row.get("author", "")
     raw = blob.get_session(author_id=author_id, session_id=session_id)
 
-    return {
-        "catalog": row,
-        "raw": json.loads(raw) if raw else None,
-    }
+    catalog = _row_to_catalog(row)
+    return SessionDetail(
+        catalog=catalog,
+        raw=json.loads(raw) if raw else None,
+    )
 
 
 # ---------------------------------------------------------------------------

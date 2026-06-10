@@ -5,7 +5,7 @@ Two tables:
   sessions — catalog / metadata for each ingested session
 
 Tables are created lazily on first use with explicit pyarrow schemas.
-Upserts are implemented as delete-then-add for deterministic ids.
+Upserts are atomic using merge_insert (matched → update_all, unmatched → insert_all).
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from functools import lru_cache
 from typing import Any, Optional
 
 import pyarrow as pa
@@ -21,6 +20,22 @@ import pyarrow as pa
 from contexthub.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Sort field allowlist
+# ---------------------------------------------------------------------------
+
+SORT_FIELDS = frozenset({
+    "created_at",
+    "updated_at",
+    "message_count",
+    "tokens_input",
+    "tokens_output",
+    "tokens_total",
+    "project",
+    "tool",
+    "title",
+})
 
 # ---------------------------------------------------------------------------
 # PyArrow schemas
@@ -51,11 +66,16 @@ def _sessions_schema() -> pa.Schema:
         pa.field("project", pa.string()),
         pa.field("visibility", pa.string()),
         pa.field("message_count", pa.int64()),
-        pa.field("models", pa.string()),          # JSON-encoded list
+        pa.field("models", pa.list_(pa.string())),   # list<string> — no JSON encoding
         pa.field("preview", pa.string()),
         pa.field("created_at", pa.string()),
+        pa.field("updated_at", pa.string()),
         pa.field("blob_uri", pa.string()),
         pa.field("summary", pa.string()),
+        pa.field("content_hash", pa.string()),       # sha256 for idempotency
+        pa.field("tokens_input", pa.int64()),
+        pa.field("tokens_output", pa.int64()),
+        pa.field("tokens_total", pa.int64()),        # denormalised sum for sorting
     ])
 
 
@@ -82,13 +102,11 @@ class VectorStore:
     def _existing_table_names(self) -> list[str]:
         """Return the list of existing table names, compatible with all lancedb versions."""
         try:
-            # lancedb >= 0.8 returns a ListTablesResponse object
             resp = self._db.list_tables()
             if hasattr(resp, "tables"):
                 return list(resp.tables)
             return list(resp)
         except Exception:
-            # Fallback to deprecated table_names()
             return list(self._db.table_names())  # type: ignore[attr-defined]
 
     def _get_chunks_table(self):
@@ -114,39 +132,70 @@ class VectorStore:
         return self._sessions_tbl
 
     # ------------------------------------------------------------------
-    # Upsert helpers
+    # Idempotency
+    # ------------------------------------------------------------------
+
+    def get_session_hash(self, session_id: str) -> Optional[str]:
+        """Return the stored content_hash for a session, or None if not found."""
+        row = self.get_session(session_id)
+        if row is None:
+            return None
+        return row.get("content_hash")
+
+    # ------------------------------------------------------------------
+    # Upsert helpers (atomic merge_insert)
     # ------------------------------------------------------------------
 
     def upsert_chunks(self, rows: list[dict[str, Any]]) -> None:
-        """Insert or replace chunks identified by their 'id' field."""
+        """Insert or replace chunks identified by their 'id' field (atomic)."""
         if not rows:
             return
         tbl = self._get_chunks_table()
-        ids = [r["id"] for r in rows]
-        # Delete existing rows for these ids (deterministic upsert)
-        if ids:
-            id_list = ", ".join(f"'{i}'" for i in ids)
-            try:
-                tbl.delete(f"id IN ({id_list})")
-            except Exception:
-                pass  # table may be empty on first run
-        # Coerce vectors to list[float32] expected by pyarrow
+
+        # Coerce vectors to list[float32]
         coerced = []
         for r in rows:
             row = dict(r)
             row["vector"] = [float(v) for v in row["vector"]]
             coerced.append(row)
-        tbl.add(coerced)
+
+        import pyarrow as pa
+        batch = pa.RecordBatch.from_pylist(coerced, schema=_chunks_schema(self._dim))
+        try:
+            (
+                tbl.merge_insert("id")
+                .when_matched_update_all()
+                .when_not_matched_insert_all()
+                .execute(batch)
+            )
+        except Exception:
+            logger.exception("upsert_chunks failed for session %s", rows[0].get("session_id", "?"))
+            raise
 
     def upsert_session(self, row: dict[str, Any]) -> None:
-        """Insert or replace a catalog row identified by session 'id'."""
+        """Insert or replace a catalog row identified by session 'id' (atomic)."""
         tbl = self._get_sessions_table()
-        sid = row["id"]
+
+        # Ensure list fields have the right type
+        processed = dict(row)
+        if isinstance(processed.get("models"), str):
+            try:
+                processed["models"] = json.loads(processed["models"])
+            except Exception:
+                processed["models"] = []
+
+        import pyarrow as pa
+        batch = pa.RecordBatch.from_pylist([processed], schema=_sessions_schema())
         try:
-            tbl.delete(f"id = '{sid}'")
+            (
+                tbl.merge_insert("id")
+                .when_matched_update_all()
+                .when_not_matched_insert_all()
+                .execute(batch)
+            )
         except Exception:
-            pass
-        tbl.add([row])
+            logger.exception("upsert_session failed for session %s", row.get("id", "?"))
+            raise
 
     # ------------------------------------------------------------------
     # Search
@@ -173,17 +222,31 @@ class VectorStore:
         return results
 
     # ------------------------------------------------------------------
-    # Catalog queries
+    # Catalog queries (paginated + sorted)
     # ------------------------------------------------------------------
 
-    def list_sessions(self, filters: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
-        """Return catalog rows, optionally filtered.
+    def list_sessions(
+        self,
+        filters: Optional[dict[str, Any]] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort: str = "created_at",
+        order: str = "desc",
+    ) -> dict[str, Any]:
+        """Return a paginated, sorted catalog result dict with keys:
+        ``items``, ``total``, ``limit``, ``offset``.
 
-        Uses to_arrow() for full-table scans (no filter) and search().where()
-        for filtered queries, since LanceDB's non-vector search().to_list()
-        works correctly in both cases.
+        ``sort`` must be one of SORT_FIELDS; unknown values are silently
+        replaced with ``created_at``.  ``order`` is ``asc`` or ``desc``.
         """
+        if sort not in SORT_FIELDS:
+            logger.warning("Unknown sort field %r, defaulting to created_at", sort)
+            sort = "created_at"
+        if order not in ("asc", "desc"):
+            order = "desc"
+
         tbl = self._get_sessions_table()
+
         where_clause: Optional[str] = None
         if filters:
             where_parts = []
@@ -194,11 +257,36 @@ class VectorStore:
             if where_parts:
                 where_clause = " AND ".join(where_parts)
 
-        if where_clause:
-            return tbl.search().where(where_clause).limit(1000).to_list()
-        else:
-            # Full-table scan: to_arrow() is more reliable than search() with no query
-            return tbl.to_arrow().to_pylist()
+        # Fetch all rows matching the filter (LanceDB doesn't yet support
+        # SQL-style ORDER BY + LIMIT + OFFSET in a single call on all backends,
+        # so we do sort/slice in Python after fetching the matching set).
+        try:
+            if where_clause:
+                arrow_tbl = tbl.search().where(where_clause).limit(100_000).to_arrow()
+            else:
+                arrow_tbl = tbl.to_arrow()
+        except Exception:
+            logger.exception("list_sessions scan failed")
+            raise
+
+        all_rows: list[dict[str, Any]] = arrow_tbl.to_pylist()
+        total = len(all_rows)
+
+        # Sort
+        reverse = (order == "desc")
+        def _sort_key(r: dict[str, Any]):
+            v = r.get(sort)
+            if v is None:
+                # Put None values last regardless of direction
+                return ("" if not reverse else "\xff\xff")
+            return v
+
+        all_rows.sort(key=_sort_key, reverse=reverse)
+
+        # Slice
+        items = all_rows[offset: offset + limit]
+
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
 
     def get_session(self, session_id: str) -> Optional[dict[str, Any]]:
         """Return a single catalog row by id, or None."""
@@ -213,16 +301,8 @@ class VectorStore:
 
     def stats(self) -> dict[str, Any]:
         """Aggregate statistics across both tables."""
-        try:
-            sessions_arrow = self._get_sessions_table().to_arrow()
-            chunks_arrow = self._get_chunks_table().to_arrow()
-        except Exception:
-            return {
-                "total_sessions": 0,
-                "total_chunks": 0,
-                "sessions_by_tool": {},
-                "sessions_by_category": {},
-            }
+        sessions_arrow = self._get_sessions_table().to_arrow()
+        chunks_arrow = self._get_chunks_table().to_arrow()
 
         by_tool: dict[str, int] = {}
         by_cat: dict[str, int] = {}

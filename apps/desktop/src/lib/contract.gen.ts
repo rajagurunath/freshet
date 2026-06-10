@@ -34,8 +34,11 @@ export interface IngestRequest {
 export interface IngestResponse {
   blobUri: string;
   chunksIndexed: number;
+  createdAt?: string;
   sessionId: string;
+  skipped?: boolean;
   summaryUsed: boolean;
+  updatedAt?: string;
 }
 
 export interface Message {
@@ -102,7 +105,11 @@ export interface SessionCatalogRow {
   project?: string;
   summary?: string;
   title: string;
+  tokensInput?: number;
+  tokensOutput?: number;
+  tokensTotal?: number;
   tool: string;
+  updatedAt?: string;
   visibility: string;
 }
 

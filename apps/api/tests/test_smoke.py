@@ -201,10 +201,13 @@ def test_ingest_session(client: TestClient):
 
 
 def test_list_sessions(client: TestClient):
-    """GET /v1/sessions should return the ingested session."""
+    """GET /v1/sessions should return a paginated SessionPage containing the ingested session."""
     resp = client.get("/v1/sessions", headers=AUTH)
     assert resp.status_code == 200, resp.text
-    items = resp.json()
+    data = resp.json()
+    # New paginated format: {items, total, limit, offset}
+    assert "items" in data, f"Expected paginated response, got: {list(data.keys())}"
+    items = data["items"]
     assert isinstance(items, list)
     ids = [item["id"] for item in items]
     assert "test-session-001" in ids
@@ -214,7 +217,8 @@ def test_list_sessions_filter_category(client: TestClient):
     """Filtering by category=engineering should still return the session."""
     resp = client.get("/v1/sessions?category=engineering", headers=AUTH)
     assert resp.status_code == 200
-    items = resp.json()
+    data = resp.json()
+    items = data["items"]
     assert any(item["id"] == "test-session-001" for item in items)
 
 
@@ -222,7 +226,8 @@ def test_list_sessions_filter_no_match(client: TestClient):
     """Filtering by a category that has no sessions should return empty list."""
     resp = client.get("/v1/sessions?category=sales", headers=AUTH)
     assert resp.status_code == 200
-    items = resp.json()
+    data = resp.json()
+    items = data["items"]
     assert all(item["id"] != "test-session-001" for item in items)
 
 

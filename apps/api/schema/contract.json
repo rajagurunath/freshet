@@ -134,13 +134,42 @@
           "title": "Chunks Indexed",
           "type": "integer"
         },
+        "created_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
         "session_id": {
           "title": "Session Id",
           "type": "string"
         },
+        "skipped": {
+          "default": false,
+          "title": "Skipped",
+          "type": "boolean"
+        },
         "summary_used": {
           "title": "Summary Used",
           "type": "boolean"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
         }
       },
       "required": [
@@ -613,9 +642,36 @@
           "title": "Title",
           "type": "string"
         },
+        "tokens_input": {
+          "default": 0,
+          "title": "Tokens Input",
+          "type": "integer"
+        },
+        "tokens_output": {
+          "default": 0,
+          "title": "Tokens Output",
+          "type": "integer"
+        },
+        "tokens_total": {
+          "default": 0,
+          "title": "Tokens Total",
+          "type": "integer"
+        },
         "tool": {
           "title": "Tool",
           "type": "string"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
         },
         "visibility": {
           "title": "Visibility",
