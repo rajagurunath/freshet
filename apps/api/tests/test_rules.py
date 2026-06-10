@@ -335,11 +335,23 @@ ALICE = {"Authorization": "Bearer alice-key"}
 BOB = {"Authorization": "Bearer bob-key"}
 
 
-def _seed_rule(client: TestClient, text: str, rationale: str = "test", evidence: list | None = None) -> str:
-    """Directly seed a rule via RulesStore (bypassing the LLM)."""
+def _seed_rule(
+    client: TestClient,
+    text: str,
+    rationale: str = "test",
+    evidence: list | None = None,
+    author: str = "alice",
+) -> str:
+    """Directly seed a rule via RulesStore (bypassing the LLM).
+
+    Defaults the author to "alice" so seeded rules are visible to the ALICE
+    test caller (rules reads are scoped to the caller's own author).
+    """
     from contexthub.rules.store import get_rules_store
     store = get_rules_store()
-    return store.upsert_rule(text=text, rationale=rationale, evidence=evidence or ["s1"])
+    return store.upsert_rule(
+        text=text, rationale=rationale, evidence=evidence or ["s1"], author=author
+    )
 
 
 def test_list_rules_empty(client: TestClient):
@@ -355,6 +367,40 @@ def test_list_rules_proposed(client: TestClient):
     assert resp.status_code == 200
     data = resp.json()
     assert any("type hints" in r["text"] for r in data["items"])
+
+
+def test_list_rules_scoped_to_caller(client: TestClient):
+    """A caller must not see rules mined from another author's sessions."""
+    _seed_rule(client, "Bob's private preference about tabs.", "Mined from bob.", ["sb1"], author="bob")
+    alice_rid = _seed_rule(client, "Alice prefers spaces.", "Mined from alice.", ["sa1"], author="alice")
+
+    items = client.get("/v1/rules", headers=ALICE).json()["items"]
+    ids = {r["id"] for r in items}
+    assert alice_rid in ids
+    assert all("Bob's private" not in r["text"] for r in items)
+
+    # Bob sees his own rule, not alice's.
+    bob_items = client.get("/v1/rules", headers=BOB).json()["items"]
+    assert any("Bob's private" in r["text"] for r in bob_items)
+    assert all(r["id"] != alice_rid for r in bob_items)
+
+
+def test_list_rules_foreign_author_forbidden(client: TestClient):
+    """Requesting another author's rules explicitly is forbidden."""
+    resp = client.get("/v1/rules", params={"author": "bob"}, headers=ALICE)
+    assert resp.status_code == 403
+
+
+def test_export_scoped_to_caller(client: TestClient):
+    """Export must not include another author's accepted rules."""
+    bob_rid = _seed_rule(client, "Bob accepted rule leak.", "bob", ["sb2"], author="bob")
+    alice_rid = _seed_rule(client, "Alice accepted rule keep.", "alice", ["sa2"], author="alice")
+    client.post(f"/v1/rules/{bob_rid}/accept", headers=BOB)
+    client.post(f"/v1/rules/{alice_rid}/accept", headers=ALICE)
+
+    body = client.get("/v1/rules/export", headers=ALICE).text
+    assert "Alice accepted rule keep." in body
+    assert "Bob accepted rule leak." not in body
 
 
 def test_accept_rule(client: TestClient):

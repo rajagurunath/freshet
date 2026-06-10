@@ -822,21 +822,46 @@ def _row_to_rule(r: dict) -> Rule:
     )
 
 
+def _scoped_rules_author(caller: Caller, requested_author: Optional[str]) -> Optional[str]:
+    """Resolve the author filter for a rules read, enforcing per-caller scoping.
+
+    Rules carry rationale/evidence mined from an author's private/team sessions,
+    so a caller may only read their own rules.  An identified caller is always
+    scoped to their own ``user_id``; requesting another author's rules is
+    forbidden.  Bare-key (anonymous) callers have no identity and so cannot
+    read any author-scoped rules.
+    """
+    if caller.user_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="An identified API key (key:user_id:team) is required to read rules.",
+        )
+    if requested_author is not None and requested_author != caller.user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot read rules for another author.",
+        )
+    return caller.user_id
+
+
 @router.get("/v1/rules", response_model=RulePage, tags=["rules"])
 def list_rules(
     status: Optional[str] = Query(None, description="Filter by status: proposed|accepted|rejected"),
-    author: Optional[str] = Query(None, description="Filter by author user_id"),
+    author: Optional[str] = Query(None, description="Filter by author user_id (defaults to caller)"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    _caller: Caller = Depends(require_api_key),
+    caller: Caller = Depends(require_api_key),
 ):
-    """List extracted rules, optionally filtered by status or author.
+    """List the caller's extracted rules, optionally filtered by status.
 
-    Rules are always in 'proposed' status when first extracted.  The user
-    must explicitly accept them via POST /v1/rules/{id}/accept.
+    Rules are scoped to the caller's own ``user_id`` — they embed rationale and
+    evidence mined from the author's private/team sessions and must not leak
+    across users.  Rules are always in 'proposed' status when first extracted.
+    The user must explicitly accept them via POST /v1/rules/{id}/accept.
     """
     from contexthub.rules.store import get_rules_store
 
+    author = _scoped_rules_author(caller, author)
     store = get_rules_store()
     rows = store.list_rules(status=status, author=author, limit=limit, offset=offset)
     total = store.count_rules(status=status, author=author)
@@ -894,12 +919,13 @@ def reject_rule(
 
 @router.get("/v1/rules/export", tags=["rules"])
 def export_rules(
-    _caller: Caller = Depends(require_api_key),
+    caller: Caller = Depends(require_api_key),
 ):
-    """Export accepted rules as a CLAUDE.md-style markdown block.
+    """Export the caller's accepted rules as a CLAUDE.md-style markdown block.
 
-    Only rules with status='accepted' appear here — the consent gate is
-    enforced server-side.  Paste the output into your project's CLAUDE.md.
+    Only rules with status='accepted' that belong to the caller appear here —
+    the consent gate is enforced server-side and rules are scoped to the
+    caller's own author.  Paste the output into your project's CLAUDE.md.
 
     Returns plain text (Content-Type: text/markdown).
     """
@@ -907,8 +933,9 @@ def export_rules(
 
     from contexthub.rules.store import get_rules_store
 
+    author = _scoped_rules_author(caller, None)
     store = get_rules_store()
-    accepted = store.list_rules(status="accepted")
+    accepted = store.list_rules(status="accepted", author=author)
 
     if not accepted:
         return PlainTextResponse(
