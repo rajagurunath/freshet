@@ -16,6 +16,7 @@ import type {
   Visibility,
   Tool,
 } from "../types";
+import type { GraphData } from "../graph";
 
 /**
  * A session record as returned by the hub's GET /v1/sessions endpoint.
@@ -226,6 +227,31 @@ export class ApiClient {
     return {
       answer: raw.answer,
       citations: camelify<Citation[]>(raw.citations) ?? [],
+    };
+  }
+
+  /** Fetch the knowledge graph (optionally focused on a node's neighborhood). */
+  async getGraph(opts?: { focus?: string; depth?: number }): Promise<GraphData> {
+    const qs = opts ? this.buildQuery(opts as Record<string, unknown>) : "";
+    const raw = await this.request<{ nodes: unknown[]; edges: unknown[] }>(
+      "GET",
+      `/v1/graph${qs}`,
+    );
+    return {
+      nodes: camelify<GraphData["nodes"]>(raw.nodes) ?? [],
+      edges: camelify<GraphData["edges"]>(raw.edges) ?? [],
+    };
+  }
+
+  /** Fetch the subgraph extracted from a single session. */
+  async getSessionGraph(sessionId: string): Promise<GraphData> {
+    const raw = await this.request<{ nodes: unknown[]; edges: unknown[] }>(
+      "GET",
+      `/v1/graph/session/${encodeURIComponent(sessionId)}`,
+    );
+    return {
+      nodes: camelify<GraphData["nodes"]>(raw.nodes) ?? [],
+      edges: camelify<GraphData["edges"]>(raw.edges) ?? [],
     };
   }
 
