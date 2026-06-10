@@ -29,6 +29,14 @@ class Message(BaseModel):
     model: Optional[str] = None
 
 
+class SessionLink(BaseModel):
+    """An external artifact linked to a session (PR, issue, doc, or another session)."""
+
+    kind: Literal["pr", "issue", "doc", "session"]
+    url: str
+    label: Optional[str] = None
+
+
 class NormalizedSession(BaseModel):
     id: str
     tool: Literal["claude-code", "codex", "kilo-code"]
@@ -43,6 +51,15 @@ class NormalizedSession(BaseModel):
     preview: str = ""
     file_path: str = ""
     messages: list[Message] = Field(default_factory=list)
+    # --- contract v2 fields ---
+    schema_version: int = 2
+    compacted: bool = False
+    compact_summary: Optional[str] = None
+    # Branch lineage (branch-from-turn): the session this one was forked from
+    # and the message id at which the fork happened.
+    parent_session_id: Optional[str] = None
+    branch_point_message_id: Optional[str] = None
+    links: list[SessionLink] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

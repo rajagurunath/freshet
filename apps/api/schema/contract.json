@@ -1,0 +1,777 @@
+{
+  "$defs": {
+    "Author": {
+      "properties": {
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name"
+      ],
+      "title": "Author",
+      "type": "object"
+    },
+    "Citation": {
+      "properties": {
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "snippet": {
+          "title": "Snippet",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "title",
+        "tool",
+        "snippet",
+        "score"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "IngestRequest": {
+      "properties": {
+        "author": {
+          "$ref": "#/$defs/Author"
+        },
+        "category": {
+          "default": "engineering",
+          "enum": [
+            "engineering",
+            "sales",
+            "marketing",
+            "research",
+            "ops",
+            "other"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "redacted": {
+          "default": false,
+          "title": "Redacted",
+          "type": "boolean"
+        },
+        "session": {
+          "$ref": "#/$defs/NormalizedSession"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "visibility": {
+          "default": "company",
+          "enum": [
+            "company",
+            "team",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session",
+        "author"
+      ],
+      "title": "IngestRequest",
+      "type": "object"
+    },
+    "IngestResponse": {
+      "properties": {
+        "blob_uri": {
+          "title": "Blob Uri",
+          "type": "string"
+        },
+        "chunks_indexed": {
+          "title": "Chunks Indexed",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "summary_used": {
+          "title": "Summary Used",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "session_id",
+        "blob_uri",
+        "chunks_indexed",
+        "summary_used"
+      ],
+      "title": "IngestResponse",
+      "type": "object"
+    },
+    "Message": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant",
+            "system",
+            "tool"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "thinking": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thinking"
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timestamp"
+        },
+        "tool_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Name"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "text"
+      ],
+      "title": "Message",
+      "type": "object"
+    },
+    "NormalizedSession": {
+      "properties": {
+        "branch_point_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch Point Message Id"
+        },
+        "compact_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compact Summary"
+        },
+        "compacted": {
+          "default": false,
+          "title": "Compacted",
+          "type": "boolean"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ended At"
+        },
+        "file_path": {
+          "default": "",
+          "title": "File Path",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/SessionLink"
+          },
+          "title": "Links",
+          "type": "array"
+        },
+        "message_count": {
+          "default": 0,
+          "title": "Message Count",
+          "type": "integer"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "parent_session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Session Id"
+        },
+        "preview": {
+          "default": "",
+          "title": "Preview",
+          "type": "string"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
+        },
+        "schema_version": {
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenCounts"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tool": {
+          "enum": [
+            "claude-code",
+            "codex",
+            "kilo-code"
+          ],
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "tool",
+        "title"
+      ],
+      "title": "NormalizedSession",
+      "type": "object"
+    },
+    "QueryFilters": {
+      "properties": {
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "enum": [
+                "engineering",
+                "sales",
+                "marketing",
+                "research",
+                "ops",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "enum": [
+                "claude-code",
+                "codex",
+                "kilo-code"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool"
+        }
+      },
+      "title": "QueryFilters",
+      "type": "object"
+    },
+    "QueryRequest": {
+      "properties": {
+        "filters": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueryFilters"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "top_k": {
+          "default": 8,
+          "title": "Top K",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "title": "QueryRequest",
+      "type": "object"
+    },
+    "QueryResponse": {
+      "properties": {
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/Citation"
+          },
+          "title": "Citations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "answer",
+        "citations"
+      ],
+      "title": "QueryResponse",
+      "type": "object"
+    },
+    "SessionCatalogRow": {
+      "properties": {
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author"
+        },
+        "blob_uri": {
+          "title": "Blob Uri",
+          "type": "string"
+        },
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "message_count": {
+          "title": "Message Count",
+          "type": "integer"
+        },
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "preview": {
+          "default": "",
+          "title": "Preview",
+          "type": "string"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "visibility": {
+          "title": "Visibility",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "tool",
+        "title",
+        "category",
+        "visibility",
+        "message_count",
+        "created_at",
+        "blob_uri"
+      ],
+      "title": "SessionCatalogRow",
+      "type": "object"
+    },
+    "SessionLink": {
+      "description": "An external artifact linked to a session (PR, issue, doc, or another session).",
+      "properties": {
+        "kind": {
+          "enum": [
+            "pr",
+            "issue",
+            "doc",
+            "session"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "url"
+      ],
+      "title": "SessionLink",
+      "type": "object"
+    },
+    "StatsResponse": {
+      "properties": {
+        "sessions_by_category": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Sessions By Category",
+          "type": "object"
+        },
+        "sessions_by_tool": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Sessions By Tool",
+          "type": "object"
+        },
+        "total_chunks": {
+          "title": "Total Chunks",
+          "type": "integer"
+        },
+        "total_sessions": {
+          "title": "Total Sessions",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_sessions",
+        "total_chunks",
+        "sessions_by_tool",
+        "sessions_by_category"
+      ],
+      "title": "StatsResponse",
+      "type": "object"
+    },
+    "SummarizeRequest": {
+      "properties": {
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "session": {
+          "$ref": "#/$defs/NormalizedSession"
+        }
+      },
+      "required": [
+        "session"
+      ],
+      "title": "SummarizeRequest",
+      "type": "object"
+    },
+    "SummarizeResponse": {
+      "properties": {
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "title": "SummarizeResponse",
+      "type": "object"
+    },
+    "TokenCounts": {
+      "properties": {
+        "input": {
+          "default": 0,
+          "title": "Input",
+          "type": "integer"
+        },
+        "output": {
+          "default": 0,
+          "title": "Output",
+          "type": "integer"
+        }
+      },
+      "title": "TokenCounts",
+      "type": "object"
+    }
+  },
+  "contract_name": "contexthub",
+  "contract_version": 2
+}
