@@ -12,6 +12,24 @@ summarize_session
     Payload: {session_id, session_json (str), provider?, model?}
     Summarises the session using the configured LLM, then updates the
     session catalog row's 'summary' field and re-embeds the first chunk.
+
+summarize_batch
+    Payload: {session_ids: list[str], provider: "openai-batch"|"local"|"default", model?}
+    Batch-summarises multiple sessions using the chosen provider.
+    - openai-batch: uploads JSONL to OpenAI Files API, creates a Batch, enqueues
+      a batch_poll job scheduled 10 min from now.
+    - local: loops sessions through a local openai-compatible server (e.g. Ollama).
+    - default: falls back to the configured default provider.
+
+batch_poll
+    Payload: {batch_id, session_ids: list[str], model?, parent_job_id?}
+    Polls an OpenAI batch for completion.  On success, writes summaries.
+    When still in_progress, re-enqueues itself (scheduled +10 min).
+
+summarize_pending
+    Payload: {job_store?}
+    Finds sessions with no summary and enqueues a summarize_batch job for them.
+    Intended to run nightly (scheduled_for next 02:00 UTC).
 """
 
 from __future__ import annotations
@@ -21,6 +39,19 @@ import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _get_job_store() -> Any:
+    """Return a JobStore pointed at the configured jobs DB.
+
+    Handlers that need to enqueue follow-up jobs (e.g. batch_poll) use this
+    instead of relying on payload injection, keeping the handler signature clean.
+    """
+    from contexthub.config import get_settings
+    from contexthub.jobs.store import JobStore
+
+    settings = get_settings()
+    return JobStore(settings.jobs_db)
 
 
 def summarize_session_handler(payload: dict[str, Any]) -> dict[str, Any]:
@@ -89,9 +120,260 @@ def summarize_session_handler(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# summarize_batch handler
+# ---------------------------------------------------------------------------
+
+def summarize_batch_handler(payload: dict[str, Any]) -> dict[str, Any]:
+    """Dispatch batch summarization to the appropriate provider.
+
+    Payload keys:
+      session_ids   list[str]  — session ids to summarize
+      provider      str?       — "openai-batch" | "local" | "default"
+      model         str?       — optional model override
+      job_id        str?       — id of this job (injected by worker)
+    """
+    from contexthub.config import get_settings
+    from contexthub.llm import get_llm
+    from contexthub.llm_batch import (
+        handle_summarize_batch_local,
+        handle_summarize_batch_openai,
+    )
+    from contexthub.storage.vectors import get_vector_store
+
+    settings = get_settings()
+    session_ids: list[str] = payload.get("session_ids") or []
+    provider: str = (payload.get("provider") or "default").lower()
+    model: str | None = payload.get("model")
+    job_id: str = payload.get("job_id") or "unknown"
+
+    if not session_ids:
+        logger.warning("summarize_batch_handler: no session_ids in payload")
+        return {"session_count": 0, "provider": provider}
+
+    # Fetch session rows from the vector store so we have transcript data.
+    vectors = get_vector_store()
+
+    def _fetch_sessions(ids: list[str]) -> list[dict[str, Any]]:
+        """Resolve session rows and reconstruct lightweight session dicts."""
+        results: list[dict[str, Any]] = []
+        for sid in ids:
+            row = vectors.get_session(sid)
+            if not row:
+                logger.warning("summarize_batch_handler: session %s not found, skipping", sid)
+                continue
+            # We need the blob to get the full transcript.
+            from contexthub.storage.blob import get_blob_store
+            blob = get_blob_store()
+            author_id = row.get("author", "")
+            raw = blob.get_session(author_id=author_id, session_id=sid)
+            if raw:
+                try:
+                    envelope = json.loads(raw)
+                    session_data = envelope.get("session") or envelope
+                    session_data["id"] = sid
+                    results.append(session_data)
+                    continue
+                except Exception:
+                    pass
+            # Fallback: minimal dict from catalog row
+            results.append({
+                "id": sid,
+                "title": row.get("title", "Untitled"),
+                "messages": [],
+            })
+        return results
+
+    def _update_summary(session_id: str, summary: str) -> None:
+        """Persist a summary to the sessions catalog row."""
+        row = vectors.get_session(session_id)
+        if row:
+            updated = dict(row)
+            updated["summary"] = summary
+            vectors.upsert_session(updated)
+            logger.info("summarize_batch_handler: updated summary for session %s", session_id)
+        else:
+            logger.warning("summarize_batch_handler: session %s not found for summary update", session_id)
+
+    if provider == "openai-batch":
+        try:
+            from openai import OpenAI  # lazy import
+        except ImportError as exc:
+            logger.error("openai package not installed; cannot use openai-batch provider")
+            raise
+
+        sessions_data = _fetch_sessions(session_ids)
+        openai_client = OpenAI(
+            api_key=settings.openai_api_key or "not-needed",
+            base_url=settings.openai_base_url or None,
+        )
+        # Get or create a job store for enqueueing the poll job.
+        job_store = _get_job_store()
+        return handle_summarize_batch_openai(
+            session_ids=session_ids,
+            sessions_data=sessions_data,
+            openai_client=openai_client,
+            job_store=job_store,
+            job_id=job_id,
+            model=model or settings.openai_model or "gpt-4o-mini",
+        )
+
+    if provider == "local":
+        sessions_data = _fetch_sessions(session_ids)
+        llm = get_llm(settings, provider_override="local", model_override=model)
+        return handle_summarize_batch_local(
+            sessions_data=sessions_data,
+            llm_client=llm,
+            update_summary_fn=_update_summary,
+        )
+
+    # "default": use the configured summarize_session handler for each session (sequential)
+    session_count = 0
+    errors = 0
+    for sid in session_ids:
+        row = vectors.get_session(sid)
+        if not row:
+            errors += 1
+            continue
+        from contexthub.storage.blob import get_blob_store
+        blob = get_blob_store()
+        raw = blob.get_session(author_id=row.get("author", ""), session_id=sid)
+        if not raw:
+            errors += 1
+            continue
+        try:
+            envelope = json.loads(raw)
+            session_json = json.dumps(envelope.get("session") or envelope)
+            summarize_session_handler({"session_json": session_json, "provider": provider if provider != "default" else None})
+            session_count += 1
+        except Exception as exc:
+            logger.warning("summarize_batch_handler: failed for session %s: %s", sid, exc)
+            errors += 1
+
+    return {"session_count": session_count, "errors": errors, "provider": provider}
+
+
+# ---------------------------------------------------------------------------
+# batch_poll handler
+# ---------------------------------------------------------------------------
+
+def batch_poll_handler(payload: dict[str, Any]) -> dict[str, Any]:
+    """Poll an OpenAI batch for completion and write summaries.
+
+    Payload keys:
+      batch_id     str         — OpenAI batch id
+      session_ids  list[str]   — session ids that were submitted
+      model        str?        — model used (preserved for re-enqueue)
+      job_id       str?        — id of this job (injected by worker; for re-enqueue tracking)
+    """
+    from contexthub.config import get_settings
+    from contexthub.llm_batch import handle_batch_poll
+    from contexthub.storage.vectors import get_vector_store
+
+    settings = get_settings()
+    batch_id: str = payload.get("batch_id") or ""
+    session_ids: list[str] = payload.get("session_ids") or []
+    model: str = payload.get("model") or settings.openai_model or "gpt-4o-mini"
+    job_id: str = payload.get("job_id") or payload.get("parent_job_id") or "unknown"
+
+    if not batch_id:
+        raise ValueError("batch_poll_handler: missing batch_id in payload")
+
+    try:
+        from openai import OpenAI
+    except ImportError as exc:
+        raise RuntimeError("openai package not installed; cannot use batch_poll handler") from exc
+
+    openai_client = OpenAI(
+        api_key=settings.openai_api_key or "not-needed",
+        base_url=settings.openai_base_url or None,
+    )
+
+    vectors = get_vector_store()
+
+    def _update_summary(session_id: str, summary: str) -> None:
+        row = vectors.get_session(session_id)
+        if row:
+            updated = dict(row)
+            updated["summary"] = summary
+            vectors.upsert_session(updated)
+            logger.info("batch_poll_handler: updated summary for session %s", session_id)
+
+    job_store = _get_job_store()
+
+    return handle_batch_poll(
+        batch_id=batch_id,
+        session_ids=session_ids,
+        openai_client=openai_client,
+        update_summary_fn=_update_summary,
+        job_store=job_store,
+        job_id=job_id,
+        model=model,
+    )
+
+
+# ---------------------------------------------------------------------------
+# summarize_pending handler
+# ---------------------------------------------------------------------------
+
+def summarize_pending_handler(payload: dict[str, Any]) -> dict[str, Any]:
+    """Find sessions with no summary and enqueue a summarize_batch job.
+
+    Payload keys:
+      job_store    JobStore?   — injected by the worker; needed to enqueue the batch job.
+      provider     str?        — provider to use for the batch (default: "default")
+      model        str?        — optional model override
+
+    This handler is intended to run nightly (scheduled_for next 02:00 UTC).
+    It is also invoked on startup when no pending summarize_pending job exists.
+    """
+    from contexthub.storage.vectors import get_vector_store
+
+    vectors = get_vector_store()
+    provider: str = payload.get("provider") or "default"
+    model: str | None = payload.get("model")
+    # Accept a directly-injected job_store (useful in tests); otherwise get from settings.
+    job_store = payload.get("job_store") or _get_job_store()
+
+    # List all sessions (up to 500) and find those without a summary.
+    result = vectors.list_sessions(limit=500, offset=0, sort="created_at", order="desc")
+    pending_ids: list[str] = [
+        row["id"]
+        for row in result.get("items", [])
+        if not (row.get("summary") or "").strip()
+    ]
+
+    pending_count = len(pending_ids)
+    logger.info("summarize_pending_handler: %d sessions need summaries", pending_count)
+
+    if not pending_ids:
+        return {"pending_count": 0}
+
+    if job_store is not None:
+        enqueued_job_id = job_store.enqueue(
+            kind="summarize_batch",
+            payload={
+                "session_ids": pending_ids,
+                "provider": provider,
+                "model": model,
+            },
+        )
+        logger.info(
+            "summarize_pending_handler: enqueued summarize_batch job %s for %d sessions",
+            enqueued_job_id,
+            pending_count,
+        )
+        return {"pending_count": pending_count, "batch_job_id": enqueued_job_id}
+
+    return {"pending_count": pending_count}
+
+
+# ---------------------------------------------------------------------------
 # Registry: maps kind → handler callable
 # ---------------------------------------------------------------------------
 
 HANDLER_REGISTRY: dict[str, Any] = {
     "summarize_session": summarize_session_handler,
+    "summarize_batch": summarize_batch_handler,
+    "batch_poll": batch_poll_handler,
+    "summarize_pending": summarize_pending_handler,
 }

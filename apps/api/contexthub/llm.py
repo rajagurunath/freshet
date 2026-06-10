@@ -242,9 +242,19 @@ def get_llm(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
         )
+    if provider == "local":
+        # Local / self-hosted openai-compatible server (Ollama, LM Studio, vLLM, etc.)
+        # Falls back to openai base_url if local_llm_base_url is not set.
+        local_client = OpenAICompatible(
+            model=model or settings.local_llm_model or "mistral",
+            api_key=settings.local_llm_api_key or settings.openai_api_key or "not-needed",
+            base_url=settings.local_llm_base_url or settings.openai_base_url,
+        )
+        local_client.name = "local"  # type: ignore[assignment]
+        return local_client
     raise LLMError(
         f"Unknown LLM provider '{provider}'. "
-        "Supported: claude-cli, codex-cli, anthropic, openai."
+        "Supported: claude-cli, codex-cli, anthropic, openai, local."
     )
 
 
@@ -253,6 +263,7 @@ _PROVIDER_LABELS = {
     "codex-cli": "Codex (local CLI)",
     "anthropic": "Anthropic API",
     "openai": "OpenAI-compatible",
+    "local": "Local model (Ollama/vLLM)",
 }
 
 

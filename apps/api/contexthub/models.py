@@ -197,6 +197,29 @@ class StatsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Batch summarization
+# ---------------------------------------------------------------------------
+
+BatchProviderLiteral = Literal["openai-batch", "local", "default"]
+
+
+class BatchSummarizeRequest(BaseModel):
+    """Request body for POST /v1/summarize/batch."""
+
+    session_ids: list[str] = Field(..., min_length=1)
+    provider: BatchProviderLiteral = "default"
+    model: Optional[str] = None   # optional model override (used for openai-batch / local)
+
+
+class BatchSummarizeResponse(BaseModel):
+    """Response for POST /v1/summarize/batch."""
+
+    job_id: str
+    kind: str = "summarize_batch"
+    session_count: int
+
+
+# ---------------------------------------------------------------------------
 # Jobs
 # ---------------------------------------------------------------------------
 

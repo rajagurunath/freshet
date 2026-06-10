@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator
 
 from fastapi import FastAPI
@@ -22,6 +23,35 @@ from contexthub.api.routes import router
 from contexthub.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _next_02_utc() -> str:
+    """Return the ISO-8601 timestamp for the next 02:00 UTC (today or tomorrow)."""
+    now = datetime.now(timezone.utc)
+    candidate = now.replace(hour=2, minute=0, second=0, microsecond=0)
+    if candidate <= now:
+        candidate += timedelta(days=1)
+    return candidate.isoformat()
+
+
+def _ensure_nightly_summarize_pending(job_store) -> None:  # type: ignore[type-arg]
+    """Enqueue a nightly summarize_pending job if none is already queued or running."""
+    existing = job_store.list(kind="summarize_pending", status="queued")
+    running = job_store.list(kind="summarize_pending", status="running")
+    if existing or running:
+        logger.info(
+            "Nightly summarize_pending job already queued/running (%d queued, %d running)",
+            len(existing),
+            len(running),
+        )
+        return
+    scheduled_for = _next_02_utc()
+    jid = job_store.enqueue(
+        kind="summarize_pending",
+        payload={"provider": "default"},
+        scheduled_for=scheduled_for,
+    )
+    logger.info("Scheduled nightly summarize_pending job %s for %s", jid, scheduled_for)
 
 # ---------------------------------------------------------------------------
 # Application factory
@@ -55,6 +85,12 @@ def create_app() -> FastAPI:
         # Store on app state so routes can access the job store
         app.state.job_store = job_store
         worker_task = asyncio.create_task(worker.run())
+
+        # Enqueue a nightly summarize_pending job if none is already pending.
+        # Scheduled for the next 02:00 UTC so that summary-less sessions are
+        # batched cheaply during off-hours (burns subscription quota right before
+        # the weekly reset).
+        _ensure_nightly_summarize_pending(job_store)
 
         yield
 

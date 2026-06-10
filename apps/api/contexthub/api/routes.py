@@ -28,6 +28,8 @@ from contexthub.embeddings import get_embedder
 from contexthub.ingest.chunker import build_chunks
 from contexthub.ingest.redact import redact_text
 from contexthub.models import (
+    BatchSummarizeRequest,
+    BatchSummarizeResponse,
     IngestRequest,
     IngestResponse,
     Job,
@@ -402,6 +404,47 @@ def summarize(
     """Generate a structured summary for a session (does not ingest it)."""
     summary = summarize_session(body.session, settings, provider=body.provider, model=body.model)
     return SummarizeResponse(summary=summary)
+
+
+# ---------------------------------------------------------------------------
+# Batch summarize
+# ---------------------------------------------------------------------------
+
+@router.post("/v1/summarize/batch", response_model=BatchSummarizeResponse, tags=["rag"])
+def summarize_batch(
+    body: BatchSummarizeRequest,
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+):
+    """Enqueue a batch summarization job for multiple sessions.
+
+    provider options:
+      openai-batch  — upload to OpenAI Batch API (cheap, ~24h turnaround).
+      local         — use a local openai-compatible server (e.g. Ollama).
+      default       — use the hub's configured default LLM provider.
+
+    Returns immediately with a job_id.  Poll GET /v1/jobs/{job_id} for status.
+    """
+    job_store = request.app.state.job_store
+    job_id = job_store.enqueue(
+        kind="summarize_batch",
+        payload={
+            "session_ids": body.session_ids,
+            "provider": body.provider,
+            "model": body.model,
+        },
+    )
+    logger.info(
+        "Enqueued summarize_batch job %s for %d sessions (provider=%s)",
+        job_id,
+        len(body.session_ids),
+        body.provider,
+    )
+    return BatchSummarizeResponse(
+        job_id=job_id,
+        kind="summarize_batch",
+        session_count=len(body.session_ids),
+    )
 
 
 # ---------------------------------------------------------------------------

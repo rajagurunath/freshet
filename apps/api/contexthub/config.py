@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     openai_base_url: Optional[str] = None
     openai_model: str = "gpt-4o-mini"
 
+    # Local / self-hosted LLM (used when llm_provider=local or batch provider=local).
+    # Example: Ollama at http://localhost:11434/v1 running mistral or phi3.
+    # No API key required for local servers; set local_llm_api_key if the server needs one.
+    local_llm_base_url: Optional[str] = None
+    local_llm_model: str = "mistral"
+    local_llm_api_key: Optional[str] = None
+
     # Embeddings provider: "local" (sentence-transformers) or "hash" (offline fallback)
     embedding_provider: str = "local"
 
