@@ -23,7 +23,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 
 from contexthub.config import Settings, get_settings
-from contexthub.deps import Caller, require_api_key
+from contexthub.deps import Caller, optional_api_key, require_api_key
 from contexthub.embeddings import get_embedder
 from contexthub.ingest.chunker import build_chunks
 from contexthub.ingest.redact import redact_text
@@ -1129,16 +1129,20 @@ def download_asset(
     asset_id: str,
     token: Optional[str] = Query(None, description="HMAC signed download token"),
     expiry: Optional[int] = Query(None, description="Token expiry (UNIX epoch)"),
-    caller: Optional[Caller] = Depends(require_api_key),
+    caller: Optional[Caller] = Depends(optional_api_key),
     settings: Settings = Depends(get_settings),
 ):
     """Download an asset's ZIP payload.
 
     Two modes:
       1. Authenticated caller (Bearer token) — no signed token required;
-         the caller's identity is used for visibility check.
+         the caller's identity is used for the visibility check.
       2. Pre-signed download URL (token + expiry params) — used by the
-         OpenSharing credential vending flow; bypasses Bearer auth.
+         OpenSharing credential vending flow; the valid HMAC token is the
+         authorization gate, so visibility is not enforced (and no Bearer
+         token is required).
+
+    At least one of the two credentials must be present.
 
     Returns the file content with Content-Disposition: attachment.
     """
@@ -1148,17 +1152,29 @@ def download_asset(
 
     store = get_asset_store()
 
-    # Validate token if provided (pre-signed URL flow)
+    # Validate the pre-signed token if provided (OpenSharing download-URL flow).
+    token_ok = False
     if token and expiry is not None:
         if not verify_download_token(asset_id, token, expiry, settings.asset_token_secret):
             raise HTTPException(status_code=403, detail="Invalid or expired download token.")
+        token_ok = True
 
-    # Fetch asset with visibility enforcement
+    # Require at least one credential: a valid pre-signed token OR a Bearer caller.
+    if not token_ok and caller is None:
+        raise HTTPException(
+            status_code=401,
+            detail="A Bearer token or a valid signed download token is required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # A valid pre-signed token is the authorization gate on its own, so skip
+    # visibility enforcement in that branch.  Otherwise enforce visibility
+    # against the authenticated caller's identity.
     asset = store.get_asset(
         asset_id,
         caller_user_id=caller.user_id if caller else None,
         caller_team=caller.team if caller else None,
-        enforce_visibility=True,
+        enforce_visibility=not token_ok,
     )
     if asset is None:
         raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")

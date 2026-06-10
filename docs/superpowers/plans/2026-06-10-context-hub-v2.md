@@ -179,6 +179,8 @@
 ## Phase 5 — Landing page
 
 ### Task 17: Landing page with protocol animation
+
+> **Scope expanded 2026-06-11 (user request):** the landing page must sell the *complete product* in the style of modern YC devtool landings (reference: conductor.build) — full section sequence (hero with product visual, feature grid covering agent/graph/assets/PR-links/auto-sync, how-it-works, privacy/local-first trust, final CTA), scroll-reveal animations, and an HTML/CSS product UI mock — with the protocol animation as one section, not the whole page. Built from a design-research brief (conductor.build, linear.app, cursor.com, resend.com, et al.).
 **Files:** Create `apps/web/index.html`, `apps/web/styles.css`, `apps/web/app.js`, `apps/web/README.md` (pure static, no build step; serve with `python -m http.server`); Modify root `README.md` (link), `Makefile` (`make landing`).
 - [ ] YC-grade direct copy per DESIGN.md voice. Hero: "Everything your team taught the AI, in one place." Sub: one sentence on capture→curate→ask. Single accent CTA. Sections, one per use case, each with a small inline SVG: (1) capture local sessions, (2) ask the company agent (hybrid search), (3) PR context links, (4) knowledge graph, (5) asset hub / OpenSharing, (6) auto-sync + batch summarization.
 - [ ] The animation (fest #0): hand-rolled SVG/CSS animation of the protocol interaction — desktop node → redact → push envelope → hub (S3 + index) → query from teammate → cited answer; animated dashes (`stroke-dashoffset` keyframes) + staged opacity, ~12s loop, `prefers-reduced-motion` respected. No JS animation libraries.

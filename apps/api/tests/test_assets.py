@@ -627,6 +627,66 @@ def test_opensharing_temporary_credentials(client: TestClient):
     assert "download_url" in data
 
 
+def test_vended_download_url_works(client: TestClient):
+    """The download_url vended by temporary-skill-credentials must be usable.
+
+    Regression: the pre-signed (token-only) download flow was unreachable
+    because the route required a Bearer token, so every vended download_url
+    401'd.  The vended URL must download the payload without any Bearer header.
+    """
+    payload = "print('vended')"
+    zip_bytes = _make_zip(payload)
+    create_resp = client.post(
+        "/v1/assets",
+        data={
+            "kind": "skill",
+            "name": "Vended Skill",
+            "description": "Downloaded via vended token URL",
+            "category": "general",
+            "visibility": "company",
+            "version": "1.0",
+        },
+        files={"file": ("vended.zip", zip_bytes, "application/zip")},
+        headers=ALICE,
+    )
+    assert create_resp.status_code == 200
+    asset_id = create_resp.json()["id"]
+
+    cred = client.post(
+        f"/opensharing/shares/company/schemas/general/skills/{asset_id}/temporary-skill-credentials",
+        headers=ALICE,
+    )
+    assert cred.status_code == 200
+    download_url = cred.json()["download_url"]
+
+    # Fetch the vended URL with NO Authorization header — the signed token is the gate.
+    resp = client.get(download_url)
+    assert resp.status_code == 200, resp.text
+    assert resp.content == zip_bytes
+
+
+def test_download_no_credential_rejected(client: TestClient):
+    """Downloading with neither a Bearer token nor a signed token must 401."""
+    zip_bytes = _make_zip()
+    create_resp = client.post(
+        "/v1/assets",
+        data={
+            "kind": "skill",
+            "name": "Gated Skill",
+            "description": "Needs a credential",
+            "category": "general",
+            "visibility": "company",
+            "version": "1.0",
+        },
+        files={"file": ("gated.zip", zip_bytes, "application/zip")},
+        headers=ALICE,
+    )
+    asset_id = create_resp.json()["id"]
+
+    resp = client.get(f"/v1/assets/{asset_id}/download")
+    assert resp.status_code in (401, 403), resp.text
+
+
 def test_opensharing_unknown_share_404(client: TestClient):
     """GET /opensharing/shares/{unknown}/schemas should return 404."""
     resp = client.get("/opensharing/shares/unknown-share/schemas", headers=ALICE)

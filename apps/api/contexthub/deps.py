@@ -23,6 +23,7 @@ from contexthub.config import Settings, get_settings
 logger = logging.getLogger(__name__)
 
 _bearer = HTTPBearer(auto_error=True)
+_bearer_optional = HTTPBearer(auto_error=False)
 
 
 @dataclasses.dataclass
@@ -66,4 +67,21 @@ def require_api_key(
     Callers with a bare (non-triple) key get Caller(user_id=None, team=None)
     and will see all company-wide sessions but no private/team ones.
     """
+    return _resolve_caller(credentials.credentials, settings)
+
+
+def optional_api_key(
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(_bearer_optional),
+    settings: Settings = Depends(get_settings),
+) -> Optional[Caller]:
+    """Dependency that returns a Caller when a valid Bearer token is supplied.
+
+    Unlike :func:`require_api_key`, a missing Authorization header yields
+    ``None`` instead of a 401.  This is used by routes that accept an
+    alternative credential (e.g. a pre-signed HMAC download token), where the
+    Bearer token is optional and the route enforces its own authorization.
+    A *present but invalid* token still raises 401.
+    """
+    if credentials is None:
+        return None
     return _resolve_caller(credentials.credentials, settings)
