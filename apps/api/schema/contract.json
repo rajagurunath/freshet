@@ -1,5 +1,115 @@
 {
   "$defs": {
+    "AssetMetadata": {
+      "description": "Response model for an uploaded or listed asset.",
+      "properties": {
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "blob_uri": {
+          "title": "Blob Uri",
+          "type": "string"
+        },
+        "category": {
+          "default": "general",
+          "title": "Category",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "team": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Team"
+        },
+        "version": {
+          "default": "1.0.0",
+          "title": "Version",
+          "type": "string"
+        },
+        "visibility": {
+          "default": "company",
+          "title": "Visibility",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "author",
+        "blob_uri",
+        "created_at"
+      ],
+      "title": "AssetMetadata",
+      "type": "object"
+    },
+    "AssetPage": {
+      "description": "Paginated list of asset metadata rows.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/AssetMetadata"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "limit": {
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "integer"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total",
+        "limit",
+        "offset"
+      ],
+      "title": "AssetPage",
+      "type": "object"
+    },
     "Author": {
       "properties": {
         "email": {
@@ -33,6 +143,70 @@
         "name"
       ],
       "title": "Author",
+      "type": "object"
+    },
+    "BatchSummarizeRequest": {
+      "description": "Request body for POST /v1/summarize/batch.",
+      "properties": {
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "provider": {
+          "default": "default",
+          "enum": [
+            "openai-batch",
+            "local",
+            "default"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "session_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Session Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "session_ids"
+      ],
+      "title": "BatchSummarizeRequest",
+      "type": "object"
+    },
+    "BatchSummarizeResponse": {
+      "description": "Response for POST /v1/summarize/batch.",
+      "properties": {
+        "job_id": {
+          "title": "Job Id",
+          "type": "string"
+        },
+        "kind": {
+          "default": "summarize_batch",
+          "title": "Kind",
+          "type": "string"
+        },
+        "session_count": {
+          "title": "Session Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "job_id",
+        "session_count"
+      ],
+      "title": "BatchSummarizeResponse",
       "type": "object"
     },
     "Citation": {
@@ -78,6 +252,132 @@
         "score"
       ],
       "title": "Citation",
+      "type": "object"
+    },
+    "GraphEdge": {
+      "description": "A directed relation between two graph nodes.",
+      "properties": {
+        "dst": {
+          "title": "Dst",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "rel": {
+          "title": "Rel",
+          "type": "string"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "src": {
+          "title": "Src",
+          "type": "string"
+        },
+        "weight": {
+          "default": 1.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "src",
+        "dst",
+        "rel"
+      ],
+      "title": "GraphEdge",
+      "type": "object"
+    },
+    "GraphNode": {
+      "description": "A knowledge-graph node (deduped by (kind, name)).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "session_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Session Ids",
+          "type": "array"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "visibility": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Visibility"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name"
+      ],
+      "title": "GraphNode",
+      "type": "object"
+    },
+    "GraphResponse": {
+      "description": "Response for GET /v1/graph and GET /v1/graph/session/{id}.",
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/GraphEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/GraphNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "nodes",
+        "edges"
+      ],
+      "title": "GraphResponse",
       "type": "object"
     },
     "IngestRequest": {
@@ -203,6 +503,107 @@
         "summary_used"
       ],
       "title": "IngestResponse",
+      "type": "object"
+    },
+    "Job": {
+      "description": "A background job record returned by GET /v1/jobs/{id} etc.",
+      "properties": {
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result"
+        },
+        "scheduled_for": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scheduled For"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "error"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "created_at"
+      ],
+      "title": "Job",
       "type": "object"
     },
     "Message": {
@@ -607,6 +1008,127 @@
       "title": "QueryResponse",
       "type": "object"
     },
+    "Rule": {
+      "description": "A single extracted rule/preference.",
+      "properties": {
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope"
+        },
+        "status": {
+          "default": "proposed",
+          "enum": [
+            "proposed",
+            "accepted",
+            "rejected"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "created_at"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "RulePage": {
+      "description": "Paginated list of rules.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/Rule"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "limit": {
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "integer"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total",
+        "limit",
+        "offset"
+      ],
+      "title": "RulePage",
+      "type": "object"
+    },
     "SessionCatalogRow": {
       "properties": {
         "author": {
@@ -742,6 +1264,32 @@
       "title": "SessionCatalogRow",
       "type": "object"
     },
+    "SessionDetail": {
+      "description": "Full detail response for a single session (catalog row + raw blob).",
+      "properties": {
+        "catalog": {
+          "$ref": "#/$defs/SessionCatalogRow"
+        },
+        "raw": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw"
+        }
+      },
+      "required": [
+        "catalog"
+      ],
+      "title": "SessionDetail",
+      "type": "object"
+    },
     "SessionLink": {
       "description": "An external artifact linked to a session (PR, issue, doc, or another session).",
       "properties": {
@@ -777,6 +1325,38 @@
         "url"
       ],
       "title": "SessionLink",
+      "type": "object"
+    },
+    "SessionPage": {
+      "description": "Paginated list of catalog rows.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SessionCatalogRow"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "limit": {
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "integer"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total",
+        "limit",
+        "offset"
+      ],
+      "title": "SessionPage",
       "type": "object"
     },
     "StatsResponse": {

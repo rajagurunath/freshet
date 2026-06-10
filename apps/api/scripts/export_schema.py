@@ -30,11 +30,23 @@ def build_contract() -> dict:
     from pydantic.json_schema import models_json_schema
 
     from contexthub.models import (
+        AssetMetadata,
+        AssetPage,
+        BatchSummarizeRequest,
+        BatchSummarizeResponse,
+        GraphEdge,
+        GraphNode,
+        GraphResponse,
         IngestRequest,
         IngestResponse,
+        Job,
         QueryRequest,
         QueryResponse,
+        Rule,
+        RulePage,
         SessionCatalogRow,
+        SessionDetail,
+        SessionPage,
         StatsResponse,
         SummarizeRequest,
         SummarizeResponse,
@@ -49,6 +61,24 @@ def build_contract() -> dict:
         SummarizeResponse,
         SessionCatalogRow,
         StatsResponse,
+        # Pagination + detail wrappers (Task 11/sessions).
+        SessionPage,
+        SessionDetail,
+        # Batch summarization.
+        BatchSummarizeRequest,
+        BatchSummarizeResponse,
+        # Knowledge graph (Task 13).
+        GraphNode,
+        GraphEdge,
+        GraphResponse,
+        # Rules (Task 14).
+        Rule,
+        RulePage,
+        # Assets (Task 15).
+        AssetMetadata,
+        AssetPage,
+        # Jobs.
+        Job,
     ]
     _, top = models_json_schema(
         [(m, "validation") for m in models],

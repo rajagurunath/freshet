@@ -7,11 +7,49 @@
 
 export const CONTRACT_VERSION = 2;
 
+/** Response model for an uploaded or listed asset. */
+export interface AssetMetadata {
+  author: string;
+  blobUri: string;
+  category?: string;
+  createdAt: string;
+  description?: string;
+  files?: Array<string>;
+  id: string;
+  kind: string;
+  name: string;
+  team?: string;
+  version?: string;
+  visibility?: string;
+}
+
+/** Paginated list of asset metadata rows. */
+export interface AssetPage {
+  items: Array<AssetMetadata>;
+  limit: number;
+  offset: number;
+  total: number;
+}
+
 export interface Author {
   email: string;
   id: string;
   name: string;
   team?: string;
+}
+
+/** Request body for POST /v1/summarize/batch. */
+export interface BatchSummarizeRequest {
+  model?: string;
+  provider?: "openai-batch" | "local" | "default";
+  sessionIds: Array<string>;
+}
+
+/** Response for POST /v1/summarize/batch. */
+export interface BatchSummarizeResponse {
+  jobId: string;
+  kind?: string;
+  sessionCount: number;
 }
 
 export interface Citation {
@@ -21,6 +59,32 @@ export interface Citation {
   snippet: string;
   title: string;
   tool: string;
+}
+
+/** A directed relation between two graph nodes. */
+export interface GraphEdge {
+  dst: string;
+  id: string;
+  rel: string;
+  sessionId?: string;
+  src: string;
+  weight?: number;
+}
+
+/** A knowledge-graph node (deduped by (kind, name)). */
+export interface GraphNode {
+  id: string;
+  kind: string;
+  name: string;
+  sessionIds?: Array<string>;
+  summary?: string;
+  visibility?: string;
+}
+
+/** Response for GET /v1/graph and GET /v1/graph/session/{id}. */
+export interface GraphResponse {
+  edges: Array<GraphEdge>;
+  nodes: Array<GraphNode>;
 }
 
 export interface IngestRequest {
@@ -41,6 +105,20 @@ export interface IngestResponse {
   skipped?: boolean;
   summaryUsed: boolean;
   updatedAt?: string;
+}
+
+/** A background job record returned by GET /v1/jobs/{id} etc. */
+export interface Job {
+  createdAt: string;
+  error?: string;
+  finishedAt?: string;
+  id: string;
+  kind: string;
+  payload?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  scheduledFor?: string;
+  startedAt?: string;
+  status: "queued" | "running" | "done" | "error";
 }
 
 export interface Message {
@@ -97,6 +175,27 @@ export interface QueryResponse {
   citations: Array<Citation>;
 }
 
+/** A single extracted rule/preference. */
+export interface Rule {
+  author?: string;
+  createdAt: string;
+  evidence?: Array<string>;
+  id: string;
+  rationale?: string;
+  scope?: string;
+  status?: "proposed" | "accepted" | "rejected";
+  text: string;
+  updatedAt?: string;
+}
+
+/** Paginated list of rules. */
+export interface RulePage {
+  items: Array<Rule>;
+  limit: number;
+  offset: number;
+  total: number;
+}
+
 export interface SessionCatalogRow {
   author?: string;
   blobUri: string;
@@ -118,11 +217,25 @@ export interface SessionCatalogRow {
   visibility: string;
 }
 
+/** Full detail response for a single session (catalog row + raw blob). */
+export interface SessionDetail {
+  catalog: SessionCatalogRow;
+  raw?: Record<string, unknown>;
+}
+
 /** An external artifact linked to a session (PR, issue, doc, or another session). */
 export interface SessionLink {
   kind: "pr" | "issue" | "doc" | "session";
   label?: string;
   url: string;
+}
+
+/** Paginated list of catalog rows. */
+export interface SessionPage {
+  items: Array<SessionCatalogRow>;
+  limit: number;
+  offset: number;
+  total: number;
 }
 
 export interface StatsResponse {
