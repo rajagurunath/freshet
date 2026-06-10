@@ -36,6 +36,7 @@ export interface IngestResponse {
   blobUri: string;
   chunksIndexed: number;
   createdAt?: string;
+  jobId?: string;
   sessionId: string;
   skipped?: boolean;
   summaryUsed: boolean;
@@ -88,6 +89,7 @@ export interface QueryRequest {
   provider?: string;
   question: string;
   topK?: number;
+  useGraph?: boolean;
 }
 
 export interface QueryResponse {
