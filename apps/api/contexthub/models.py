@@ -94,6 +94,7 @@ class IngestResponse(BaseModel):
     skipped: bool = False          # True when re-ingest found identical content_hash
     created_at: Optional[str] = None  # ISO timestamp; preserved on skip
     updated_at: Optional[str] = None  # ISO timestamp; set on every write
+    job_id: Optional[str] = None   # set when summarize=true; the enqueued job id
 
 
 # ---------------------------------------------------------------------------
@@ -193,3 +194,22 @@ class StatsResponse(BaseModel):
     total_chunks: int
     sessions_by_tool: dict[str, int]
     sessions_by_category: dict[str, int]
+
+
+# ---------------------------------------------------------------------------
+# Jobs
+# ---------------------------------------------------------------------------
+
+class Job(BaseModel):
+    """A background job record returned by GET /v1/jobs/{id} etc."""
+
+    id: str
+    kind: str
+    payload: dict = Field(default_factory=dict)
+    status: Literal["queued", "running", "done", "error"]
+    result: Optional[dict] = None
+    error: Optional[str] = None
+    created_at: str
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    scheduled_for: Optional[str] = None

@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Local blob fallback directory
     blob_dir: str = "./data/blobs"
 
+    # SQLite path for the async jobs queue
+    jobs_db: str = "./data/jobs.db"
+
     # Bearer-token allowlist (comma-separated in env, parsed here)
     api_keys: str = "dev-key"
 

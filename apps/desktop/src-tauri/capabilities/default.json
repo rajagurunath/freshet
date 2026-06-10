@@ -20,6 +20,11 @@
         { "path": "$HOME/Library/Application Support/Code/User/globalStorage/kilocode.kilo-code/**" },
         { "path": "$HOME/.config/Code/User/globalStorage/kilocode.kilo-code/**" }
       ]
+    },
+    {
+      "comment": "Branch-from-turn writes new Claude Code session files. Scoped to the Claude projects tree only — branching never modifies any other file.",
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$HOME/.claude/projects/**" }]
     }
   ]
 }

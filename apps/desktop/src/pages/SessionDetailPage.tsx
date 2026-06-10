@@ -14,10 +14,14 @@ import {
   Clock,
   FileText,
   AlignLeft,
+  GitBranch,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toggle } from "@/components/ui/Toggle";
@@ -99,7 +103,15 @@ function deriveTouchedFiles(messages: SessionMessage[]): string[] {
 
 // ─── Virtualized transcript ────────────────────────────────────────────────────
 
-function VirtualTranscript({ messages }: { messages: SessionMessage[] }) {
+function VirtualTranscript({
+  messages,
+  onBranch,
+  branchDisabledReason,
+}: {
+  messages: SessionMessage[];
+  onBranch?: (messageId: string) => void;
+  branchDisabledReason?: string;
+}) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
@@ -128,7 +140,11 @@ function VirtualTranscript({ messages }: { messages: SessionMessage[] }) {
               transform: `translateY(${vRow.start}px)`,
             }}
           >
-            <MessageBubble message={messages[vRow.index]} />
+            <MessageBubble
+              message={messages[vRow.index]}
+              onBranch={onBranch}
+              branchDisabledReason={branchDisabledReason}
+            />
           </div>
         ))}
       </div>
@@ -241,11 +257,64 @@ type DetailTab = "summary" | "transcript";
 export function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getSession, pushedIds, markPushed } = useApp();
+  const { getSession, pushedIds, markPushed, rescan } = useApp();
   const settings = useSettings();
   const { success, error: toastError } = useToast();
 
   const session = id ? getSession(id) : undefined;
+
+  // ── Branch-from-turn state ──────────────────────────────────────────────
+  const [branchMessageId, setBranchMessageId] = useState<string | null>(null);
+  const [branching, setBranching] = useState(false);
+  const [branchResult, setBranchResult] = useState<{
+    newSessionId: string;
+    resumeCommand: string;
+  } | null>(null);
+  const [resumeCopied, setResumeCopied] = useState(false);
+
+  // Branching writes a forked JSONL; supported for Claude Code sessions only.
+  const branchDisabledReason =
+    session && session.tool !== "claude-code"
+      ? "Claude Code only for now"
+      : undefined;
+
+  const parentSession = session?.parentSessionId
+    ? getSession(session.parentSessionId)
+    : undefined;
+
+  const handleConfirmBranch = async () => {
+    if (!session || !branchMessageId) return;
+    setBranching(true);
+    try {
+      const { branchSession } = await import("@/lib/branch");
+      const result = await branchSession(session, branchMessageId);
+      setBranchMessageId(null);
+      setBranchResult({
+        newSessionId: result.newSessionId,
+        resumeCommand: result.resumeCommand,
+      });
+      // Rescan so the new session appears in the list.
+      void rescan();
+    } catch (e) {
+      setBranchMessageId(null);
+      toastError(
+        e instanceof Error ? e.message : "Branching failed. Check file permissions.",
+      );
+    } finally {
+      setBranching(false);
+    }
+  };
+
+  const copyResumeCommand = async () => {
+    if (!branchResult) return;
+    try {
+      await navigator.clipboard.writeText(branchResult.resumeCommand);
+      setResumeCopied(true);
+      setTimeout(() => setResumeCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
 
   const pushedSet = React.useMemo((): Set<string> => {
     if (pushedIds instanceof Set) return pushedIds as Set<string>;
@@ -389,6 +458,90 @@ export function SessionDetailPage() {
         onClose={() => setConsentOpen(false)}
       />
 
+      {/* Branch confirm modal */}
+      <Modal
+        open={branchMessageId !== null}
+        onClose={() => !branching && setBranchMessageId(null)}
+        title="Branch from this turn"
+        description="Creates a new Claude Code session that forks this conversation up to and including the selected message. The original session is never modified."
+        size="sm"
+      >
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={branching}
+            onClick={() => setBranchMessageId(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            loading={branching}
+            onClick={handleConfirmBranch}
+          >
+            <GitBranch size={13} />
+            Create branch
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Branch success modal */}
+      <Modal
+        open={branchResult !== null}
+        onClose={() => setBranchResult(null)}
+        title="Branch created"
+        description="Resume the new session in your terminal, or find it in your sessions list."
+        size="sm"
+      >
+        {branchResult && (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <span className="text-micro text-ink-faint uppercase tracking-wide">
+                Resume command
+              </span>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-[8px] bg-bg-sunken border border-border">
+                <code className="flex-1 text-small font-mono text-ink truncate">
+                  {branchResult.resumeCommand}
+                </code>
+                <button
+                  onClick={copyResumeCommand}
+                  className="text-ink-faint hover:text-ink transition-colors duration-120 shrink-0"
+                  aria-label="Copy resume command"
+                >
+                  {resumeCopied ? (
+                    <Check size={14} className="text-success" />
+                  ) : (
+                    <Copy size={14} />
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setBranchResult(null)}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  const newId = branchResult.newSessionId;
+                  setBranchResult(null);
+                  navigate(`/sessions/${newId}`);
+                }}
+              >
+                Reveal in sessions
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* Left: Main content area with tabs */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden border-r border-border">
         {/* Sticky header */}
@@ -420,6 +573,20 @@ export function SessionDetailPage() {
                 <Calendar size={12} />
                 {relativeTime(session.startedAt)}
               </span>
+            )}
+            {session.parentSessionId && (
+              <button
+                type="button"
+                onClick={() => navigate(`/sessions/${session.parentSessionId}`)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-wash text-accent-ink border border-accent/20 hover:bg-accent-wash/70 transition-colors duration-120"
+                title="Open the session this was branched from"
+              >
+                <GitBranch size={11} />
+                Branched from{" "}
+                <span className="font-medium truncate max-w-[160px]">
+                  {parentSession?.title ?? session.parentSessionId}
+                </span>
+              </button>
             )}
           </div>
 
@@ -462,7 +629,11 @@ export function SessionDetailPage() {
           {activeTab === "summary" ? (
             <SummaryTab session={session} summary={summary} stats={stats} />
           ) : (
-            <VirtualTranscript messages={session.messages} />
+            <VirtualTranscript
+              messages={session.messages}
+              onBranch={(mid) => setBranchMessageId(mid)}
+              branchDisabledReason={branchDisabledReason}
+            />
           )}
         </div>
       </div>

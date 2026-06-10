@@ -158,6 +158,18 @@
           "default": null,
           "title": "Created At"
         },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Job Id"
+        },
         "session_id": {
           "title": "Session Id",
           "type": "string"

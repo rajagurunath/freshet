@@ -30,6 +30,18 @@ export async function readText(path: string): Promise<string> {
 }
 
 /**
+ * Write UTF-8 text to `path`. Used by branch-from-turn to create a new session
+ * file. The Tauri capability scopes writes to `$HOME/.claude/projects/**` so a
+ * branch can never modify a file outside the Claude projects tree. No-ops in
+ * browser/dev mode.
+ */
+export async function writeText(path: string, content: string): Promise<void> {
+  if (!isTauri()) return;
+  const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+  await writeTextFile(path, content);
+}
+
+/**
  * Return mtime (Unix ms) and byte-size for the given file.
  * Throws if the file does not exist or stat fails.
  */

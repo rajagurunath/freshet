@@ -20,7 +20,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from contexthub.config import Settings, get_settings
 from contexthub.deps import Caller, require_api_key
@@ -30,6 +30,7 @@ from contexthub.ingest.redact import redact_text
 from contexthub.models import (
     IngestRequest,
     IngestResponse,
+    Job,
     QueryRequest,
     QueryResponse,
     SessionCatalogRow,
@@ -131,6 +132,8 @@ def _row_to_catalog(r: dict) -> SessionCatalogRow:
 @router.post("/v1/sessions", response_model=IngestResponse, tags=["sessions"])
 def ingest_session(
     body: IngestRequest,
+    request: Request,
+    summarize: bool = Query(False, description="When true, enqueue an async summarization job instead of summarizing inline."),
     caller: Caller = Depends(require_api_key),
     settings: Settings = Depends(get_settings),
 ):
@@ -143,16 +146,20 @@ def ingest_session(
       3. Build text chunks (summary + sliding window over messages).
       4. Embed chunks.
       5. Atomic upsert chunks + catalog row into LanceDB (merge_insert).
+
+    When summarize=true the endpoint does NOT call summarize_session() inline.
+    Instead it enqueues a 'summarize_session' job and returns immediately with
+    job_id set.  The background worker will later update the catalog row's
+    summary field.
     """
     session = body.session
     now = datetime.now(timezone.utc).isoformat()
 
     # Determine effective summary early (needed for hash computation)
     effective_summary: Optional[str] = body.summary
-    # Note: we do NOT call summarize_session here — that is sync-heavy and will
-    # be moved to the jobs subsystem in Task 5. If no summary is provided we
-    # fall back to a stub/empty so ingest stays fast.
-    if not effective_summary:
+    # When summarize=true we skip the inline (blocking) summarization and
+    # enqueue a background job instead.  This keeps the request path fast.
+    if not effective_summary and not summarize:
         effective_summary = summarize_session(session, settings)
 
     # 0. Idempotency check
@@ -170,6 +177,7 @@ def ingest_session(
             skipped=True,
             created_at=existing.get("created_at", now),
             updated_at=existing.get("updated_at", now),
+            job_id=None,
         )
 
     # Preserve original created_at on re-ingest with new content
@@ -256,6 +264,19 @@ def ingest_session(
     }
     vectors.upsert_session(catalog_row)
 
+    # Enqueue background summarization if requested
+    enqueued_job_id: Optional[str] = None
+    if summarize:
+        try:
+            job_store = request.app.state.job_store
+            enqueued_job_id = job_store.enqueue(
+                kind="summarize_session",
+                payload={"session_json": body.session.model_dump_json()},
+            )
+            logger.info("Enqueued summarize_session job %s for session %s", enqueued_job_id, session.id)
+        except Exception:
+            logger.exception("Failed to enqueue summarize_session job for session %s", session.id)
+
     logger.info("Ingested session %s — %d chunks", session.id, len(chunks))
     return IngestResponse(
         session_id=session.id,
@@ -265,6 +286,7 @@ def ingest_session(
         skipped=False,
         created_at=original_created_at,
         updated_at=now,
+        job_id=enqueued_job_id,
     )
 
 
@@ -426,3 +448,50 @@ def stats(
         sessions_by_tool=data["sessions_by_tool"],
         sessions_by_category=data["sessions_by_category"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Jobs
+# ---------------------------------------------------------------------------
+
+def _job_row_to_model(row: dict) -> Job:
+    return Job(
+        id=row["id"],
+        kind=row["kind"],
+        payload=row.get("payload") or {},
+        status=row["status"],
+        result=row.get("result"),
+        error=row.get("error"),
+        created_at=row["created_at"],
+        started_at=row.get("started_at"),
+        finished_at=row.get("finished_at"),
+        scheduled_for=row.get("scheduled_for"),
+    )
+
+
+@router.get("/v1/jobs/{job_id}", response_model=Job, tags=["jobs"])
+def get_job(
+    job_id: str,
+    request: Request,
+    _caller: Caller = Depends(require_api_key),
+):
+    """Return a single job record by id."""
+    job_store = request.app.state.job_store
+    row = job_store.get(job_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found.")
+    return _job_row_to_model(row)
+
+
+@router.get("/v1/jobs", response_model=list[Job], tags=["jobs"])
+def list_jobs(
+    request: Request,
+    status: Optional[str] = Query(None, description="Filter by status (queued|running|done|error)"),
+    kind: Optional[str] = Query(None, description="Filter by job kind"),
+    limit: int = Query(200, ge=1, le=1000),
+    _caller: Caller = Depends(require_api_key),
+):
+    """Return a list of job records, optionally filtered by status and/or kind."""
+    job_store = request.app.state.job_store
+    rows = job_store.list(status=status, kind=kind, limit=limit)
+    return [_job_row_to_model(r) for r in rows]

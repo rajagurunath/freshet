@@ -9,14 +9,24 @@ import {
   User,
   Sparkles,
   Scissors,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "./ui/cn";
+import { Tooltip } from "./ui/Tooltip";
 import { Markdown } from "./Markdown";
 import type { SessionMessage } from "@/lib/types";
 
 interface MessageBubbleProps {
   message: SessionMessage;
   className?: string;
+  /**
+   * Called when the user clicks "Branch from here" on this bubble. When
+   * provided and the message is a user/assistant turn, the hover action is
+   * shown. `branchDisabledReason`, if set, disables it with a tooltip
+   * (e.g. non-Claude tools).
+   */
+  onBranch?: (messageId: string) => void;
+  branchDisabledReason?: string;
 }
 
 function formatTime(ts?: string): string | null {
@@ -71,7 +81,12 @@ function CompactDivider({ message, className }: MessageBubbleProps) {
   );
 }
 
-export function MessageBubble({ message, className }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  className,
+  onBranch,
+  branchDisabledReason,
+}: MessageBubbleProps) {
   const [thinkingOpen, setThinkingOpen] = useState(false);
   const [toolOpen, setToolOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -172,13 +187,32 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
             </span>
           )}
           {time && <span className="text-micro text-ink-faint font-mono">{time}</span>}
-          <button
-            onClick={handleCopy}
-            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-120 text-ink-faint hover:text-ink"
-            aria-label="Copy message"
-          >
-            {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
-          </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            {onBranch && (
+              <Tooltip content={branchDisabledReason ?? "Branch from here"}>
+                <button
+                  onClick={() => !branchDisabledReason && onBranch(message.id)}
+                  disabled={Boolean(branchDisabledReason)}
+                  className={cn(
+                    "opacity-0 group-hover:opacity-100 transition-opacity duration-120 text-ink-faint",
+                    branchDisabledReason
+                      ? "cursor-not-allowed"
+                      : "hover:text-ink",
+                  )}
+                  aria-label="Branch from here"
+                >
+                  <GitBranch size={13} />
+                </button>
+              </Tooltip>
+            )}
+            <button
+              onClick={handleCopy}
+              className="opacity-0 group-hover:opacity-100 transition-opacity duration-120 text-ink-faint hover:text-ink"
+              aria-label="Copy message"
+            >
+              {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+            </button>
+          </div>
         </div>
 
         {/* Thinking (collapsible) */}
