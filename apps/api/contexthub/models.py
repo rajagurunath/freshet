@@ -1,0 +1,151 @@
+"""Pydantic models — the shared data contract between desktop app and API.
+
+All field names use snake_case to match the JSON wire format.
+"""
+
+from __future__ import annotations
+
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Core session contract (shared with desktop app)
+# ---------------------------------------------------------------------------
+
+class TokenCounts(BaseModel):
+    input: int = 0
+    output: int = 0
+
+
+class Message(BaseModel):
+    id: str
+    role: Literal["user", "assistant", "system", "tool"]
+    text: str
+    thinking: Optional[str] = None
+    tool_name: Optional[str] = None
+    timestamp: Optional[str] = None
+    model: Optional[str] = None
+
+
+class NormalizedSession(BaseModel):
+    id: str
+    tool: Literal["claude-code", "codex", "kilo-code"]
+    title: str
+    cwd: Optional[str] = None
+    project: Optional[str] = None
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    message_count: int = 0
+    models: list[str] = Field(default_factory=list)
+    tokens: Optional[TokenCounts] = None
+    preview: str = ""
+    file_path: str = ""
+    messages: list[Message] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Push envelope (desktop → API)
+# ---------------------------------------------------------------------------
+
+class Author(BaseModel):
+    id: str
+    email: str
+    name: str
+
+
+CategoryLiteral = Literal["engineering", "sales", "marketing", "research", "ops", "other"]
+VisibilityLiteral = Literal["company", "team", "private"]
+
+
+class IngestRequest(BaseModel):
+    session: NormalizedSession
+    summary: Optional[str] = None
+    category: CategoryLiteral = "engineering"
+    visibility: VisibilityLiteral = "company"
+    author: Author
+    redacted: bool = False
+
+
+class IngestResponse(BaseModel):
+    session_id: str
+    blob_uri: str
+    chunks_indexed: int
+    summary_used: bool
+
+
+# ---------------------------------------------------------------------------
+# Query / RAG
+# ---------------------------------------------------------------------------
+
+class QueryFilters(BaseModel):
+    category: Optional[CategoryLiteral] = None
+    tool: Optional[Literal["claude-code", "codex", "kilo-code"]] = None
+    project: Optional[str] = None
+    author: Optional[str] = None  # author.id
+
+
+class QueryRequest(BaseModel):
+    question: str
+    filters: Optional[QueryFilters] = None
+    top_k: int = 8
+    # Optional per-request LLM override (e.g. "claude-cli", "codex-cli").
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+class Citation(BaseModel):
+    session_id: str
+    title: str
+    tool: str
+    author: Optional[str] = None  # author name for display
+    snippet: str          # ~200-char excerpt
+    score: float
+
+
+class QueryResponse(BaseModel):
+    answer: str
+    citations: list[Citation]
+
+
+# ---------------------------------------------------------------------------
+# Summarize
+# ---------------------------------------------------------------------------
+
+class SummarizeRequest(BaseModel):
+    session: NormalizedSession
+    # Optional per-request LLM override (e.g. "claude-cli", "codex-cli").
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+class SummarizeResponse(BaseModel):
+    summary: str
+
+
+# ---------------------------------------------------------------------------
+# Catalog / stats
+# ---------------------------------------------------------------------------
+
+class SessionCatalogRow(BaseModel):
+    id: str
+    tool: str
+    title: str
+    category: str
+    author: Optional[str] = None
+    project: Optional[str] = None
+    visibility: str
+    message_count: int
+    models: list[str] = Field(default_factory=list)
+    preview: str = ""
+    created_at: str
+    blob_uri: str
+    summary: Optional[str] = None
+
+
+class StatsResponse(BaseModel):
+    total_sessions: int
+    total_chunks: int
+    sessions_by_tool: dict[str, int]
+    sessions_by_category: dict[str, int]

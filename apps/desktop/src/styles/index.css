@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palette stored as space-separated RGB channels so Tailwind opacity
+   modifiers (e.g. ring-accent/40) compose correctly. Raw CSS wraps in rgb(). */
+:root {
+  --bg: 251 250 248;
+  --bg-elevated: 255 255 255;
+  --bg-sunken: 244 242 238;
+  --ink: 26 24 21;
+  --ink-soft: 86 82 75;
+  --ink-faint: 142 137 127;
+  --border: 231 227 219;
+  --border-strong: 216 210 199;
+  --accent: 242 84 27;
+  --accent-ink: 200 64 15;
+  --accent-wash: 252 237 230;
+  --success: 46 125 82;
+  --warn: 184 134 11;
+  --danger: 194 64 30;
+
+  color-scheme: light;
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--border));
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: rgb(var(--bg));
+    color: rgb(var(--ink));
+    font-family: theme("fontFamily.sans");
+    font-size: 15px;
+    line-height: 23px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgb(var(--accent-wash));
+  }
+  /* Thin, calm scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--border-strong));
+    border-radius: 9999px;
+    border: 3px solid rgb(var(--bg));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--ink-faint));
+  }
+}
+
+@layer components {
+  .focus-ring {
+    @apply outline-none ring-2 ring-accent/40 ring-offset-1 ring-offset-bg;
+  }
+}

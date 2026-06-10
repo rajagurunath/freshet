@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities — read-only access to AI session directories.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "os:allow-platform",
+    "os:allow-os-type",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME/.claude/**" },
+        { "path": "$HOME/.codex/**" },
+        { "path": "$HOME/Library/Application Support/Code/User/globalStorage/kilocode.kilo-code/**" },
+        { "path": "$HOME/.config/Code/User/globalStorage/kilocode.kilo-code/**" }
+      ]
+    }
+  ]
+}

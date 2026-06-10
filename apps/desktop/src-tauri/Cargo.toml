@@ -1,0 +1,24 @@
+[package]
+name = "context-hub"
+version = "0.1.0"
+description = "Context Hub desktop — browse, summarize, and push your AI coding sessions"
+authors = ["Context Hub"]
+edition = "2021"
+
+[lib]
+name = "context_hub_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-fs = "2"
+tauri-plugin-os = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

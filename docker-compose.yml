@@ -1,0 +1,24 @@
+# Local stack for the Context Hub central API.
+# By default everything runs self-contained: local blob storage + local LanceDB +
+# local/hash embeddings. Set ANTHROPIC_API_KEY to enable real summaries & RAG answers,
+# and S3_BUCKET/AWS creds to push raw sessions to S3 instead of the local volume.
+services:
+  api:
+    build: ./apps/api
+    ports:
+      - "8787:8787"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+      LANCEDB_URI: /data/lancedb
+      BLOB_DIR: /data/blobs
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      API_KEYS: ${API_KEYS:-dev-key}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    volumes:
+      - contexthub_data:/data
+
+volumes:
+  contexthub_data:
