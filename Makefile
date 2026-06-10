@@ -1,5 +1,5 @@
 # Context Hub — developer convenience targets.
-.PHONY: help api-install api desktop-install desktop-dev desktop-build tauri test
+.PHONY: help api-install api desktop-install desktop-dev desktop-build tauri test landing
 
 help:
 	@echo "Context Hub targets:"
@@ -10,6 +10,7 @@ help:
 	@echo "  make tauri           # run the native desktop app (Tauri)"
 	@echo "  make desktop-build   # typecheck + production web build"
 	@echo "  make test            # run API + desktop test suites"
+	@echo "  make landing         # serve the static landing page on :8788"
 
 api-install:
 	cd apps/api && python3 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
@@ -28,6 +29,9 @@ tauri:
 
 desktop-build:
 	cd apps/desktop && npm run build
+
+landing:
+	cd apps/web && python3 -m http.server 8788
 
 test:
 	cd apps/api && . .venv/bin/activate && pytest -q

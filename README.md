@@ -21,7 +21,8 @@ context-hub/
 ├── docs/DESIGN.md            # UI design system
 ├── apps/
 │   ├── api/                  # FastAPI central service (S3 + LanceDB + Claude RAG)
-│   └── desktop/              # Tauri 2 + React desktop app (local session manager)
+│   ├── desktop/              # Tauri 2 + React desktop app (local session manager)
+│   └── web/                  # static landing page with the protocol animation
 ```
 
 ## Quick start
@@ -42,6 +43,12 @@ npm install
 npm run tauri dev             # native window
 # or `npm run dev` for the web UI in a browser
 ```
+
+### Landing page
+```bash
+make landing                  # serves apps/web on http://localhost:8788
+```
+See **[apps/web/README.md](apps/web/README.md)** — pure static HTML/CSS, no build step.
 
 ## Supported assistants
 | Tool | Source location | Status |

@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Context Hub — Everything your team taught the AI, in one place.</title>
+<meta name="description" content="Context Hub captures the AI coding sessions on every laptop, lets each person curate and redact what matters, and turns the rest into one company agent anyone can ask." />
+<style>
+  /* Critical CSS — tokens + above-the-fold. The rest lives in styles.css. */
+  :root{
+    --bg:#FBFAF8;--bg-elevated:#FFFFFF;--bg-sunken:#F4F2EE;
+    --ink:#1A1815;--ink-soft:#56524B;--ink-faint:#8E897F;
+    --border:#E7E3DB;--border-strong:#D8D2C7;
+    --accent:#F2541B;--accent-ink:#C8400F;--accent-wash:#FCEDE6;
+    --success:#2E7D52;--warn:#B8860B;--danger:#C2401E;
+    --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font:400 15px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+  a{color:var(--accent-ink);text-decoration:none}
+  .site-header{border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+  .nav{display:flex;align-items:center;gap:28px;height:60px}
+  .wordmark{font-weight:700;font-size:16px;letter-spacing:-0.02em;color:var(--ink)}
+  .wordmark .dot{color:var(--accent)}
+  .nav nav{display:flex;gap:22px;margin-left:auto}
+  .nav nav a{color:var(--ink-soft);font-size:13.5px}
+  .nav nav a:hover{color:var(--ink)}
+  .btn{display:inline-block;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600;line-height:1.2;border:1px solid transparent;transition:background-color .15s ease-out,border-color .15s ease-out,color .15s ease-out}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:var(--accent-ink)}
+  .hero{padding:88px 24px 40px}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:18px}
+  h1{font-size:clamp(32px,5vw,44px);line-height:1.12;letter-spacing:-0.02em;font-weight:700;max-width:720px}
+  .sub{margin-top:20px;font-size:17px;line-height:1.65;color:var(--ink-soft);max-width:640px}
+  .cta{margin-top:30px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .cta-note{font-family:var(--mono);font-size:12px;color:var(--ink-faint)}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="wordmark" href="#top">context<span class="dot">·</span>hub</a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#capture">Use cases</a>
+      <a href="#privacy">Privacy</a>
+    </nav>
+    <a class="btn btn-primary" href="#get">Get started</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero wrap">
+    <p class="kicker">Open source · local-first · one agent per company</p>
+    <h1>Everything your team taught the AI, in one place.</h1>
+    <p class="sub">Context Hub captures the AI coding sessions on every laptop, lets each person curate and redact what matters, and turns the rest into one company agent anyone can ask.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#get">Get the desktop app</a>
+      <span class="cta-note">macOS · Linux · Windows</span>
+    </div>
+    <p class="privacy-line" id="privacy">Parsing happens on-device. Nothing leaves a laptop until someone chooses to push — and secrets are redacted first.</p>
+  </section>
+
+  <!-- ====================== THE PROTOCOL, ANIMATED ====================== -->
+  <section class="proto-section wrap" id="how" aria-label="How the protocol works">
+    <figure class="proto" id="proto">
+      <svg viewBox="0 0 1000 420" width="100%" role="img"
+           aria-label="A session is captured on a developer's machine, secrets are redacted, an envelope is pushed to the hub where it lands in S3 and the search index, then a teammate asks a question and gets a cited answer.">
+        <title>The Context Hub protocol</title>
+
+        <!-- rails (always visible, dashed hairlines) -->
+        <path class="rail" d="M266,186 C320,186 352,170 398,170" />
+        <path class="rail" d="M660,332 C634,332 622,318 622,296" />
+        <path class="rail" d="M638,150 C680,128 702,120 740,120" />
+
+        <!-- accent flows (draw in during their step) -->
+        <path class="flow flow-push"   pathLength="1" d="M266,186 C320,186 352,170 398,170" />
+        <path class="flow flow-query"  pathLength="1" d="M660,332 C634,332 622,318 622,296" />
+        <path class="flow flow-answer" pathLength="1" d="M638,150 C680,128 702,120 740,120" />
+
+        <!-- ===== your machine ===== -->
+        <g class="node">
+          <rect class="card" x="42" y="96" width="224" height="180" rx="10" />
+          <text class="label" x="58" y="122">YOUR MACHINE</text>
+          <rect class="chip" x="58" y="132" width="148" height="20" rx="4" />
+          <text class="mono micro faint" x="66" y="146">~/.claude/…/s1.jsonl</text>
+          <g class="lines">
+            <rect class="ln ln1" x="58" y="168" width="180" height="8" rx="3" />
+            <rect class="ln ln2" x="58" y="184" width="150" height="8" rx="3" />
+            <rect class="ln ln3" x="58" y="200" width="192" height="8" rx="3" />
+            <rect class="ln ln4" x="58" y="216" width="120" height="8" rx="3" />
+            <rect class="ln ln5" x="58" y="232" width="166" height="8" rx="3" />
+          </g>
+          <rect class="redact r1" x="120" y="184" width="62" height="8" rx="3" />
+          <rect class="redact r2" x="58"  y="216" width="84" height="8" rx="3" />
+          <text class="redact-label micro" x="58" y="262">✓ secrets redacted</text>
+        </g>
+
+        <!-- ===== the hub ===== -->
+        <g class="node">
+          <rect class="card" x="398" y="78" width="240" height="216" rx="10" />
+          <text class="label" x="414" y="104">CONTEXT HUB</text>
+          <g>
+            <rect class="well well-s3" x="414" y="116" width="208" height="52" rx="8" />
+            <text class="small strong" x="426" y="138">S3</text>
+            <text class="micro faint" x="426" y="156">raw sessions, versioned</text>
+          </g>
+          <g>
+            <rect class="well" x="414" y="178" width="208" height="100" rx="8" />
+            <text class="small strong" x="426" y="200">Index</text>
+            <text class="micro faint" x="426" y="218">vector + full-text, rank-fused</text>
+            <g class="bars">
+              <rect class="bar b1" x="426" y="234" width="10" height="32" rx="2" />
+              <rect class="bar b2" x="442" y="242" width="10" height="24" rx="2" />
+              <rect class="bar b3" x="458" y="238" width="10" height="28" rx="2" />
+              <rect class="bar b4" x="474" y="248" width="10" height="18" rx="2" />
+              <rect class="bar b5" x="490" y="240" width="10" height="26" rx="2" />
+            </g>
+          </g>
+        </g>
+
+        <!-- ===== teammate + question ===== -->
+        <g class="ask-group">
+          <rect class="bubble" x="660" y="318" width="236" height="28" rx="14" />
+          <text class="mono micro" x="674" y="336">“what did we decide on pricing?”</text>
+          <circle class="avatar" cx="924" cy="332" r="15" />
+          <text class="micro avatar-initials" x="924" y="336" text-anchor="middle">PM</text>
+        </g>
+
+        <!-- ===== cited answer ===== -->
+        <g class="answer-group">
+          <rect class="card" x="740" y="84" width="224" height="150" rx="10" />
+          <text class="label" x="756" y="110">ANSWER</text>
+          <rect class="aln a1" x="756" y="124" width="180" height="8" rx="3" />
+          <rect class="aln a2" x="756" y="140" width="192" height="8" rx="3" />
+          <rect class="aln a3" x="756" y="156" width="150" height="8" rx="3" />
+          <g class="cite">
+            <rect x="756" y="176" width="118" height="22" rx="11" />
+            <text class="mono micro cite-text" x="766" y="191">session #4f2c</text>
+          </g>
+          <text class="micro faint grounded" x="756" y="222">grounded in 3 sessions</text>
+        </g>
+
+        <!-- ===== traveling glyphs ===== -->
+        <g class="pkt pkt-push">
+          <rect x="-13" y="-9" width="26" height="18" rx="3" />
+          <path class="flap" d="M-13,-9 L0,3 L13,-9" />
+        </g>
+        <g class="pkt pkt-query">
+          <circle r="9" />
+          <text y="4" text-anchor="middle">?</text>
+        </g>
+        <g class="pkt pkt-answer">
+          <rect x="-8" y="-11" width="16" height="22" rx="2" />
+          <line x1="-4" y1="-4" x2="4" y2="-4" />
+          <line x1="-4" y1="1"  x2="4" y2="1" />
+        </g>
+      </svg>
+      <figcaption>
+        <ol class="steps" aria-hidden="true">
+          <li class="s1">Capture</li>
+          <li class="s2">Redact</li>
+          <li class="s3">Push</li>
+          <li class="s4">Index</li>
+          <li class="s5">Ask &amp; cite</li>
+        </ol>
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ====================== USE CASES ====================== -->
+  <div class="features wrap">
+
+    <section class="feature reveal" id="capture">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 56 56" width="56" height="56">
+          <path class="s" d="M14 8h20l8 8v32H14z" />
+          <path class="s" d="M34 8v8h8" />
+          <line class="s" x1="20" y1="26" x2="36" y2="26" />
+          <line class="s" x1="20" y1="32" x2="32" y2="32" />
+          <line class="s" x1="20" y1="38" x2="36" y2="38" />
+          <circle cx="20" cy="46" r="2.4" fill="#F2541B" />
+          <circle cx="27" cy="46" r="2.4" fill="#56524B" />
+          <circle cx="34" cy="46" r="2.4" fill="#2E7D52" />
+        </svg>
+      </div>
+      <div class="feature-body">
+        <h2>Your team's best thinking is sitting in .jsonl files.</h2>
+        <p>Claude Code, Codex, and Kilo Code transcripts are parsed entirely on your machine. Browse every session, see what was actually decided — including what <code>/compact</code> threw away — and push only what you choose, as a full transcript or a curated summary.</p>
+        <p class="detail">~/.claude · ~/.codex · kilocode tasks</p>
+      </div>
+    </section>
+
+    <section class="feature reveal" id="ask">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 56 56" width="56" height="56">
+          <line class="s" x1="10" y1="16" x2="26" y2="16" />
+          <line class="s" x1="10" y1="23" x2="22" y2="23" />
+          <line class="s a" x1="10" y1="30" x2="26" y2="30" />
+          <line class="s" x1="10" y1="37" x2="20" y2="37" />
+          <circle class="s" cx="36" cy="27" r="10" />
+          <line class="s" x1="43" y1="34" x2="50" y2="41" />
+        </svg>
+      </div>
+      <div class="feature-body">
+        <h2>One agent that has actually read everything.</h2>
+        <p>Hybrid retrieval — full-text and vector search, rank-fused — finds the exact error string <em>and</em> the half-remembered decision. Every answer cites the sessions it came from, so trust is checkable, not assumed.</p>
+        <p class="detail">POST /v1/query · mode: hybrid · citations included</p>
+      </div>
+    </section>
+
+    <section class="feature reveal" id="pr">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 56 56" width="56" height="56">
+          <circle class="s" cx="14" cy="14" r="5" />
+          <circle class="s" cx="14" cy="42" r="5" />
+          <line class="s" x1="14" y1="19" x2="14" y2="37" />
+          <path class="s" d="M19 14h10a8 8 0 0 1 8 8v4" />
+          <circle class="s a" cx="37" cy="42" r="5" />
+          <path class="s" d="M37 31v6" />
+        </svg>
+      </div>
+      <div class="feature-body">
+        <h2>Every pull request, with its reasoning attached.</h2>
+        <p>One command mints a token-gated context page from the session behind a PR: why it exists, the decision trail, the dead ends that were tried first. Reviewers read the thinking, not just the diff.</p>
+        <p class="detail">contexthub-pr 142 → agent-context link on the PR</p>
+      </div>
+    </section>
+
+    <section class="feature reveal" id="graph">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 56 56" width="56" height="56">
+          <line class="s" x1="16" y1="14" x2="40" y2="20" />
+          <line class="s" x1="16" y1="14" x2="22" y2="40" />
+          <line class="s" x1="40" y1="20" x2="22" y2="40" />
+          <line class="s" x1="40" y1="20" x2="46" y2="42" />
+          <circle class="s" cx="16" cy="14" r="5" />
+          <circle class="s a" cx="40" cy="20" r="5" />
+          <circle class="s" cx="22" cy="40" r="5" />
+          <circle class="s" cx="46" cy="42" r="4" />
+        </svg>
+      </div>
+      <div class="feature-body">
+        <h2>Sessions connect into a map of your company.</h2>
+        <p>Repos, services, features, people, and decisions are extracted into a knowledge graph. When two teams touch the same feature from different repos, the graph says so — and the agent uses it to answer cross-cutting questions.</p>
+        <p class="detail">nodes: repo · service · feature · person · decision</p>
+      </div>
+    </section>
+
+    <section class="feature reveal" id="assets">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 56 56" width="56" height="56">
+          <path class="s" d="M12 20l16-8 16 8v18l-16 8-16-8z" />
+          <path class="s" d="M12 20l16 8 16-8" />
+          <line class="s" x1="28" y1="28" x2="28" y2="46" />
+          <path class="s a" d="M44 10v8M40 14h8" />
+        </svg>
+      </div>
+      <div class="feature-body">
+        <h2>Skills and prompts, shared like packages.</h2>
+        <p>Push the skills, commands, and agents in your local <code>~/.claude</code> to the hub; pull what your teammates built. The hub speaks the OpenSharing protocol, so any compatible client can read the catalog too.</p>
+        <p class="detail">GET /opensharing/shares · Agent Skill + Volume</p>
+      </div>
+    </section>
+
+    <section class="feature reveal" id="sync">
+      <div class="feature-icon" aria-hidden="true">
+        <svg viewBox="0 0 56 56" width="56" height="56">
+          <path class="s" d="M44 28a16 16 0 1 1-5-11.6" />
+          <path class="s a" d="M40 10v8h-8" />
+          <path class="s" d="M34 36a8 8 0 0 1-1-15.9A8 8 0 0 1 34 36z" transform="translate(-6,-1)" />
+        </svg>
+      </div>
+      <div class="feature-body">
+        <h2>Set it once. The hub stays current.</h2>
+        <p>A file watcher notices finished sessions and pushes them after a quiet period — redacted, deduplicated, idempotent. Summarization runs nightly on the Batch API at half price, or on a local model for free.</p>
+        <p class="detail">watch → quiet 5 min → push · summarize at 02:00</p>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ====================== GET STARTED ====================== -->
+  <section class="get wrap reveal" id="get">
+    <h2>Run it this afternoon.</h2>
+    <p class="get-sub">Two pieces: a FastAPI hub your team points at, and a desktop app each person runs. No SaaS, no data leaving your infrastructure.</p>
+    <pre class="codeblock"><code>git clone &lt;your-fork&gt;/context-hub &amp;&amp; cd context-hub
+make api-install &amp;&amp; make api    <span class="cmt"># the hub, on :8787</span>
+make desktop-install &amp;&amp; make tauri    <span class="cmt"># the desktop app</span></code></pre>
+    <div class="cta">
+      <span class="cta-note">Full setup in <code>README.md</code> at the repo root · OpenSharing-compatible surface · API-key auth · S3 or local disk</span>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-row">
+    <span class="wordmark">context<span class="dot">·</span>hub</span>
+    <span class="footer-note">The company-wide context hub for the age of AI work. © <span id="year">2026</span></span>
+  </div>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>
