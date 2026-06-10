@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,7 +12,10 @@ import {
   Sparkles,
   Wrench,
   Clock,
+  FileText,
+  AlignLeft,
 } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
@@ -27,10 +30,11 @@ import { AiConsentModal } from "@/components/AiConsentModal";
 import { useToast } from "@/components/ui/Toast";
 import { useApp } from "@/store/app";
 import { useSettings } from "@/store/settings";
-import type { Category, Visibility, PushEnvelope } from "@/lib/types";
+import type { Category, Visibility, PushEnvelope, SessionMessage } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
 import { makeApiClient } from "@/lib/api/client";
 import { sessionStats, formatDuration } from "@/lib/aggregate";
+import type { NormalizedSession } from "@/lib/types";
 
 function relativeTime(iso?: string): string {
   if (!iso) return "";
@@ -78,6 +82,162 @@ const visibilityOptions: { value: Visibility; label: string }[] = [
   { value: "private", label: "Private — only me" },
 ];
 
+/** Derive a sorted unique list of files touched (paths from tool message text). */
+function deriveTouchedFiles(messages: SessionMessage[]): string[] {
+  const fileSet = new Set<string>();
+  const pathRe = /(?:^|\s)((?:\/|~\/|\.\/)[^\s"'`]+\.\w{1,6})/g;
+  for (const m of messages) {
+    if (m.role !== "tool") continue;
+    let match;
+    pathRe.lastIndex = 0;
+    while ((match = pathRe.exec(m.text)) !== null) {
+      fileSet.add(match[1]);
+    }
+  }
+  return [...fileSet].sort();
+}
+
+// ─── Virtualized transcript ────────────────────────────────────────────────────
+
+function VirtualTranscript({ messages }: { messages: SessionMessage[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 120,
+    overscan: 5,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-y-auto h-full">
+      <div
+        style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}
+      >
+        {virtualizer.getVirtualItems().map((vRow) => (
+          <div
+            key={vRow.key}
+            data-index={vRow.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${vRow.start}px)`,
+            }}
+          >
+            <MessageBubble message={messages[vRow.index]} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Summary tab content ──────────────────────────────────────────────────────
+
+function SummaryTab({
+  session,
+  summary,
+  stats,
+}: {
+  session: NormalizedSession;
+  summary: string;
+  stats: ReturnType<typeof sessionStats> | null;
+}) {
+  const totalTokens = session.tokens
+    ? session.tokens.input + session.tokens.output
+    : undefined;
+
+  const touchedFiles = useMemo(
+    () => deriveTouchedFiles(session.messages),
+    [session.messages],
+  );
+
+  return (
+    <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+      {/* Summary text */}
+      {summary && (
+        <div className="space-y-1">
+          <span className="text-micro text-ink-faint uppercase tracking-wide">Summary</span>
+          <p className="text-body text-ink leading-relaxed whitespace-pre-wrap">{summary}</p>
+        </div>
+      )}
+
+      {!summary && (
+        <p className="text-small text-ink-faint italic">
+          No summary yet — use Curate & Push to generate one with AI or write your own.
+        </p>
+      )}
+
+      {/* KPI strip */}
+      {stats && (
+        <div className="space-y-2">
+          <span className="text-micro text-ink-faint uppercase tracking-wide">Stats</span>
+          <div className="flex items-stretch gap-2 flex-wrap">
+            <KpiPill icon={<MessagesSquare size={13} />} label="Messages" value={session.messageCount} />
+            <KpiPill icon={<User size={13} />} label="You" value={stats.userMessages} />
+            <KpiPill icon={<Sparkles size={13} />} label="Assistant" value={stats.assistantMessages} />
+            <KpiPill icon={<Wrench size={13} />} label="Tool calls" value={stats.toolCalls} />
+            {totalTokens !== undefined && totalTokens > 0 && (
+              <KpiPill
+                icon={<Zap size={13} />}
+                label="Tokens"
+                value={formatTokens(totalTokens)}
+                sub={`${formatTokens(stats.tokensIn)}↓ ${formatTokens(stats.tokensOut)}↑`}
+              />
+            )}
+            {stats.durationMs !== undefined && (
+              <KpiPill icon={<Clock size={13} />} label="Duration" value={formatDuration(stats.durationMs)} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tool-use breakdown */}
+      {stats && stats.toolsUsed.length > 0 && (
+        <div className="space-y-2">
+          <span className="text-micro text-ink-faint uppercase tracking-wide">Tool-use breakdown</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {stats.toolsUsed.map((t) => (
+              <span
+                key={t.key}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#f1f8f8] border border-[#bfe0df] text-micro font-mono text-[#15807d]"
+              >
+                {t.key}
+                <span className="text-ink-faint">×{t.count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Files touched */}
+      {touchedFiles.length > 0 && (
+        <div className="space-y-2">
+          <span className="text-micro text-ink-faint uppercase tracking-wide">Files touched</span>
+          <ul className="space-y-0.5">
+            {touchedFiles.slice(0, 20).map((f) => (
+              <li key={f} className="text-small font-mono text-ink-soft truncate">
+                {f}
+              </li>
+            ))}
+            {touchedFiles.length > 20 && (
+              <li className="text-small text-ink-faint">+{touchedFiles.length - 20} more…</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main page component ──────────────────────────────────────────────────────
+
+type DetailTab = "summary" | "transcript";
+
 export function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -99,6 +259,12 @@ export function SessionDetailPage() {
   const [summary, setSummary] = useState(session?.compactSummary ?? "");
   const [summarizing, setSummarizing] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
+
+  // Default to "summary" tab when a summary/compactSummary exists.
+  const hasSummary = Boolean(session?.compactSummary || summary);
+  const [activeTab, setActiveTab] = useState<DetailTab>(
+    hasSummary ? "summary" : "transcript",
+  );
 
   const provider = settings.llmProvider ?? "claude-cli";
   const isLocalAgent = provider === "claude-cli" || provider === "codex-cli";
@@ -124,7 +290,6 @@ export function SessionDetailPage() {
       setRedactCount(0);
       return;
     }
-    // Dynamic import so it doesn't crash if not yet built
     import("@/lib/redact")
       .then(({ redactSession }) => {
         const result = redactSession(session);
@@ -140,6 +305,8 @@ export function SessionDetailPage() {
       const client = makeApiClient(settings.apiBaseUrl ?? "", settings.apiKey ?? "");
       const text = await client.summarize(session, provider, settings.llmModel);
       setSummary(text);
+      // Switch to summary tab to show the result
+      setActiveTab("summary");
     } catch (e) {
       toastError("Summarization failed. Check your connection and AI provider settings.");
     } finally {
@@ -148,7 +315,6 @@ export function SessionDetailPage() {
   };
 
   const handleSummarize = () => {
-    // Gate the first AI use behind explicit consent.
     if (!settings.aiConsent) {
       setConsentOpen(true);
       return;
@@ -223,7 +389,7 @@ export function SessionDetailPage() {
         onClose={() => setConsentOpen(false)}
       />
 
-      {/* Left: Transcript */}
+      {/* Left: Main content area with tabs */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden border-r border-border">
         {/* Sticky header */}
         <div className="sticky top-0 z-10 bg-bg-elevated border-b border-border px-5 py-4 shrink-0">
@@ -257,51 +423,47 @@ export function SessionDetailPage() {
             )}
           </div>
 
-          {/* KPI strip */}
-          {stats && (
-            <div className="flex items-stretch gap-2 flex-wrap">
-              <KpiPill icon={<MessagesSquare size={13} />} label="Messages" value={session.messageCount} />
-              <KpiPill icon={<User size={13} />} label="You" value={stats.userMessages} />
-              <KpiPill icon={<Sparkles size={13} />} label="Assistant" value={stats.assistantMessages} />
-              <KpiPill icon={<Wrench size={13} />} label="Tool calls" value={stats.toolCalls} />
-              {totalTokens !== undefined && totalTokens > 0 && (
-                <KpiPill
-                  icon={<Zap size={13} />}
-                  label="Tokens"
-                  value={formatTokens(totalTokens)}
-                  sub={`${formatTokens(stats.tokensIn)}↓ ${formatTokens(stats.tokensOut)}↑`}
-                />
-              )}
-              {stats.durationMs !== undefined && (
-                <KpiPill icon={<Clock size={13} />} label="Duration" value={formatDuration(stats.durationMs)} />
-              )}
-            </div>
-          )}
-
-          {/* Tools used */}
-          {stats && stats.toolsUsed.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap mt-3">
-              <span className="text-micro text-ink-faint uppercase tracking-wide mr-1">
-                Tools used
+          {/* Tab bar */}
+          <div className="flex items-center gap-1 border-b border-border -mb-4 pb-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab("summary")}
+              className={[
+                "flex items-center gap-1.5 px-3 py-2 text-small font-medium border-b-2 transition-colors duration-120",
+                activeTab === "summary"
+                  ? "border-accent text-accent-ink"
+                  : "border-transparent text-ink-faint hover:text-ink",
+              ].join(" ")}
+            >
+              <FileText size={13} />
+              Summary
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("transcript")}
+              className={[
+                "flex items-center gap-1.5 px-3 py-2 text-small font-medium border-b-2 transition-colors duration-120",
+                activeTab === "transcript"
+                  ? "border-accent text-accent-ink"
+                  : "border-transparent text-ink-faint hover:text-ink",
+              ].join(" ")}
+            >
+              <AlignLeft size={13} />
+              Transcript
+              <span className="ml-1 text-micro text-ink-faint font-mono">
+                {session.messageCount}
               </span>
-              {stats.toolsUsed.map((t) => (
-                <span
-                  key={t.key}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#f1f8f8] border border-[#bfe0df] text-micro font-mono text-[#15807d]"
-                >
-                  {t.key}
-                  <span className="text-ink-faint">×{t.count}</span>
-                </span>
-              ))}
-            </div>
-          )}
+            </button>
+          </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
-          {session.messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
-          ))}
+        {/* Tab content */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {activeTab === "summary" ? (
+            <SummaryTab session={session} summary={summary} stats={stats} />
+          ) : (
+            <VirtualTranscript messages={session.messages} />
+          )}
         </div>
       </div>
 

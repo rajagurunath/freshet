@@ -5,9 +5,21 @@ import type { NormalizedSession, Tool } from "../types";
 import { parseClaude } from "./claude";
 import { parseCodex } from "./codex";
 import { parseKilo } from "./kilo";
-import { getSessionRoots, listSessionFiles, readText, isTauri } from "../tauri";
+import { getSessionRoots, listSessionFiles, readText, statFile, isTauri } from "../tauri";
 import { MOCK_SESSIONS } from "../mock";
-import { basename, dirname, joinPath } from "../path-utils";
+import { basename, joinPath } from "../path-utils";
+import {
+  isCacheEntryStale,
+  mergeScanResult,
+  type ScanCache,
+  type ScanFileInfo,
+} from "../scan-cache";
+
+/** Result from scanLocalSessions when cache is used. */
+export interface ScanResult {
+  sessions: NormalizedSession[];
+  updatedCache: ScanCache;
+}
 
 // ─── tool detection ──────────────────────────────────────────────────────────
 
@@ -66,49 +78,77 @@ function extractKiloTaskId(filePath: string): string {
 /**
  * Discovers and parses all local AI-assistant sessions.
  * Falls back to MOCK_SESSIONS when Tauri is not available.
+ *
+ * When `previousCache` and `previousSessions` are supplied, only new or
+ * changed files are re-parsed (incremental scan).  The returned `updatedCache`
+ * should be persisted to the store for the next call.
  */
-export async function scanLocalSessions(): Promise<NormalizedSession[]> {
-  if (!isTauri()) return MOCK_SESSIONS;
+export async function scanLocalSessions(
+  previousCache?: ScanCache,
+  previousSessions?: NormalizedSession[],
+): Promise<ScanResult> {
+  if (!isTauri()) {
+    return { sessions: MOCK_SESSIONS, updatedCache: {} };
+  }
 
   const roots = await getSessionRoots();
-  const sessions: NormalizedSession[] = [];
+
+  // Collect all file paths for each root tool
+  const allFiles: { path: string; tool: Tool }[] = [];
 
   for (const root of roots) {
     const normalized = root.replace(/\\/g, "/");
-
     try {
       if (normalized.includes("/.claude/projects")) {
-        // Claude Code: *.jsonl files
         const files = await listSessionFiles(root, ["jsonl"]);
-        for (const file of files) {
-          try {
-            const text = await readText(file);
-            const session = parseClaude(text, file);
-            sessions.push(session);
-          } catch (err) {
-            console.warn("[context-hub] Failed to parse Claude file:", file, err);
-          }
-        }
+        for (const f of files) allFiles.push({ path: f, tool: "claude-code" });
       } else if (normalized.includes("/.codex/sessions")) {
-        // Codex: *.jsonl files
         const files = await listSessionFiles(root, ["jsonl"]);
-        for (const file of files) {
-          try {
-            const text = await readText(file);
-            const session = parseCodex(text, file);
-            sessions.push(session);
-          } catch (err) {
-            console.warn("[context-hub] Failed to parse Codex file:", file, err);
+        for (const f of files) allFiles.push({ path: f, tool: "codex" });
+      } else if (normalized.includes("kilocode.kilo-code")) {
+        // Kilo: gather the api_conversation_history.json paths
+        const tasksDir = joinPath(root, "tasks");
+        const jsonFiles = await listSessionFiles(tasksDir, ["json"]);
+        for (const f of jsonFiles) {
+          if (basename(f) === "api_conversation_history.json") {
+            allFiles.push({ path: f, tool: "kilo-code" });
           }
         }
-      } else if (normalized.includes("kilocode.kilo-code")) {
-        // Kilo Code: tasks/<taskId>/api_conversation_history.json
-        await scanKiloRoot(root, sessions);
       }
     } catch (err) {
       console.warn("[context-hub] Failed to scan root:", root, err);
     }
   }
+
+  // Fetch mtime/size for all discovered files in parallel
+  const fileInfoMap: Record<string, ScanFileInfo> = {};
+  await Promise.all(
+    allFiles.map(async ({ path }) => {
+      try {
+        const info = await statFile(path);
+        fileInfoMap[path] = info;
+      } catch {
+        // File disappeared between listing and stat — skip it
+      }
+    }),
+  );
+
+  const cache = previousCache ?? {};
+  const prev = previousSessions ?? [];
+
+  // Determine which files need (re-)parsing
+  const toParseFiles = allFiles.filter(({ path }) => {
+    const info = fileInfoMap[path];
+    if (!info) return false; // stat failed; skip
+    return isCacheEntryStale(cache[path], info);
+  });
+
+  // Parse only the stale/new files
+  const freshSessions: NormalizedSession[] = [];
+  await parseFiles(toParseFiles, freshSessions);
+
+  // Merge with cached sessions
+  const { sessions, updatedCache } = mergeScanResult(prev, freshSessions, cache, fileInfoMap);
 
   sessions.sort((a, b) => {
     const ta = a.startedAt ?? "";
@@ -116,41 +156,55 @@ export async function scanLocalSessions(): Promise<NormalizedSession[]> {
     return tb.localeCompare(ta);
   });
 
-  return sessions;
+  return { sessions, updatedCache };
 }
 
-async function scanKiloRoot(
-  root: string,
-  sessions: NormalizedSession[]
+/** Parse a list of {path, tool} entries into `out`, handling kilo grouping. */
+async function parseFiles(
+  files: { path: string; tool: Tool }[],
+  out: NormalizedSession[],
 ): Promise<void> {
-  const tasksDir = joinPath(root, "tasks");
-  // list all json files under tasks/
-  const files = await listSessionFiles(tasksDir, ["json"]);
+  // Group kilo files by taskId so we can pair api + ui history
+  const kiloGroup = new Map<string, { apiFile?: string; uiFile?: string }>();
 
-  // group by taskId (parent dir)
-  const taskMap = new Map<string, { apiFile?: string; uiFile?: string }>();
-  for (const file of files) {
-    const parts = file.replace(/\\/g, "/").split("/");
-    const tasksIdx = parts.lastIndexOf("tasks");
-    if (tasksIdx === -1 || tasksIdx + 1 >= parts.length) continue;
-    const taskId = parts[tasksIdx + 1];
-    const fileName = basename(file);
-
-    if (!taskMap.has(taskId)) taskMap.set(taskId, {});
-    const entry = taskMap.get(taskId)!;
-    if (fileName === "api_conversation_history.json") entry.apiFile = file;
-    else if (fileName === "ui_messages.json") entry.uiFile = file;
+  for (const { path, tool } of files) {
+    if (tool === "claude-code") {
+      try {
+        const text = await readText(path);
+        out.push(parseClaude(text, path));
+      } catch (err) {
+        console.warn("[context-hub] Failed to parse Claude file:", path, err);
+      }
+    } else if (tool === "codex") {
+      try {
+        const text = await readText(path);
+        out.push(parseCodex(text, path));
+      } catch (err) {
+        console.warn("[context-hub] Failed to parse Codex file:", path, err);
+      }
+    } else if (tool === "kilo-code") {
+      const parts = path.replace(/\\/g, "/").split("/");
+      const tasksIdx = parts.lastIndexOf("tasks");
+      if (tasksIdx === -1 || tasksIdx + 1 >= parts.length) continue;
+      const taskId = parts[tasksIdx + 1];
+      if (!kiloGroup.has(taskId)) kiloGroup.set(taskId, {});
+      const entry = kiloGroup.get(taskId)!;
+      const fn = basename(path);
+      if (fn === "api_conversation_history.json") entry.apiFile = path;
+      else if (fn === "ui_messages.json") entry.uiFile = path;
+    }
   }
 
-  for (const [taskId, entry] of taskMap) {
+  // Parse kilo groups
+  for (const [taskId, entry] of kiloGroup) {
     if (!entry.apiFile) continue;
     try {
       const apiText = await readText(entry.apiFile);
       const uiText = entry.uiFile ? await readText(entry.uiFile) : undefined;
-      const session = parseKilo(apiText, entry.apiFile, taskId, uiText);
-      sessions.push(session);
+      out.push(parseKilo(apiText, entry.apiFile, taskId, uiText));
     } catch (err) {
       console.warn("[context-hub] Failed to parse Kilo task:", taskId, err);
     }
   }
 }
+

@@ -32,7 +32,7 @@ const navItems = [
 type HealthState = "unknown" | "ok" | "error";
 
 function AppShell() {
-  const { loadSessions, sessions } = useApp();
+  const { loadSessions, rescan, sessions } = useApp();
   const settings = useSettings();
   const [health, setHealth] = useState<HealthState>("unknown");
 
@@ -40,6 +40,13 @@ function AppShell() {
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+
+  // Re-scan on window focus (incremental — only parses new/changed files)
+  useEffect(() => {
+    const onFocus = () => { void rescan(); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [rescan]);
 
   // Poll API health when a baseUrl is configured
   useEffect(() => {

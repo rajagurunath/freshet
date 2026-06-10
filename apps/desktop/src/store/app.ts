@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { NormalizedSession, Tool } from "../lib/types";
 import { scanLocalSessions } from "../lib/parsers/index";
+import type { ScanCache } from "../lib/scan-cache";
 
 // ─── sort / filter types ──────────────────────────────────────────────────────
 
@@ -38,8 +39,14 @@ export interface AppState {
   // ── sort + filter prefs (persisted) ─────────────────────────────────────
   listPrefs: SessionListPrefs;
 
+  // ── incremental scan cache (persisted) ──────────────────────────────────
+  /** mtime/size cache used to skip re-parsing unchanged files. */
+  scanCache: ScanCache;
+
   // ── actions ─────────────────────────────────────────────────────────────
   loadSessions: () => Promise<void>;
+  /** Re-scan local files (incremental — only parses new/changed files). */
+  rescan: () => Promise<void>;
   getSession: (id: string) => NormalizedSession | undefined;
   /** Mark a session as pushed. Alias: markAsPushed. */
   markPushed: (id: string) => void;
@@ -64,15 +71,34 @@ export const useApp = create<AppState>()(
       error: null,
       pushedIds: [],
       listPrefs: DEFAULT_LIST_PREFS,
+      scanCache: {},
 
       loadSessions: async () => {
         set({ loading: true, error: null });
         try {
-          const sessions = await scanLocalSessions();
-          set({ sessions, loading: false });
+          const { sessions, updatedCache } = await scanLocalSessions(
+            get().scanCache,
+            get().sessions,
+          );
+          set({ sessions, scanCache: updatedCache, loading: false });
         } catch (err) {
           const message =
             err instanceof Error ? err.message : "Failed to load sessions";
+          set({ loading: false, error: message });
+        }
+      },
+
+      rescan: async () => {
+        set({ loading: true, error: null });
+        try {
+          const { sessions, updatedCache } = await scanLocalSessions(
+            get().scanCache,
+            get().sessions,
+          );
+          set({ sessions, scanCache: updatedCache, loading: false });
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Failed to rescan sessions";
           set({ loading: false, error: message });
         }
       },
@@ -107,10 +133,11 @@ export const useApp = create<AppState>()(
     }),
     {
       name: "context-hub-app",
-      // Persist pushedIds and listPrefs; sessions & loading state are transient
+      // Persist pushedIds, listPrefs, and scanCache; sessions & loading are transient
       partialize: (state) => ({
         pushedIds: state.pushedIds,
         listPrefs: state.listPrefs,
+        scanCache: state.scanCache,
       }),
     }
   )

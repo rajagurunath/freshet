@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowDown, ArrowUp, Search, TerminalSquare } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
@@ -13,6 +14,8 @@ import { useApp } from "@/store/app";
 import type { SortField } from "@/store/app";
 import { filterSessions, sortSessions, deriveProjects } from "@/lib/sessions-filter";
 import type { Tool } from "@/lib/types";
+
+const VIRTUALIZE_THRESHOLD = 100;
 
 type FilterTab = "all" | Tool;
 
@@ -38,6 +41,53 @@ const DATE_RANGE_OPTIONS = [
   { value: "30d", label: "Last 30 days" },
   { value: "90d", label: "Last 90 days" },
 ] as const;
+
+/** Virtualized session list rendered only when filtered.length > VIRTUALIZE_THRESHOLD. */
+function VirtualSessionList({
+  sessions: filteredSessions,
+  pushedSet,
+  onSelect,
+}: {
+  sessions: ReturnType<typeof filterSessions>;
+  pushedSet: Set<string>;
+  onSelect: (id: string) => void;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredSessions.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 80,
+    overscan: 5,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-y-auto h-full">
+      <div
+        style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const session = filteredSessions[virtualRow.index];
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
+              style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` }}
+            >
+              <SessionRow
+                session={session}
+                pushed={pushedSet.has(session.id)}
+                onClick={() => onSelect(session.id)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function SessionsPage() {
   const navigate = useNavigate();
@@ -171,7 +221,7 @@ export function SessionsPage() {
       </div>
 
       {/* Session list */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
         {loading ? (
           <div>
             {Array.from({ length: 6 }).map((_, i) => (
@@ -196,6 +246,12 @@ export function SessionsPage() {
                 Clear filters
               </button>
             }
+          />
+        ) : filtered.length > VIRTUALIZE_THRESHOLD ? (
+          <VirtualSessionList
+            sessions={filtered}
+            pushedSet={pushedSet}
+            onSelect={(id) => navigate(`/sessions/${id}`)}
           />
         ) : (
           <div>
