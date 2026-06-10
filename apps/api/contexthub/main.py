@@ -34,6 +34,29 @@ def _next_02_utc() -> str:
     return candidate.isoformat()
 
 
+def _ensure_harvest_check(job_store, harvest_enabled: bool = False) -> None:  # type: ignore[type-arg]
+    """Enqueue an initial harvest_check job if none is already queued or running.
+
+    The job is scheduled immediately (no delay).  The handler will reschedule
+    itself hourly so there is always exactly one future harvest_check in the queue.
+
+    This is a no-op when harvest_enabled is False.
+    """
+    if not harvest_enabled:
+        return
+    existing = job_store.list(kind="harvest_check", status="queued")
+    running = job_store.list(kind="harvest_check", status="running")
+    if existing or running:
+        logger.info(
+            "harvest_check job already queued/running (%d queued, %d running)",
+            len(existing),
+            len(running),
+        )
+        return
+    jid = job_store.enqueue(kind="harvest_check", payload={})
+    logger.info("Enqueued initial harvest_check job %s", jid)
+
+
 def _ensure_nightly_summarize_pending(job_store) -> None:  # type: ignore[type-arg]
     """Enqueue a nightly summarize_pending job if none is already queued or running."""
     existing = job_store.list(kind="summarize_pending", status="queued")
@@ -91,6 +114,10 @@ def create_app() -> FastAPI:
         # batched cheaply during off-hours (burns subscription quota right before
         # the weekly reset).
         _ensure_nightly_summarize_pending(job_store)
+
+        # Enqueue the initial harvest_check job when the harvester is enabled.
+        # The handler re-schedules itself hourly, so this only fires on cold start.
+        _ensure_harvest_check(job_store, harvest_enabled=settings.harvest_enabled)
 
         yield
 

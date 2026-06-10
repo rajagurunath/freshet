@@ -68,6 +68,22 @@ class Settings(BaseSettings):
     # CORS origins (comma-separated)
     cors_origins: str = "http://localhost:1420,http://localhost:5173"
 
+    # ---------------------------------------------------------------------------
+    # Subscription-window harvester (Task 12)
+    # ---------------------------------------------------------------------------
+    # Enable the harvest_check job that burns unused weekly subscription quota on
+    # summarization / graph extraction right before the provider window resets.
+    harvest_enabled: bool = False
+    # Comma-separated list of providers to use during harvest.
+    # Recognised values: claude-cli, codex-cli, local, openai-batch, default
+    harvest_providers: str = "claude-cli,codex-cli"
+    # Cron-ish specification for the subscription window reset.
+    # Format: "<weekday> <HH:MM>"  e.g. "mon 00:00"
+    # Weekday names (case-insensitive): mon tue wed thu fri sat sun
+    harvest_window_reset: str = "mon 00:00"
+    # How many hours before the window reset to start draining pending work.
+    harvest_lookahead_hours: int = 12
+
     @property
     def api_key_list(self) -> list[str]:
         """Return the parsed list of allowed API keys (bare key only, for backward compat)."""

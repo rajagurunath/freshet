@@ -538,3 +538,24 @@ def list_jobs(
     job_store = request.app.state.job_store
     rows = job_store.list(status=status, kind=kind, limit=limit)
     return [_job_row_to_model(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Harvest status (Task 12)
+# ---------------------------------------------------------------------------
+
+@router.get("/v1/harvest/status", tags=["harvest"])
+def harvest_status(
+    _caller: Caller = Depends(require_api_key),
+    settings: Settings = Depends(get_settings),
+):
+    """Return the subscription-window harvester status.
+
+    Reports:
+      harvest_enabled    — whether the harvester is active
+      next_reset         — ISO-8601 UTC datetime of the next window reset
+      pending_counts     — number of sessions lacking summaries / graph extraction
+      last_drain_results — result dict from the most recent completed harvest_check job
+    """
+    from contexthub.jobs.harvest import get_harvest_status
+    return get_harvest_status(settings)

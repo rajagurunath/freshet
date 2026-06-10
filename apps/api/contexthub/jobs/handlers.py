@@ -368,6 +368,19 @@ def summarize_pending_handler(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# harvest_check handler (Task 12)
+# ---------------------------------------------------------------------------
+
+def harvest_check_handler(payload: dict[str, Any]) -> dict[str, Any]:
+    """Delegate to contexthub.jobs.harvest.harvest_check_handler.
+
+    Keeping the registry thin: actual implementation lives in harvest.py.
+    """
+    from contexthub.jobs.harvest import harvest_check_handler as _impl
+    return _impl(payload)
+
+
+# ---------------------------------------------------------------------------
 # Registry: maps kind → handler callable
 # ---------------------------------------------------------------------------
 
@@ -376,4 +389,5 @@ HANDLER_REGISTRY: dict[str, Any] = {
     "summarize_batch": summarize_batch_handler,
     "batch_poll": batch_poll_handler,
     "summarize_pending": summarize_pending_handler,
+    "harvest_check": harvest_check_handler,
 }
