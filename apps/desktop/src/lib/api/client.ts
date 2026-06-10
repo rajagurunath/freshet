@@ -17,6 +17,7 @@ import type {
   Tool,
 } from "../types";
 import type { GraphData } from "../graph";
+import type { Rule, RulePage, RuleStatus } from "../rules";
 
 /**
  * A session record as returned by the hub's GET /v1/sessions endpoint.
@@ -253,6 +254,58 @@ export class ApiClient {
       nodes: camelify<GraphData["nodes"]>(raw.nodes) ?? [],
       edges: camelify<GraphData["edges"]>(raw.edges) ?? [],
     };
+  }
+
+  /** List extracted rules (optionally filtered by status/author). */
+  async listRules(opts?: {
+    status?: RuleStatus;
+    author?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<RulePage> {
+    const qs = opts ? this.buildQuery(opts as Record<string, unknown>) : "";
+    const raw = await this.request<unknown>("GET", `/v1/rules${qs}`);
+    return camelify<RulePage>(raw);
+  }
+
+  /** Accept a proposed rule (explicit consent — enables export). */
+  async acceptRule(ruleId: string): Promise<Rule> {
+    const raw = await this.request<unknown>(
+      "POST",
+      `/v1/rules/${encodeURIComponent(ruleId)}/accept`,
+    );
+    return camelify<Rule>(raw);
+  }
+
+  /** Reject a proposed rule (never exported, not re-proposed). */
+  async rejectRule(ruleId: string): Promise<Rule> {
+    const raw = await this.request<unknown>(
+      "POST",
+      `/v1/rules/${encodeURIComponent(ruleId)}/reject`,
+    );
+    return camelify<Rule>(raw);
+  }
+
+  /** Export accepted rules as a CLAUDE.md-style markdown block (plain text). */
+  async exportRules(): Promise<string> {
+    const res = await fetch(`${this.baseUrl}/v1/rules/export`, {
+      method: "GET",
+      headers: this.headers(),
+    });
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    return res.text();
+  }
+
+  /** Enqueue a rules-extraction job over the caller's recent sessions. */
+  async mineRules(opts?: {
+    nSessions?: number;
+    author?: string;
+    provider?: string;
+    model?: string;
+  }): Promise<{ jobId: string }> {
+    const qs = opts ? this.buildQuery(opts as Record<string, unknown>) : "";
+    const raw = await this.request<{ job_id: string }>("POST", `/v1/rules/mine${qs}`);
+    return { jobId: raw.job_id };
   }
 
   /** Retrieve hub-level statistics, normalized to the app's shape. */
