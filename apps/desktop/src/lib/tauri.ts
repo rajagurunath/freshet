@@ -3,6 +3,7 @@
  * browser (dev/demo mode) so the rest of the codebase doesn't need to guard.
  */
 import type { ScanFileInfo } from "./scan-cache";
+import type { DirEntry } from "./assetScan";
 
 export function isTauri(): boolean {
   return "__TAURI_INTERNALS__" in window;
@@ -53,6 +54,36 @@ export async function statFile(path: string): Promise<ScanFileInfo> {
     mtime: meta.mtime ? new Date(meta.mtime).getTime() : 0,
     size: meta.size ?? 0,
   };
+}
+
+/** Absolute home directory path, or "" in browser/dev mode. */
+export async function homeDirPath(): Promise<string> {
+  if (!isTauri()) return "";
+  const { homeDir } = await import("@tauri-apps/api/path");
+  return homeDir();
+}
+
+/**
+ * List a directory's entries (name + isDirectory). Returns [] when the
+ * directory does not exist, is unreadable, or we are in browser/dev mode —
+ * the asset scanner treats a missing root as "no assets", not an error.
+ */
+export async function listDir(path: string): Promise<DirEntry[]> {
+  if (!isTauri()) return [];
+  try {
+    const { readDir } = await import("@tauri-apps/plugin-fs");
+    const entries = await readDir(path);
+    return entries.map((e) => ({ name: e.name, isDirectory: e.isDirectory }));
+  } catch {
+    return [];
+  }
+}
+
+/** Read a file's raw bytes (used when zipping assets for upload). */
+export async function readBinary(path: string): Promise<Uint8Array> {
+  if (!isTauri()) return new Uint8Array();
+  const { readFile } = await import("@tauri-apps/plugin-fs");
+  return readFile(path);
 }
 
 /**

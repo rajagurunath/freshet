@@ -7,6 +7,7 @@ import {
   MessageCircle,
   Share2,
   ListChecks,
+  Package,
   Settings,
   RefreshCw,
   CheckCircle2,
@@ -21,6 +22,7 @@ import { HubPage } from "@/pages/HubPage";
 import { AgentPage } from "@/pages/AgentPage";
 import { GraphPage } from "@/pages/GraphPage";
 import { RulesPage } from "@/pages/RulesPage";
+import { AssetsPage } from "@/pages/AssetsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { useApp } from "@/store/app";
 import { useSettings } from "@/store/settings";
@@ -36,6 +38,7 @@ const navItems = [
   { to: "/agent", label: "Ask the Agent", icon: MessageCircle },
   { to: "/graph", label: "Knowledge Graph", icon: Share2 },
   { to: "/rules", label: "Rules", icon: ListChecks },
+  { to: "/assets", label: "Assets", icon: Package },
 ] as const;
 
 type HealthState = "unknown" | "ok" | "error";
@@ -319,6 +322,7 @@ function AppShell() {
           <Route path="/agent" element={<AgentPage />} />
           <Route path="/graph" element={<GraphPage />} />
           <Route path="/rules" element={<RulesPage />} />
+          <Route path="/assets" element={<AssetsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

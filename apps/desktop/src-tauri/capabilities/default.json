@@ -13,9 +13,13 @@
     "fs:allow-read-dir",
     "fs:allow-exists",
     {
+      "comment": "Read scope covers session roots plus the asset-hub scan directories: $HOME/.claude/{skills,commands,agents}/** (listed explicitly for clarity even though $HOME/.claude/** already includes them).",
       "identifier": "fs:scope",
       "allow": [
         { "path": "$HOME/.claude/**" },
+        { "path": "$HOME/.claude/skills/**" },
+        { "path": "$HOME/.claude/commands/**" },
+        { "path": "$HOME/.claude/agents/**" },
         { "path": "$HOME/.codex/**" },
         { "path": "$HOME/Library/Application Support/Code/User/globalStorage/kilocode.kilo-code/**" },
         { "path": "$HOME/.config/Code/User/globalStorage/kilocode.kilo-code/**" }

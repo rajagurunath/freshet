@@ -55,6 +55,29 @@ export interface HubStats {
   byCategory: Record<string, number>;
 }
 
+/** An asset record as returned by the hub's /v1/assets endpoints (camelCased). */
+export interface AssetRecord {
+  id: string;
+  kind: string;
+  name: string;
+  description: string;
+  category: string;
+  author: string;
+  team?: string | null;
+  visibility: Visibility;
+  files: string[];
+  blobUri: string;
+  version: string;
+  createdAt: string;
+}
+
+export interface AssetPage {
+  items: AssetRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface ProviderInfo {
   id: string;
   label: string;
@@ -306,6 +329,73 @@ export class ApiClient {
     const qs = opts ? this.buildQuery(opts as Record<string, unknown>) : "";
     const raw = await this.request<{ job_id: string }>("POST", `/v1/rules/mine${qs}`);
     return { jobId: raw.job_id };
+  }
+
+  /** List hub assets with optional kind/category filter and FTS search. */
+  async listAssets(opts?: {
+    kind?: string;
+    category?: string;
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<AssetPage> {
+    const qs = opts ? this.buildQuery(opts as Record<string, unknown>) : "";
+    const raw = await this.request<unknown>("GET", `/v1/assets${qs}`);
+    return camelify<AssetPage>(raw);
+  }
+
+  /** Upload an asset (skill/script/config/prompt) as a multipart ZIP. */
+  async uploadAsset(
+    meta: {
+      kind: string;
+      name: string;
+      description?: string;
+      category?: string;
+      visibility?: string;
+      version?: string;
+    },
+    zipData: Uint8Array,
+    filename?: string,
+  ): Promise<AssetRecord> {
+    const form = new FormData();
+    form.set("kind", meta.kind);
+    form.set("name", meta.name);
+    if (meta.description) form.set("description", meta.description);
+    if (meta.category) form.set("category", meta.category);
+    if (meta.visibility) form.set("visibility", meta.visibility);
+    if (meta.version) form.set("version", meta.version);
+    form.set(
+      "file",
+      new Blob([zipData as BlobPart], { type: "application/zip" }),
+      filename ?? `${meta.name.replace(/\//g, "__")}.zip`,
+    );
+    // Multipart: let the browser set the Content-Type boundary itself.
+    const res = await fetch(`${this.baseUrl}/v1/assets`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+      body: form,
+    });
+    if (!res.ok) {
+      let message = `API error ${res.status}`;
+      try {
+        const json = (await res.json()) as { detail?: string; message?: string };
+        message = json.detail ?? json.message ?? message;
+      } catch {
+        /* keep default */
+      }
+      throw new Error(message);
+    }
+    return camelify<AssetRecord>(await res.json());
+  }
+
+  /** Download an asset's ZIP payload as a Blob. */
+  async downloadAsset(assetId: string): Promise<Blob> {
+    const res = await fetch(
+      `${this.baseUrl}/v1/assets/${encodeURIComponent(assetId)}/download`,
+      { headers: { Authorization: `Bearer ${this.apiKey}` } },
+    );
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    return res.blob();
   }
 
   /** Retrieve hub-level statistics, normalized to the app's shape. */
