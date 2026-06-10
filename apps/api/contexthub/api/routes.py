@@ -445,6 +445,8 @@ def share_session(
     if not row:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
 
+    # Never mint a forgeable share URL signed with the public default secret.
+    settings.require_secure_token_secrets()
     secret = settings.share_token_secret
     token, expiry = sign_share_token(session_id, secret, ttl_seconds=86400)
 

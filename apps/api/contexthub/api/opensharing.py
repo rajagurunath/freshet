@@ -237,6 +237,9 @@ def temporary_skill_credentials(
     if asset is None:
         raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
 
+    # Never vend a forgeable URL signed with the public default secret.
+    settings.require_secure_token_secrets()
+
     # Vend a short-lived signed token (1 hour TTL)
     token, expiry = generate_download_token(
         asset_id=skill_id,

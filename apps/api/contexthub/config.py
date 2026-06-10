@@ -10,6 +10,15 @@ from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Insecure placeholder secrets shipped as defaults for local development.
+# Token minting/verification refuses to use these outside a dev environment.
+DEFAULT_ASSET_TOKEN_SECRET = "changeme-asset-token-secret"
+DEFAULT_SHARE_TOKEN_SECRET = "changeme-share-token-secret"
+
+
+class InsecureDefaultSecretError(RuntimeError):
+    """Raised when a signing secret is left at its insecure default in production."""
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -74,13 +83,18 @@ class Settings(BaseSettings):
     # Local directory for asset ZIP blobs (Task 15)
     asset_blob_dir: str = "./data/asset_blobs"
 
+    # Deployment environment. When not "development"/"dev"/"test", the app
+    # refuses to start (and refuses to mint/verify tokens) if either signing
+    # secret below is left at its insecure default.
+    environment: str = "development"
+
     # HMAC secret for signing short-lived asset download tokens (Task 15).
     # Override via ASSET_TOKEN_SECRET env var in production.
-    asset_token_secret: str = "changeme-asset-token-secret"
+    asset_token_secret: str = DEFAULT_ASSET_TOKEN_SECRET
 
     # HMAC secret for signing share tokens on context-page URLs (Task 16).
     # Override via SHARE_TOKEN_SECRET env var in production.
-    share_token_secret: str = "changeme-share-token-secret"
+    share_token_secret: str = DEFAULT_SHARE_TOKEN_SECRET
 
     # Bearer-token allowlist (comma-separated in env, parsed here)
     api_keys: str = "dev-key"
@@ -141,6 +155,37 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         """Return the parsed list of CORS origins."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def is_dev_environment(self) -> bool:
+        """True for local/dev/test environments where insecure defaults are allowed."""
+        return self.environment.strip().lower() in ("development", "dev", "local", "test")
+
+    def insecure_default_secrets(self) -> list[str]:
+        """Return the names of signing secrets left at their insecure default."""
+        offenders: list[str] = []
+        if self.asset_token_secret == DEFAULT_ASSET_TOKEN_SECRET:
+            offenders.append("asset_token_secret")
+        if self.share_token_secret == DEFAULT_SHARE_TOKEN_SECRET:
+            offenders.append("share_token_secret")
+        return offenders
+
+    def require_secure_token_secrets(self) -> None:
+        """Raise in non-dev environments when a signing secret is still the default.
+
+        The default HMAC secrets are public, so anyone could forge valid
+        asset-download and context-page share tokens. Refuse to mint or verify
+        tokens (and refuse to start) when they are left unset in production.
+        """
+        if self.is_dev_environment:
+            return
+        offenders = self.insecure_default_secrets()
+        if offenders:
+            raise InsecureDefaultSecretError(
+                "Refusing to run with insecure default signing secret(s) in "
+                f"environment={self.environment!r}: {', '.join(offenders)}. "
+                "Set ASSET_TOKEN_SECRET / SHARE_TOKEN_SECRET to random values."
+            )
 
 
 @lru_cache(maxsize=1)

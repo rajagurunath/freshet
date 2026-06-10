@@ -85,6 +85,9 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
 
+    # Fail fast: never run with the public default signing secrets in production.
+    settings.require_secure_token_secrets()
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("Context Hub API starting up")
