@@ -1,315 +1,789 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Context Hub — Everything your team taught the AI, in one place.</title>
-<meta name="description" content="Context Hub captures the AI coding sessions on every laptop, lets each person curate and redact what matters, and turns the rest into one company agent anyone can ask." />
-<style>
-  /* Critical CSS — tokens + above-the-fold. The rest lives in styles.css. */
-  :root{
-    --bg:#FBFAF8;--bg-elevated:#FFFFFF;--bg-sunken:#F4F2EE;
-    --ink:#1A1815;--ink-soft:#56524B;--ink-faint:#8E897F;
-    --border:#E7E3DB;--border-strong:#D8D2C7;
-    --accent:#F2541B;--accent-ink:#C8400F;--accent-wash:#FCEDE6;
-    --success:#2E7D52;--warn:#B8860B;--danger:#C2401E;
-    --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
-    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  }
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
-  body{background:var(--bg);color:var(--ink);font:400 15px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
-  a{color:var(--accent-ink);text-decoration:none}
-  .site-header{border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
-  .nav{display:flex;align-items:center;gap:28px;height:60px}
-  .wordmark{font-weight:700;font-size:16px;letter-spacing:-0.02em;color:var(--ink)}
-  .wordmark .dot{color:var(--accent)}
-  .nav nav{display:flex;gap:22px;margin-left:auto}
-  .nav nav a{color:var(--ink-soft);font-size:13.5px}
-  .nav nav a:hover{color:var(--ink)}
-  .btn{display:inline-block;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600;line-height:1.2;border:1px solid transparent;transition:background-color .15s ease-out,border-color .15s ease-out,color .15s ease-out}
-  .btn-primary{background:var(--accent);color:#fff}
-  .btn-primary:hover{background:var(--accent-ink)}
-  .hero{padding:88px 24px 40px}
-  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:18px}
-  h1{font-size:clamp(32px,5vw,44px);line-height:1.12;letter-spacing:-0.02em;font-weight:700;max-width:720px}
-  .sub{margin-top:20px;font-size:17px;line-height:1.65;color:var(--ink-soft);max-width:640px}
-  .cta{margin-top:30px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-  .cta-note{font-family:var(--mono);font-size:12px;color:var(--ink-faint)}
-</style>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Context Hub — Everything your team taught the AI, in one place</title>
+  <meta name="description" content="Context Hub captures every Claude Code, Codex, and Kilo Code session. Your team curates, redacts, and pushes the good ones — building a company-wide AI that knows your codebase. Runs locally." />
+  <meta name="theme-color" content="#FBFAF8" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Context Hub — Everything your team taught the AI, in one place" />
+  <meta property="og:description" content="Capture every Claude Code, Codex, and Kilo Code session. Curate, redact, and push the good ones into a company-wide AI that knows your codebase." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;680;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-<header class="site-header">
-  <div class="wrap nav">
-    <a class="wordmark" href="#top">context<span class="dot">·</span>hub</a>
-    <nav aria-label="Sections">
-      <a href="#how">How it works</a>
-      <a href="#capture">Use cases</a>
-      <a href="#privacy">Privacy</a>
+<!-- ============ 1. NAV ============ -->
+<header class="nav" id="nav">
+  <div class="nav__inner">
+    <a class="wordmark" href="#top" aria-label="Context Hub home">
+      <svg class="wordmark__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="2" y="2" width="20" height="20" rx="6" fill="#F2541B"/>
+        <circle cx="12" cy="12" r="3" fill="#fff"/>
+        <circle cx="6.2" cy="6.2" r="1.6" fill="#fff"/>
+        <circle cx="17.8" cy="6.2" r="1.6" fill="#fff"/>
+        <circle cx="6.2" cy="17.8" r="1.6" fill="#fff"/>
+        <circle cx="17.8" cy="17.8" r="1.6" fill="#fff"/>
+        <path d="M12 12 6.2 6.2M12 12l5.8-5.8M12 12l-5.8 5.8M12 12l5.8 5.8" stroke="#fff" stroke-width="1.1"/>
+      </svg>
+      Context Hub
+    </a>
+    <nav class="nav__links" aria-label="Primary">
+      <a class="ghost" href="#how">How it works</a>
+      <a class="ghost" href="#product">Product</a>
+      <a class="ghost" href="#privacy">Privacy</a>
+      <a class="ghost" href="#docs">Docs</a>
+      <a class="ghost" href="https://github.com" rel="noopener">GitHub</a>
+      <a class="btn btn-primary" href="#download">Download</a>
     </nav>
-    <a class="btn btn-primary" href="#get">Get started</a>
   </div>
 </header>
 
 <main id="top">
 
-  <section class="hero wrap">
-    <p class="kicker">Open source · local-first · one agent per company</p>
-    <h1>Everything your team taught the AI, in one place.</h1>
-    <p class="sub">Context Hub captures the AI coding sessions on every laptop, lets each person curate and redact what matters, and turns the rest into one company agent anyone can ask.</p>
-    <div class="cta">
-      <a class="btn btn-primary" href="#get">Get the desktop app</a>
-      <span class="cta-note">macOS · Linux · Windows</span>
+<!-- ============ 2. HERO ============ -->
+<section class="hero">
+  <div class="wrap">
+    <a class="announce reveal-load" href="#download">
+      <span class="announce__dot" aria-hidden="true"></span>
+      Now in beta — Context Hub for Claude Code, Codex, and Kilo Code
+      <span aria-hidden="true">→</span>
+    </a>
+
+    <div class="hero__grid">
+      <div class="hero__copy">
+        <h1 class="reveal-load d1">Everything your team taught the AI, in one&nbsp;place.</h1>
+        <p class="hero__sub reveal-load d2">
+          Context Hub captures every Claude Code, Codex, and Kilo Code session.
+          Your team curates, redacts, and pushes the good ones. The result: a
+          company-wide AI that actually knows your codebase.
+        </p>
+        <div class="hero__cta reveal-load d3">
+          <a class="btn btn-primary btn-lg" href="#download">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 1.6c.1 1-.3 2-1 2.8-.7.8-1.8 1.4-2.8 1.3-.1-1 .4-2 1-2.7.7-.8 1.9-1.4 2.8-1.4zM19 17.3c-.5 1.2-.8 1.7-1.4 2.7-.9 1.4-2.2 3.2-3.8 3.2-1.4 0-1.8-.9-3.7-.9s-2.3.9-3.7.9c-1.6 0-2.8-1.6-3.7-3C-.1 16.7-.4 11.2 2 8.4c1-1.3 2.4-2 3.8-2 1.5 0 2.5.9 3.7.9 1.2 0 2-.9 3.7-.9 1.3 0 2.6.7 3.6 1.9-3.1 1.7-2.6 6.2.2 7.9z"/></svg>
+            Download for Mac
+          </a>
+          <a class="btn btn-secondary btn-lg" href="#how">See how it works →</a>
+        </div>
+        <p class="hero__note reveal-load d3">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Runs locally. No data leaves your machine without your review.
+        </p>
+      </div>
+
+      <!-- Hero mini window -->
+      <div class="hero__win-wrap">
+        <div class="mini-win" role="img" aria-label="Context Hub session browser showing a list of captured AI coding sessions with one expanded.">
+          <div class="mini-win__bar">
+            <div class="lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <span class="mini-win__title">context-hub — sessions</span>
+          </div>
+          <div class="mini-win__body">
+            <div class="mini-win__rail" aria-hidden="true">
+              <svg class="rail-ico active" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+              <svg class="rail-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M6 8l5 8M18 8l-5 8"/></svg>
+              <svg class="rail-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg>
+              <svg class="rail-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
+            </div>
+            <div class="mini-win__main">
+              <div class="mini-win__h">Today</div>
+
+              <div class="sess-row active">
+                <div class="sess-row__top">
+                  <span class="tool-chip chip-claude">Claude Code</span>
+                  <span class="badge badge--pushed" style="margin-left:auto">Pushed</span>
+                </div>
+                <div class="sess-row__title">Fix auth middleware race condition</div>
+                <div class="sess-expand">
+                  <div class="bubble"><span class="who">You</span><span class="txt">Why does the token refresh occasionally 401 under load?</span></div>
+                  <div class="bubble ai"><span class="who">Claude</span><span class="txt">Two requests hit the refresh path before the new token is written. Gate it with a mutex keyed on the session id.</span></div>
+                </div>
+              </div>
+
+              <div class="sess-row">
+                <div class="sess-row__top">
+                  <span class="tool-chip chip-codex">Codex</span>
+                  <span class="badge badge--draft" style="margin-left:auto">Draft</span>
+                </div>
+                <div class="sess-row__title">Migrate Postgres schema v4</div>
+                <div class="sess-row__meta"><span>14:02</span><span>·</span><span>18.4k tok</span></div>
+              </div>
+
+              <div class="sess-row">
+                <div class="sess-row__top">
+                  <span class="tool-chip chip-kilo">Kilo Code</span>
+                  <span class="badge badge--redacted" style="margin-left:auto">Redacted</span>
+                </div>
+                <div class="sess-row__title">Add rate limiting to public API</div>
+                <div class="sess-row__meta"><span>11:37</span><span>·</span><span>9.1k tok</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <p class="privacy-line" id="privacy">Parsing happens on-device. Nothing leaves a laptop until someone chooses to push — and secrets are redacted first.</p>
-  </section>
-
-  <!-- ====================== THE PROTOCOL, ANIMATED ====================== -->
-  <section class="proto-section wrap" id="how" aria-label="How the protocol works">
-    <figure class="proto" id="proto">
-      <svg viewBox="0 0 1000 420" width="100%" role="img"
-           aria-label="A session is captured on a developer's machine, secrets are redacted, an envelope is pushed to the hub where it lands in S3 and the search index, then a teammate asks a question and gets a cited answer.">
-        <title>The Context Hub protocol</title>
-
-        <!-- rails (always visible, dashed hairlines) -->
-        <path class="rail" d="M266,186 C320,186 352,170 398,170" />
-        <path class="rail" d="M660,332 C634,332 622,318 622,296" />
-        <path class="rail" d="M638,150 C680,128 702,120 740,120" />
-
-        <!-- accent flows (draw in during their step) -->
-        <path class="flow flow-push"   pathLength="1" d="M266,186 C320,186 352,170 398,170" />
-        <path class="flow flow-query"  pathLength="1" d="M660,332 C634,332 622,318 622,296" />
-        <path class="flow flow-answer" pathLength="1" d="M638,150 C680,128 702,120 740,120" />
-
-        <!-- ===== your machine ===== -->
-        <g class="node">
-          <rect class="card" x="42" y="96" width="224" height="180" rx="10" />
-          <text class="label" x="58" y="122">YOUR MACHINE</text>
-          <rect class="chip" x="58" y="132" width="148" height="20" rx="4" />
-          <text class="mono micro faint" x="66" y="146">~/.claude/…/s1.jsonl</text>
-          <g class="lines">
-            <rect class="ln ln1" x="58" y="168" width="180" height="8" rx="3" />
-            <rect class="ln ln2" x="58" y="184" width="150" height="8" rx="3" />
-            <rect class="ln ln3" x="58" y="200" width="192" height="8" rx="3" />
-            <rect class="ln ln4" x="58" y="216" width="120" height="8" rx="3" />
-            <rect class="ln ln5" x="58" y="232" width="166" height="8" rx="3" />
-          </g>
-          <rect class="redact r1" x="120" y="184" width="62" height="8" rx="3" />
-          <rect class="redact r2" x="58"  y="216" width="84" height="8" rx="3" />
-          <text class="redact-label micro" x="58" y="262">✓ secrets redacted</text>
-        </g>
-
-        <!-- ===== the hub ===== -->
-        <g class="node">
-          <rect class="card" x="398" y="78" width="240" height="216" rx="10" />
-          <text class="label" x="414" y="104">CONTEXT HUB</text>
-          <g>
-            <rect class="well well-s3" x="414" y="116" width="208" height="52" rx="8" />
-            <text class="small strong" x="426" y="138">S3</text>
-            <text class="micro faint" x="426" y="156">raw sessions, versioned</text>
-          </g>
-          <g>
-            <rect class="well" x="414" y="178" width="208" height="100" rx="8" />
-            <text class="small strong" x="426" y="200">Index</text>
-            <text class="micro faint" x="426" y="218">vector + full-text, rank-fused</text>
-            <g class="bars">
-              <rect class="bar b1" x="426" y="234" width="10" height="32" rx="2" />
-              <rect class="bar b2" x="442" y="242" width="10" height="24" rx="2" />
-              <rect class="bar b3" x="458" y="238" width="10" height="28" rx="2" />
-              <rect class="bar b4" x="474" y="248" width="10" height="18" rx="2" />
-              <rect class="bar b5" x="490" y="240" width="10" height="26" rx="2" />
-            </g>
-          </g>
-        </g>
-
-        <!-- ===== teammate + question ===== -->
-        <g class="ask-group">
-          <rect class="bubble" x="660" y="318" width="236" height="28" rx="14" />
-          <text class="mono micro" x="674" y="336">“what did we decide on pricing?”</text>
-          <circle class="avatar" cx="924" cy="332" r="15" />
-          <text class="micro avatar-initials" x="924" y="336" text-anchor="middle">PM</text>
-        </g>
-
-        <!-- ===== cited answer ===== -->
-        <g class="answer-group">
-          <rect class="card" x="740" y="84" width="224" height="150" rx="10" />
-          <text class="label" x="756" y="110">ANSWER</text>
-          <rect class="aln a1" x="756" y="124" width="180" height="8" rx="3" />
-          <rect class="aln a2" x="756" y="140" width="192" height="8" rx="3" />
-          <rect class="aln a3" x="756" y="156" width="150" height="8" rx="3" />
-          <g class="cite">
-            <rect x="756" y="176" width="118" height="22" rx="11" />
-            <text class="mono micro cite-text" x="766" y="191">session #4f2c</text>
-          </g>
-          <text class="micro faint grounded" x="756" y="222">grounded in 3 sessions</text>
-        </g>
-
-        <!-- ===== traveling glyphs ===== -->
-        <g class="pkt pkt-push">
-          <rect x="-13" y="-9" width="26" height="18" rx="3" />
-          <path class="flap" d="M-13,-9 L0,3 L13,-9" />
-        </g>
-        <g class="pkt pkt-query">
-          <circle r="9" />
-          <text y="4" text-anchor="middle">?</text>
-        </g>
-        <g class="pkt pkt-answer">
-          <rect x="-8" y="-11" width="16" height="22" rx="2" />
-          <line x1="-4" y1="-4" x2="4" y2="-4" />
-          <line x1="-4" y1="1"  x2="4" y2="1" />
-        </g>
-      </svg>
-      <figcaption>
-        <ol class="steps" aria-hidden="true">
-          <li class="s1">Capture</li>
-          <li class="s2">Redact</li>
-          <li class="s3">Push</li>
-          <li class="s4">Index</li>
-          <li class="s5">Ask &amp; cite</li>
-        </ol>
-      </figcaption>
-    </figure>
-  </section>
-
-  <!-- ====================== USE CASES ====================== -->
-  <div class="features wrap">
-
-    <section class="feature reveal" id="capture">
-      <div class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 56 56" width="56" height="56">
-          <path class="s" d="M14 8h20l8 8v32H14z" />
-          <path class="s" d="M34 8v8h8" />
-          <line class="s" x1="20" y1="26" x2="36" y2="26" />
-          <line class="s" x1="20" y1="32" x2="32" y2="32" />
-          <line class="s" x1="20" y1="38" x2="36" y2="38" />
-          <circle cx="20" cy="46" r="2.4" fill="#F2541B" />
-          <circle cx="27" cy="46" r="2.4" fill="#56524B" />
-          <circle cx="34" cy="46" r="2.4" fill="#2E7D52" />
-        </svg>
-      </div>
-      <div class="feature-body">
-        <h2>Your team's best thinking is sitting in .jsonl files.</h2>
-        <p>Claude Code, Codex, and Kilo Code transcripts are parsed entirely on your machine. Browse every session, see what was actually decided — including what <code>/compact</code> threw away — and push only what you choose, as a full transcript or a curated summary.</p>
-        <p class="detail">~/.claude · ~/.codex · kilocode tasks</p>
-      </div>
-    </section>
-
-    <section class="feature reveal" id="ask">
-      <div class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 56 56" width="56" height="56">
-          <line class="s" x1="10" y1="16" x2="26" y2="16" />
-          <line class="s" x1="10" y1="23" x2="22" y2="23" />
-          <line class="s a" x1="10" y1="30" x2="26" y2="30" />
-          <line class="s" x1="10" y1="37" x2="20" y2="37" />
-          <circle class="s" cx="36" cy="27" r="10" />
-          <line class="s" x1="43" y1="34" x2="50" y2="41" />
-        </svg>
-      </div>
-      <div class="feature-body">
-        <h2>One agent that has actually read everything.</h2>
-        <p>Hybrid retrieval — full-text and vector search, rank-fused — finds the exact error string <em>and</em> the half-remembered decision. Every answer cites the sessions it came from, so trust is checkable, not assumed.</p>
-        <p class="detail">POST /v1/query · mode: hybrid · citations included</p>
-      </div>
-    </section>
-
-    <section class="feature reveal" id="pr">
-      <div class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 56 56" width="56" height="56">
-          <circle class="s" cx="14" cy="14" r="5" />
-          <circle class="s" cx="14" cy="42" r="5" />
-          <line class="s" x1="14" y1="19" x2="14" y2="37" />
-          <path class="s" d="M19 14h10a8 8 0 0 1 8 8v4" />
-          <circle class="s a" cx="37" cy="42" r="5" />
-          <path class="s" d="M37 31v6" />
-        </svg>
-      </div>
-      <div class="feature-body">
-        <h2>Every pull request, with its reasoning attached.</h2>
-        <p>One command mints a token-gated context page from the session behind a PR: why it exists, the decision trail, the dead ends that were tried first. Reviewers read the thinking, not just the diff.</p>
-        <p class="detail">contexthub-pr 142 → agent-context link on the PR</p>
-      </div>
-    </section>
-
-    <section class="feature reveal" id="graph">
-      <div class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 56 56" width="56" height="56">
-          <line class="s" x1="16" y1="14" x2="40" y2="20" />
-          <line class="s" x1="16" y1="14" x2="22" y2="40" />
-          <line class="s" x1="40" y1="20" x2="22" y2="40" />
-          <line class="s" x1="40" y1="20" x2="46" y2="42" />
-          <circle class="s" cx="16" cy="14" r="5" />
-          <circle class="s a" cx="40" cy="20" r="5" />
-          <circle class="s" cx="22" cy="40" r="5" />
-          <circle class="s" cx="46" cy="42" r="4" />
-        </svg>
-      </div>
-      <div class="feature-body">
-        <h2>Sessions connect into a map of your company.</h2>
-        <p>Repos, services, features, people, and decisions are extracted into a knowledge graph. When two teams touch the same feature from different repos, the graph says so — and the agent uses it to answer cross-cutting questions.</p>
-        <p class="detail">nodes: repo · service · feature · person · decision</p>
-      </div>
-    </section>
-
-    <section class="feature reveal" id="assets">
-      <div class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 56 56" width="56" height="56">
-          <path class="s" d="M12 20l16-8 16 8v18l-16 8-16-8z" />
-          <path class="s" d="M12 20l16 8 16-8" />
-          <line class="s" x1="28" y1="28" x2="28" y2="46" />
-          <path class="s a" d="M44 10v8M40 14h8" />
-        </svg>
-      </div>
-      <div class="feature-body">
-        <h2>Skills and prompts, shared like packages.</h2>
-        <p>Push the skills, commands, and agents in your local <code>~/.claude</code> to the hub; pull what your teammates built. The hub speaks the OpenSharing protocol, so any compatible client can read the catalog too.</p>
-        <p class="detail">GET /opensharing/shares · Agent Skill + Volume</p>
-      </div>
-    </section>
-
-    <section class="feature reveal" id="sync">
-      <div class="feature-icon" aria-hidden="true">
-        <svg viewBox="0 0 56 56" width="56" height="56">
-          <path class="s" d="M44 28a16 16 0 1 1-5-11.6" />
-          <path class="s a" d="M40 10v8h-8" />
-          <path class="s" d="M34 36a8 8 0 0 1-1-15.9A8 8 0 0 1 34 36z" transform="translate(-6,-1)" />
-        </svg>
-      </div>
-      <div class="feature-body">
-        <h2>Set it once. The hub stays current.</h2>
-        <p>A file watcher notices finished sessions and pushes them after a quiet period — redacted, deduplicated, idempotent. Summarization runs nightly on the Batch API at half price, or on a local model for free.</p>
-        <p class="detail">watch → quiet 5 min → push · summarize at 02:00</p>
-      </div>
-    </section>
-
   </div>
+</section>
 
-  <!-- ====================== GET STARTED ====================== -->
-  <section class="get wrap reveal" id="get">
-    <h2>Run it this afternoon.</h2>
-    <p class="get-sub">Two pieces: a FastAPI hub your team points at, and a desktop app each person runs. No SaaS, no data leaving your infrastructure.</p>
-    <pre class="codeblock"><code>git clone &lt;your-fork&gt;/context-hub &amp;&amp; cd context-hub
-make api-install &amp;&amp; make api    <span class="cmt"># the hub, on :8787</span>
-make desktop-install &amp;&amp; make tauri    <span class="cmt"># the desktop app</span></code></pre>
-    <div class="cta">
-      <span class="cta-note">Full setup in <code>README.md</code> at the repo root · OpenSharing-compatible surface · API-key auth · S3 or local disk</span>
+<!-- ============ 3. TRUST STRIP ============ -->
+<section class="trust" aria-label="Used by engineering teams">
+  <div class="wrap trust__inner">
+    <span class="trust__label">Used by engineering teams at</span>
+    <div class="marquee">
+      <div class="marquee__track" id="marquee-track">
+        <span class="marquee__item">Northbeam</span>
+        <span class="marquee__item">Resolve AI</span>
+        <span class="marquee__item">Tessellate</span>
+        <span class="marquee__item">Hadron Labs</span>
+        <span class="marquee__item">Coastline</span>
+        <span class="marquee__item">Mercato</span>
+        <span class="marquee__item">Foundry Eight</span>
+        <span class="marquee__item">Loopwork</span>
+        <span class="marquee__item">Driftwood</span>
+        <span class="marquee__item">Kernel &amp; Co</span>
+      </div>
     </div>
-  </section>
+  </div>
+</section>
+
+<!-- ============ 4. PROBLEM FRAME ============ -->
+<section class="section" id="gap">
+  <div class="wrap gap__grid">
+    <div class="gap__copy sr">
+      <p class="eyebrow">The gap</p>
+      <h2>AI sessions contain your best engineering decisions. Right now, they vanish.</h2>
+      <p>Every day your team works through hard problems with Claude Code, Codex, and Kilo Code. The reasoning is sharp, specific, and earned. Then the terminal closes.</p>
+      <p>That knowledge never reaches the next engineer, the next agent, or the next time the same bug shows up. It is scattered across laptops, tools, and chat scrollback — and it is invisible.</p>
+    </div>
+    <div class="signals sr-stagger" aria-label="Where context is lost">
+      <article class="signal">
+        <p class="signal__no">Signal 01</p>
+        <h3 class="signal__title">Trapped context</h3>
+        <p class="signal__body">The reasoning that solved a gnarly bug lives in one engineer's local transcript. Nobody else can find it or reuse it.</p>
+      </article>
+      <article class="signal">
+        <p class="signal__no">Signal 02</p>
+        <h3 class="signal__title">Fragmented tools</h3>
+        <p class="signal__body">Claude Code here, Codex there, Kilo Code on another machine. No shared memory across the tools your team actually uses.</p>
+      </article>
+      <article class="signal">
+        <p class="signal__no">Signal 03</p>
+        <h3 class="signal__title">No institutional memory</h3>
+        <p class="signal__body">New hires and new agents start cold. The decisions your team already made get re-litigated from scratch, every time.</p>
+      </article>
+      <article class="signal">
+        <p class="signal__no">Signal 04</p>
+        <h3 class="signal__title">Privacy dead-end</h3>
+        <p class="signal__body">The obvious fix — ship every transcript to a vendor — is a non-starter. Your sessions hold secrets, keys, and proprietary code.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. HOW IT WORKS ============ -->
+<section class="section section--sunken" id="how">
+  <div class="wrap">
+    <div class="section-head sr">
+      <p class="eyebrow">How it works</p>
+      <h2>Capture, curate, share — in three steps.</h2>
+    </div>
+    <div class="steps sr-stagger">
+      <div class="step">
+        <div class="step__no">1</div>
+        <h3 class="step__title">Capture automatically</h3>
+        <p class="step__body">Context Hub records every Claude Code, Codex, and Kilo Code session into a <em>local store on your machine</em>. Nothing leaves without your say-so.</p>
+      </div>
+      <div class="step">
+        <div class="step__no">2</div>
+        <h3 class="step__title">Curate and push</h3>
+        <p class="step__body">Redact secrets, tag the session, and push the ones worth keeping. <em>Thirty seconds of review, permanent institutional value.</em></p>
+      </div>
+      <div class="step">
+        <div class="step__no">3</div>
+        <h3 class="step__title">Your whole team benefits</h3>
+        <p class="step__body">Pushed sessions feed a <em>RAG agent, a knowledge graph, a skills library, and PR context</em> — answers grounded in how your team actually works.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. PRODUCT MOCK ============ -->
+<section class="section" id="product">
+  <div class="wrap">
+    <div class="section-head sr">
+      <p class="eyebrow">The product</p>
+      <h2>The session <span class="accent-word">browser</span> your team has been missing.</h2>
+      <p>Read, redact, and route AI sessions from a desktop app that lives next to your work — not in someone else's cloud.</p>
+    </div>
+
+    <div class="mock-shell sr">
+      <div class="mock-frame">
+        <div class="mock-bar">
+          <div class="lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <span class="mock-bar__title">Context Hub</span>
+          <span class="mock-bar__spacer"></span>
+        </div>
+
+        <div class="mock-scroll">
+
+          <!-- STATE: SESSIONS -->
+          <div class="mock-state active" id="state-sessions" role="img" aria-label="Context Hub desktop app: a sidebar, a session list, an open session detail with redaction and push controls, and a hub panel with a knowledge graph, skills, and PR links.">
+            <div class="mock-body">
+
+              <!-- Sidebar -->
+              <aside class="app-side">
+                <div class="app-side__brand">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="1.6"/><circle cx="19" cy="5" r="1.6"/><circle cx="5" cy="19" r="1.6"/><circle cx="19" cy="19" r="1.6"/><path d="M12 12 5 5m7 7 7-7m-7 7-7 7m7-7 7 7"/></svg>
+                  Context Hub
+                </div>
+                <div class="nav-item active">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                  Sessions
+                </div>
+                <div class="nav-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M6 8l5 8M18 8l-5 8"/></svg>
+                  Knowledge Graph
+                </div>
+                <div class="nav-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg>
+                  Skills
+                </div>
+                <div class="nav-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
+                  PR Links
+                </div>
+                <div class="app-side__group">Workspace</div>
+                <div class="nav-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3.5 14H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 5 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 3.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 20.5 10H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+                  Settings
+                </div>
+              </aside>
+
+              <!-- Session list -->
+              <div class="app-list">
+                <div class="app-list__head">
+                  <h3>Sessions</h3>
+                  <span class="app-list__count">142</span>
+                </div>
+                <div class="app-list__scroll">
+                  <div class="scard active">
+                    <div class="scard__top">
+                      <span class="tool-chip chip-claude">Claude Code</span>
+                      <span class="badge badge--pushed" style="margin-left:auto">Pushed</span>
+                    </div>
+                    <div class="scard__title">Fix auth middleware race condition</div>
+                    <div class="scard__meta"><span class="m">9:24 AM</span><span class="m">·</span><span class="m">12.6k tok</span></div>
+                  </div>
+                  <div class="scard">
+                    <div class="scard__top">
+                      <span class="tool-chip chip-codex">Codex</span>
+                      <span class="badge badge--draft" style="margin-left:auto">Draft</span>
+                    </div>
+                    <div class="scard__title">Migrate Postgres schema v4</div>
+                    <div class="scard__meta"><span class="m">8:51 AM</span><span class="m">·</span><span class="m">18.4k tok</span></div>
+                  </div>
+                  <div class="scard">
+                    <div class="scard__top">
+                      <span class="tool-chip chip-kilo">Kilo Code</span>
+                      <span class="badge badge--redacted" style="margin-left:auto">Redacted</span>
+                    </div>
+                    <div class="scard__title">Add rate limiting to public API</div>
+                    <div class="scard__meta"><span class="m">Yesterday</span><span class="m">·</span><span class="m">9.1k tok</span></div>
+                  </div>
+                  <div class="scard">
+                    <div class="scard__top">
+                      <span class="tool-chip chip-claude">Claude Code</span>
+                      <span class="badge badge--pushed" style="margin-left:auto">Pushed</span>
+                    </div>
+                    <div class="scard__title">Debug flaky CI on arm64 runners</div>
+                    <div class="scard__meta"><span class="m">Yesterday</span><span class="m">·</span><span class="m">7.8k tok</span></div>
+                  </div>
+                  <div class="scard">
+                    <div class="scard__top">
+                      <span class="tool-chip chip-codex">Codex</span>
+                      <span class="badge badge--draft" style="margin-left:auto">Draft</span>
+                    </div>
+                    <div class="scard__title">Refactor billing webhook handler</div>
+                    <div class="scard__meta"><span class="m">Mon</span><span class="m">·</span><span class="m">21.0k tok</span></div>
+                  </div>
+                  <div class="scard">
+                    <div class="scard__top">
+                      <span class="tool-chip chip-kilo">Kilo Code</span>
+                      <span class="badge badge--pushed" style="margin-left:auto">Pushed</span>
+                    </div>
+                    <div class="scard__title">Tune Redis eviction for session store</div>
+                    <div class="scard__meta"><span class="m">Mon</span><span class="m">·</span><span class="m">5.4k tok</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Detail -->
+              <div class="app-detail">
+                <div class="app-detail__head">
+                  <div class="breadcrumb">Sessions <span class="sep">/</span> Claude Code <span class="sep">/</span> auth-middleware</div>
+                  <div class="app-detail__title-row">
+                    <span class="app-detail__title">Fix auth middleware race condition</span>
+                    <span class="cat-tag">Security</span>
+                  </div>
+                  <div class="tabs" role="tablist" aria-label="Session views">
+                    <span class="tab active">Timeline</span>
+                    <span class="tab">Redact</span>
+                    <span class="tab">Push</span>
+                    <span class="tab">Links</span>
+                  </div>
+                </div>
+                <div class="app-detail__body">
+                  <div class="xchange">
+                    <div class="xchange__who"><span class="av av-user">D</span>You · 9:24 AM</div>
+                    <p class="xchange__txt">Token refresh occasionally returns 401 under load. The secret is <span class="redact" aria-label="redacted">redacted</span> and it only happens on the auth middleware path.</p>
+                  </div>
+                  <div class="xchange ai">
+                    <div class="xchange__who"><span class="av av-ai">C</span>Claude · 9:24 AM</div>
+                    <p class="xchange__txt">Two concurrent requests both enter <code>refreshToken()</code> before the new token is persisted, so the second one validates against a rotated key. Guard the refresh with a mutex keyed on <code>session.id</code>.</p>
+                  </div>
+                  <div class="xchange">
+                    <div class="xchange__who"><span class="av av-user">D</span>You · 9:31 AM</div>
+                    <p class="xchange__txt">Confirmed — wrapping the refresh in a per-session lock fixed it. 0 failures across 40k requests.</p>
+                  </div>
+                </div>
+                <div class="app-detail__foot">
+                  <span class="hint">2 secrets redacted · ready to push</span>
+                  <button class="btn-push" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                    Push to Hub
+                  </button>
+                </div>
+              </div>
+
+              <!-- Hub panel -->
+              <aside class="app-hub">
+                <div class="app-hub__sec">
+                  <div class="app-hub__h">Knowledge Graph</div>
+                  <div class="graph-box">
+                    <svg viewBox="0 0 228 150" role="img" aria-label="Knowledge graph connecting auth, middleware, race-condition, JWT, and Redis.">
+                      <line x1="114" y1="40" x2="60" y2="95" stroke="#4A453E" stroke-width="1"/>
+                      <line x1="114" y1="40" x2="170" y2="92" stroke="#4A453E" stroke-width="1"/>
+                      <line x1="114" y1="40" x2="114" y2="118" stroke="#4A453E" stroke-width="1"/>
+                      <line x1="60" y1="95" x2="114" y2="118" stroke="#4A453E" stroke-width="1"/>
+                      <line x1="170" y1="92" x2="114" y2="118" stroke="#4A453E" stroke-width="1"/>
+                      <circle cx="114" cy="40" r="7" fill="rgba(242,84,27,.2)" stroke="#F2541B" stroke-width="1.2"/>
+                      <circle cx="60" cy="95" r="5.5" fill="#322F2A" stroke="#4A453E"/>
+                      <circle cx="170" cy="92" r="5.5" fill="#322F2A" stroke="#4A453E"/>
+                      <circle cx="114" cy="118" r="5.5" fill="#322F2A" stroke="#4A453E"/>
+                      <text class="gnode-label hot" x="114" y="26" text-anchor="middle">auth</text>
+                      <text class="gnode-label" x="46" y="98" text-anchor="middle">middleware</text>
+                      <text class="gnode-label" x="186" y="95" text-anchor="middle">JWT</text>
+                      <text class="gnode-label" x="114" y="138" text-anchor="middle">race-condition</text>
+                      <text class="gnode-label" x="200" y="120" text-anchor="middle">Redis</text>
+                      <line x1="170" y1="92" x2="196" y2="112" stroke="#4A453E" stroke-width="1"/>
+                      <circle cx="196" cy="112" r="4.5" fill="#322F2A" stroke="#4A453E"/>
+                    </svg>
+                  </div>
+                </div>
+
+                <div class="app-hub__sec">
+                  <div class="app-hub__h">Recent Skills</div>
+                  <div class="skill-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg><span class="nm">per-session mutex lock</span><span class="ct">6×</span></div>
+                  <div class="skill-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg><span class="nm">idempotent webhook retry</span><span class="ct">4×</span></div>
+                  <div class="skill-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg><span class="nm">arm64 CI matrix fix</span><span class="ct">3×</span></div>
+                </div>
+
+                <div class="app-hub__sec">
+                  <div class="app-hub__h">PR Links</div>
+                  <div class="pr-row"><span class="pr-id">#1842</span><span class="pr-tt">lock token refresh per session</span></div>
+                  <div class="pr-row"><span class="pr-id">#1856</span><span class="pr-tt">rate limit public API endpoints</span></div>
+                </div>
+              </aside>
+
+            </div>
+          </div>
+
+          <!-- STATE: KNOWLEDGE GRAPH -->
+          <div class="mock-state" id="state-graph" role="img" aria-label="Knowledge graph view: nodes for auth, middleware, race-condition, JWT, Redis, billing, and webhooks connected by edges.">
+            <div class="kg-body">
+              <div class="kg-head">
+                <h3>Knowledge Graph</h3>
+                <p>How decisions connect across 142 pushed sessions.</p>
+              </div>
+              <div class="kg-canvas">
+                <svg viewBox="0 0 760 360" role="presentation">
+                  <g class="kg-edges" stroke="#4A453E" stroke-width="1">
+                    <line x1="380" y1="80" x2="200" y2="170"/>
+                    <line x1="380" y1="80" x2="560" y2="160"/>
+                    <line x1="380" y1="80" x2="380" y2="200"/>
+                    <line x1="200" y1="170" x2="380" y2="200"/>
+                    <line x1="560" y1="160" x2="380" y2="200"/>
+                    <line x1="200" y1="170" x2="150" y2="280"/>
+                    <line x1="380" y1="200" x2="320" y2="300"/>
+                    <line x1="560" y1="160" x2="610" y2="270"/>
+                    <line x1="380" y1="200" x2="540" y2="290"/>
+                  </g>
+                  <g class="kg-node">
+                    <circle class="hot" cx="380" cy="80" r="22"/><text class="hot" x="380" y="84" text-anchor="middle">auth</text>
+                  </g>
+                  <g class="kg-node">
+                    <circle cx="200" cy="170" r="18"/><text x="200" y="174" text-anchor="middle">middleware</text>
+                  </g>
+                  <g class="kg-node">
+                    <circle cx="560" cy="160" r="18"/><text x="560" y="164" text-anchor="middle">JWT</text>
+                  </g>
+                  <g class="kg-node">
+                    <circle class="hot" cx="380" cy="200" r="20"/><text class="hot" x="380" y="204" text-anchor="middle">race-condition</text>
+                  </g>
+                  <g class="kg-node">
+                    <circle cx="150" cy="280" r="16"/><text x="150" y="284" text-anchor="middle">Redis</text>
+                  </g>
+                  <g class="kg-node">
+                    <circle cx="320" cy="300" r="16"/><text x="320" y="304" text-anchor="middle">mutex</text>
+                  </g>
+                  <g class="kg-node">
+                    <circle cx="610" cy="270" r="16"/><text x="610" y="274" text-anchor="middle">webhooks</text>
+                  </g>
+                  <g class="kg-node">
+                    <circle cx="540" cy="290" r="16"/><text x="540" y="294" text-anchor="middle">billing</text>
+                  </g>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- STATE: SKILLS -->
+          <div class="mock-state" id="state-skills" role="img" aria-label="Skills Hub view: a grid of reusable skills extracted from pushed sessions, each with a usage count.">
+            <div class="skills-body">
+              <div class="kg-head">
+                <h3>Skills Hub</h3>
+                <p>Reusable patterns your team has proven in real sessions.</p>
+              </div>
+              <div class="skills-grid">
+                <div class="skill-card">
+                  <div class="skill-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+                  <div class="skill-card__t">Per-session mutex lock</div>
+                  <div class="skill-card__d">Serialize token refresh to kill race conditions under load.</div>
+                  <div class="skill-card__m">used 6× · auth, JWT</div>
+                </div>
+                <div class="skill-card">
+                  <div class="skill-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></div>
+                  <div class="skill-card__t">Idempotent webhook retry</div>
+                  <div class="skill-card__d">Dedupe billing webhooks with an event-id ledger before processing.</div>
+                  <div class="skill-card__m">used 4× · billing</div>
+                </div>
+                <div class="skill-card">
+                  <div class="skill-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6"/></svg></div>
+                  <div class="skill-card__t">arm64 CI matrix fix</div>
+                  <div class="skill-card__d">Pin the toolchain image per arch to stop flaky cross-build failures.</div>
+                  <div class="skill-card__m">used 3× · ci</div>
+                </div>
+                <div class="skill-card">
+                  <div class="skill-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></div>
+                  <div class="skill-card__t">Redis eviction tuning</div>
+                  <div class="skill-card__d">Switch to allkeys-lru with a memory ceiling for session stores.</div>
+                  <div class="skill-card__m">used 3× · redis</div>
+                </div>
+                <div class="skill-card">
+                  <div class="skill-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V5l8 6 8-6v12"/></svg></div>
+                  <div class="skill-card__t">Schema migration gate</div>
+                  <div class="skill-card__d">Expand-then-contract migrations behind a feature flag, zero downtime.</div>
+                  <div class="skill-card__m">used 5× · postgres</div>
+                </div>
+                <div class="skill-card">
+                  <div class="skill-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+                  <div class="skill-card__t">Rate-limit token bucket</div>
+                  <div class="skill-card__d">Per-key token bucket in Redis for fair public-API throttling.</div>
+                  <div class="skill-card__m">used 2× · api</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="mock-tabs" role="tablist" aria-label="Switch product view">
+        <button class="mock-tab active" data-state="state-sessions" role="tab" aria-selected="true">Sessions</button>
+        <button class="mock-tab" data-state="state-graph" role="tab" aria-selected="false">Knowledge Graph</button>
+        <button class="mock-tab" data-state="state-skills" role="tab" aria-selected="false">Skills Hub</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. FEATURE GRID ============ -->
+<section class="section section--sunken" id="features">
+  <div class="wrap">
+    <div class="section-head sr">
+      <p class="eyebrow">Capabilities</p>
+      <h2>One hub. Four <span class="accent-word">superpowers</span>.</h2>
+    </div>
+    <div class="features sr-stagger">
+      <article class="feature">
+        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg></div>
+        <h3 class="feature__title">RAG Agent</h3>
+        <p class="feature__tag">Ask the agent, get your team's answer</p>
+        <p class="feature__body">Query in plain English and get answers grounded in your team's pushed sessions — with citations back to the original transcript, not a generic guess.</p>
+      </article>
+      <article class="feature">
+        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.5 6h9M6.5 8.2 11 16M17.5 8.2 13 16"/></svg></div>
+        <h3 class="feature__title">Knowledge Graph</h3>
+        <p class="feature__tag">See how decisions connect</p>
+        <p class="feature__body">Sessions become a graph of files, services, and decisions. Trace why a fix exists and what else it touches before you change it.</p>
+      </article>
+      <article class="feature">
+        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg></div>
+        <h3 class="feature__title">Skills &amp; Assets</h3>
+        <p class="feature__tag">Reuse what works</p>
+        <p class="feature__body">Recurring solutions get distilled into named skills your agents can apply directly — so the same problem never costs two engineers twice.</p>
+      </article>
+      <article class="feature">
+        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v6M18 15V9a6 6 0 0 0-6-6"/></svg></div>
+        <h3 class="feature__title">PR Context</h3>
+        <p class="feature__tag">Every PR carries its reasoning</p>
+        <p class="feature__body">Link sessions to pull requests so reviewers see the reasoning behind a change — the why, not just the diff.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8. PROTOCOL FLOW ============ -->
+<section class="section" id="protocol">
+  <div class="wrap">
+    <div class="section-head sr">
+      <p class="eyebrow">Under the hood</p>
+      <h2>How Context Hub works under the hood.</h2>
+      <p>Capture is local. The push is a gate you control. Nothing reaches the company hub until a human approves it.</p>
+    </div>
+
+    <div class="flow-wrap" id="flow">
+      <svg class="flow-svg" viewBox="0 0 1100 330" role="img" aria-label="Data flow: Claude Code, Codex, and Kilo Code feed a local Context Hub agent; a gated review and redact step pushes to a company cloud hub that powers a RAG agent, a knowledge graph, and a skills library.">
+        <!-- Source nodes -->
+        <g>
+          <rect class="flow-box" x="20" y="30" width="150" height="48" rx="9"/>
+          <text class="flow-label" x="95" y="59" text-anchor="middle">Claude Code</text>
+          <rect class="flow-box" x="20" y="108" width="150" height="48" rx="9"/>
+          <text class="flow-label" x="95" y="137" text-anchor="middle">Codex</text>
+          <rect class="flow-box" x="20" y="186" width="150" height="48" rx="9"/>
+          <text class="flow-label" x="95" y="215" text-anchor="middle">Kilo Code</text>
+        </g>
+
+        <!-- Arrows: sources -> local agent -->
+        <path class="flow-arrow" d="M170 54 C 230 54, 250 130, 305 132"/>
+        <path class="flow-arrow" d="M170 132 L 305 132"/>
+        <path class="flow-arrow" d="M170 210 C 230 210, 250 134, 305 132"/>
+        <polygon class="flow-arrowhead" points="305,127 315,132 305,137"/>
+
+        <!-- Local agent -->
+        <rect class="flow-box" x="320" y="100" width="170" height="64" rx="10"/>
+        <text class="flow-label" x="405" y="128" text-anchor="middle">Local Context Hub</text>
+        <text class="flow-sub" x="405" y="146" text-anchor="middle">agent · on your machine</text>
+
+        <!-- arrow agent -> gate -->
+        <path class="flow-arrow" d="M490 132 L 545 132"/>
+        <polygon class="flow-arrowhead" points="545,127 555,132 545,137"/>
+
+        <!-- Gate -->
+        <rect class="flow-box gate" x="560" y="100" width="160" height="64" rx="10"/>
+        <text class="flow-label" x="640" y="128" text-anchor="middle">Review &amp; Redact</text>
+        <text class="flow-sub" x="640" y="146" text-anchor="middle">human-gated</text>
+
+        <!-- arrow gate -> hub -->
+        <path class="flow-arrow" d="M720 132 L 785 132"/>
+        <polygon class="flow-arrowhead" points="785,127 795,132 785,137"/>
+
+        <!-- Cloud hub (bigger, accent) -->
+        <rect class="flow-box hub pulse-target" x="800" y="86" width="190" height="92" rx="12"/>
+        <text class="flow-label hub" x="895" y="124" text-anchor="middle">Company Cloud Hub</text>
+        <text class="flow-sub" x="895" y="144" text-anchor="middle">self-host or managed</text>
+
+        <!-- arrows hub -> consumers -->
+        <path class="flow-arrow" d="M895 178 C 895 220, 760 224, 690 258"/>
+        <path class="flow-arrow" d="M895 178 L 895 256"/>
+        <path class="flow-arrow" d="M895 178 C 895 220, 1030 224, 1052 256"/>
+        <polygon class="flow-arrowhead" points="685,253 678,262 690,263"/>
+        <polygon class="flow-arrowhead" points="890,256 895,266 900,256"/>
+        <polygon class="flow-arrowhead" points="1047,253 1058,259 1050,264"/>
+
+        <!-- Consumer nodes -->
+        <rect class="flow-box pulse-target" x="600" y="266" width="150" height="44" rx="9"/>
+        <text class="flow-label" x="675" y="293" text-anchor="middle">RAG Agent</text>
+        <rect class="flow-box pulse-target" x="820" y="266" width="150" height="44" rx="9"/>
+        <text class="flow-label" x="895" y="293" text-anchor="middle">Graph</text>
+        <rect class="flow-box pulse-target" x="985" y="266" width="100" height="44" rx="9"/>
+        <text class="flow-label" x="1035" y="293" text-anchor="middle">Skills</text>
+      </svg>
+    </div>
+
+    <div class="flow-callouts sr-stagger">
+      <div class="flow-callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <p><strong>Local store first.</strong> Every session lands in <code>~/.context-hub</code> on your machine. Capture never touches the network.</p>
+      </div>
+      <div class="flow-callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <p><strong>Push is a gate.</strong> Sessions reach the hub only after a human reviews and redacts. No silent sync, ever.</p>
+      </div>
+      <div class="flow-callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <p><strong>Self-host the hub.</strong> Run the company hub in your own cloud or VPC. Your data stays inside your perimeter.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9. PRIVACY ============ -->
+<section class="section section--sunken privacy" id="privacy">
+  <div class="wrap">
+    <div class="privacy-card sr">
+      <p class="eyebrow">Privacy &amp; local-first</p>
+      <h2>Your code stays on your machine until you say otherwise.</h2>
+      <p>Context Hub captures locally and pushes nothing automatically. Every session passes through a human review-and-redact step before it can leave your laptop — and the hub itself can run inside your own infrastructure.</p>
+
+      <div class="priv-badges">
+        <div class="priv-badge">
+          <span class="priv-badge__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <span>Local-first</span>
+        </div>
+        <div class="priv-badge">
+          <span class="priv-badge__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A9 9 0 0 1 12 4c7 0 10 8 10 8a17 17 0 0 1-2.2 3.3M6.6 6.6A17 17 0 0 0 2 12s3 8 10 8a9 9 0 0 0 4-.9"/><path d="m2 2 20 20"/></svg></span>
+          <span>Human review before every push</span>
+        </div>
+        <div class="priv-badge">
+          <span class="priv-badge__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+          <span>Self-host the hub</span>
+        </div>
+        <div class="priv-badge">
+          <span class="priv-badge__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 7.6 8 9 4.6-1.4 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>
+          <span>No training on your sessions</span>
+        </div>
+      </div>
+
+      <div class="priv-snippet">
+        <pre><span class="pc"># Captured locally — nothing has left your machine</span>
+~/.context-hub/sessions/<span class="po">2026-06-11</span>/auth-middleware.jsonl
+~/.context-hub/redactions/secrets.<span class="pg">allow</span>
+~/.context-hub/hub.config  <span class="pc"># self-hosted endpoint</span>
+
+<span class="pc"># Only pushed when you click "Push to Hub"</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10. SOCIAL PROOF ============ -->
+<section class="section" id="proof">
+  <div class="wrap">
+    <div class="section-head sr">
+      <p class="eyebrow">From the beta</p>
+      <h2>Teams are already curating their context.</h2>
+    </div>
+    <div class="proof-grid sr-stagger">
+      <figure class="quote">
+        <blockquote class="quote__text">"Half our hard-won debugging context used to die in someone's terminal. Now a new hire can ask the agent and get the same answer the senior engineer gave three months ago — with the session to back it up."</blockquote>
+        <figcaption class="quote__who">
+          <span class="quote__av">SM</span>
+          <span><span class="quote__name">Staff Engineer</span><br><span class="quote__role">Series B infrastructure startup</span></span>
+        </figcaption>
+      </figure>
+      <figure class="quote">
+        <blockquote class="quote__text">"The review gate is what got it past security. Engineers redact before anything pushes, and we self-host the hub. It's the first 'AI memory' tool I didn't have to fight legal over."</blockquote>
+        <figcaption class="quote__who">
+          <span class="quote__av">EM</span>
+          <span><span class="quote__name">Engineering Manager</span><br><span class="quote__role">80-person engineering org</span></span>
+        </figcaption>
+      </figure>
+      <figure class="quote">
+        <blockquote class="quote__text">"We run Claude Code, Codex, and Kilo Code across the team. Context Hub is the only thing that gives us one shared memory across all three instead of three silos."</blockquote>
+        <figcaption class="quote__who">
+          <span class="quote__av">CT</span>
+          <span><span class="quote__name">CTO</span><br><span class="quote__role">Developer-tools company</span></span>
+        </figcaption>
+      </figure>
+      <figure class="quote">
+        <blockquote class="quote__text">"It's still beta and rough in places, but the skills library already saved us a re-debug of a webhook idempotency bug we'd solved before. That paid for it."</blockquote>
+        <figcaption class="quote__who">
+          <span class="quote__av">PE</span>
+          <span><span class="quote__name">Principal Engineer</span><br><span class="quote__role">Fintech platform team</span></span>
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="metric-strip sr-stagger" aria-label="Beta metrics">
+      <div class="metric"><div class="metric__num">2,400+</div><div class="metric__lbl">sessions curated in beta</div></div>
+      <div class="metric"><div class="metric__num">34</div><div class="metric__lbl">engineering teams</div></div>
+      <div class="metric"><div class="metric__num">18</div><div class="metric__lbl">companies in early access</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 11. FINAL CTA ============ -->
+<section class="section section--sunken final" id="download">
+  <div class="wrap">
+    <div class="sr">
+      <h2>Your team's best thinking shouldn't live in a terminal buffer.</h2>
+      <p>Context Hub is in early access. Get it for your team.</p>
+      <div class="final__cta">
+        <a class="btn btn-primary btn-lg" href="#download">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 1.6c.1 1-.3 2-1 2.8-.7.8-1.8 1.4-2.8 1.3-.1-1 .4-2 1-2.7.7-.8 1.9-1.4 2.8-1.4zM19 17.3c-.5 1.2-.8 1.7-1.4 2.7-.9 1.4-2.2 3.2-3.8 3.2-1.4 0-1.8-.9-3.7-.9s-2.3.9-3.7.9c-1.6 0-2.8-1.6-3.7-3C-.1 16.7-.4 11.2 2 8.4c1-1.3 2.4-2 3.8-2 1.5 0 2.5.9 3.7.9 1.2 0 2-.9 3.7-.9 1.3 0 2.6.7 3.6 1.9-3.1 1.7-2.6 6.2.2 7.9z"/></svg>
+          Download for Mac
+        </a>
+        <a class="btn btn-secondary btn-lg" href="#download">Request team access</a>
+      </div>
+      <p class="final__fine">The company hub is fully self-hostable — run it in your own cloud or VPC.</p>
+    </div>
+  </div>
+</section>
 
 </main>
 
-<footer class="site-footer">
-  <div class="wrap footer-row">
-    <span class="wordmark">context<span class="dot">·</span>hub</span>
-    <span class="footer-note">The company-wide context hub for the age of AI work. © <span id="year">2026</span></span>
+<!-- ============ 12. FOOTER ============ -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer__grid">
+      <div class="footer__brand">
+        <a class="wordmark" href="#top">
+          <svg class="wordmark__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="2" y="2" width="20" height="20" rx="6" fill="#F2541B"/>
+            <circle cx="12" cy="12" r="3" fill="#fff"/>
+            <circle cx="6.2" cy="6.2" r="1.6" fill="#fff"/>
+            <circle cx="17.8" cy="6.2" r="1.6" fill="#fff"/>
+            <circle cx="6.2" cy="17.8" r="1.6" fill="#fff"/>
+            <circle cx="17.8" cy="17.8" r="1.6" fill="#fff"/>
+            <path d="M12 12 6.2 6.2M12 12l5.8-5.8M12 12l-5.8 5.8M12 12l5.8 5.8" stroke="#fff" stroke-width="1.1"/>
+          </svg>
+          Context Hub
+        </a>
+        <p class="footer__tag">Capture. Curate. Share.</p>
+      </div>
+      <div class="footer__col">
+        <h4>Product</h4>
+        <a href="#product">Product</a>
+        <a href="#how">How it works</a>
+        <a href="#features">Capabilities</a>
+        <a href="#download">Download</a>
+      </div>
+      <div class="footer__col">
+        <h4>Resources</h4>
+        <a href="#docs" id="docs">Docs</a>
+        <a href="https://github.com" rel="noopener">GitHub</a>
+        <a href="#changelog">Changelog</a>
+      </div>
+      <div class="footer__col">
+        <h4>Company</h4>
+        <a href="#about">About</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#security">Security</a>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <span>© 2026 Context Hub. Runs locally. Pushes only on your review.</span>
+      <span>Built for Claude Code, Codex &amp; Kilo Code.</span>
+    </div>
   </div>
 </footer>
 
-<script src="app.js" defer></script>
+<script src="app.js"></script>
 </body>
 </html>
