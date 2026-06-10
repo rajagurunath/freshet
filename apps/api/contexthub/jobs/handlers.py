@@ -454,6 +454,92 @@ def harvest_check_handler(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# rules_extract handler (Task 14)
+# ---------------------------------------------------------------------------
+
+def rules_extract_handler(payload: dict[str, Any]) -> dict[str, Any]:
+    """Extract recurring rules/preferences from an author's recent session summaries.
+
+    Payload keys:
+      author      str?  — user id whose sessions are mined (filters list_sessions by author)
+      n_sessions  int?  — how many recent sessions to use (default 20)
+      provider    str?  — optional LLM provider override
+      model       str?  — optional model override
+
+    Reads the last N session catalog rows for the author, concatenates their
+    summaries (falling back to preview), calls the LLM extraction prompt, and
+    persists any new rules in 'proposed' status.  Near-duplicates of existing
+    rules are silently skipped.
+    """
+    from contexthub.rules.extract import extract_rules
+    from contexthub.rules.store import get_rules_store
+    from contexthub.storage.vectors import get_vector_store
+
+    author: str | None = payload.get("author")
+    n_sessions: int = int(payload.get("n_sessions") or 20)
+    provider: str | None = payload.get("provider")
+    model: str | None = payload.get("model")
+
+    vectors = get_vector_store()
+
+    # Fetch recent sessions by the author (or all sessions if no author filter).
+    filters: dict[str, Any] = {}
+    if author:
+        filters["author"] = author
+
+    result = vectors.list_sessions(
+        filters=filters or None,
+        limit=n_sessions,
+        offset=0,
+        sort="created_at",
+        order="desc",
+    )
+
+    rows = result.get("items", [])
+    if not rows:
+        logger.info("rules_extract_handler: no sessions found for author=%s", author)
+        return {"rules_upserted": 0, "rules_skipped_duplicate": 0, "session_count": 0}
+
+    # Build the session excerpts: prefer summary, fall back to preview.
+    parts: list[str] = []
+    for row in rows:
+        sid = row.get("id", "")
+        summary = (row.get("summary") or "").strip()
+        preview = (row.get("preview") or "").strip()
+        excerpt = summary or preview
+        if excerpt:
+            parts.append(f"[session {sid}]\n{excerpt}")
+
+    session_excerpts = "\n\n".join(parts)
+    if not session_excerpts.strip():
+        logger.info("rules_extract_handler: all sessions lack summary/preview — nothing to mine")
+        return {"rules_upserted": 0, "rules_skipped_duplicate": 0, "session_count": len(rows)}
+
+    store = get_rules_store()
+    extraction_result = extract_rules(
+        session_excerpts=session_excerpts,
+        store=store,
+        author=author,
+        provider=provider,
+        model=model,
+    )
+
+    logger.info(
+        "rules_extract_handler: author=%s, %d sessions → %d rules upserted, %d skipped",
+        author,
+        len(rows),
+        extraction_result.get("rules_upserted", 0),
+        extraction_result.get("rules_skipped_duplicate", 0),
+    )
+
+    return {
+        "session_count": len(rows),
+        "rules_upserted": extraction_result.get("rules_upserted", 0),
+        "rules_skipped_duplicate": extraction_result.get("rules_skipped_duplicate", 0),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Registry: maps kind → handler callable
 # ---------------------------------------------------------------------------
 
@@ -464,4 +550,5 @@ HANDLER_REGISTRY: dict[str, Any] = {
     "summarize_pending": summarize_pending_handler,
     "graph_extract": graph_extract_handler,
     "harvest_check": harvest_check_handler,
+    "rules_extract": rules_extract_handler,
 }

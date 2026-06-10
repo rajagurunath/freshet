@@ -260,6 +260,36 @@ class GraphResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Rules (Task 14)
+# ---------------------------------------------------------------------------
+
+RuleStatusLiteral = Literal["proposed", "accepted", "rejected"]
+
+
+class Rule(BaseModel):
+    """A single extracted rule/preference."""
+
+    id: str
+    text: str
+    rationale: Optional[str] = None
+    evidence: list[str] = Field(default_factory=list)
+    scope: Optional[str] = None
+    status: RuleStatusLiteral = "proposed"
+    author: Optional[str] = None
+    created_at: str
+    updated_at: Optional[str] = None
+
+
+class RulePage(BaseModel):
+    """Paginated list of rules."""
+
+    items: list[Rule]
+    total: int
+    limit: int
+    offset: int
+
+
+# ---------------------------------------------------------------------------
 # Jobs
 # ---------------------------------------------------------------------------
 

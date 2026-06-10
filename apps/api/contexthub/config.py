@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     # SQLite path for the knowledge graph (Task 13)
     graph_db: str = "./data/graph.db"
 
+    # SQLite path for the rules store (Task 14)
+    rules_db: str = "./data/rules.db"
+
     # Bearer-token allowlist (comma-separated in env, parsed here)
     api_keys: str = "dev-key"
 
