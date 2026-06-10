@@ -94,6 +94,94 @@ def _build_citations(
     return list(seen.values())
 
 
+_STOPWORDS = {
+    "the", "a", "an", "of", "to", "and", "or", "in", "on", "for", "is", "are",
+    "what", "how", "why", "when", "where", "who", "which", "tell", "me", "about",
+    "do", "does", "did", "was", "were", "be", "with", "this", "that", "it",
+}
+
+
+def _question_terms(question: str) -> list[str]:
+    """Extract candidate entity terms from a question (drop stopwords/short tokens)."""
+    import re
+
+    tokens = re.findall(r"[a-zA-Z0-9_\-]+", (question or "").lower())
+    return [t for t in tokens if len(t) >= 3 and t not in _STOPWORDS]
+
+
+def _build_graph_context(
+    question: str,
+    caller_user_id: Optional[str] = None,
+    caller_team: Optional[str] = None,
+) -> str:
+    """Build a 'Knowledge graph context' block for the question, or '' if none.
+
+    Matches question terms against visible node names, pulls each match's 1-hop
+    neighborhood, and renders the nodes + relations (with their session ids).
+    Visibility is enforced by the GraphStore.
+    """
+    try:
+        from contexthub.graph.store import get_graph_store
+
+        store = get_graph_store()
+    except Exception:
+        return ""
+
+    terms = _question_terms(question)
+    if not terms:
+        return ""
+
+    try:
+        matches = store.find_nodes_by_terms(
+            terms, caller_user_id=caller_user_id, caller_team=caller_team, limit=20
+        )
+    except Exception:
+        logger.warning("graph augmentation: term match failed", exc_info=True)
+        return ""
+
+    if not matches:
+        return ""
+
+    merged_nodes: dict[str, dict[str, Any]] = {}
+    merged_edges: dict[str, dict[str, Any]] = {}
+    for m in matches:
+        try:
+            sub = store.neighbors(
+                m["id"], depth=1,
+                caller_user_id=caller_user_id, caller_team=caller_team,
+            )
+        except Exception:
+            continue
+        for n in sub["nodes"]:
+            merged_nodes[n["id"]] = n
+        for e in sub["edges"]:
+            merged_edges[e["id"]] = e
+
+    if not merged_nodes:
+        return ""
+
+    lines: list[str] = ["Knowledge graph context:"]
+    for n in merged_nodes.values():
+        try:
+            sids = store.sessions_for_node(n["id"])
+        except Exception:
+            sids = []
+        sid_str = (" (sessions: " + ", ".join(sids) + ")") if sids else ""
+        summary = (n.get("summary") or "").strip()
+        suffix = f" — {summary}" if summary else ""
+        lines.append(f"- [{n['kind']}] {n['name']}{suffix}{sid_str}")
+
+    if merged_edges:
+        name_by_id = {n["id"]: n["name"] for n in merged_nodes.values()}
+        lines.append("Relations:")
+        for e in merged_edges.values():
+            src = name_by_id.get(e["src"], e["src"])
+            dst = name_by_id.get(e["dst"], e["dst"])
+            lines.append(f"- {src} —{e['rel']}→ {dst}")
+
+    return "\n".join(lines)
+
+
 def answer_query(
     req: QueryRequest,
     vectors: VectorStore,
@@ -158,6 +246,17 @@ def answer_query(
 
     context_block, provenance = _build_context_block(results)
     citations = _build_citations(provenance, session_titles)
+
+    # Optional knowledge-graph augmentation (Task 13): match question terms
+    # against node names, pull 1-hop neighbors, and append a graph context block.
+    if req.use_graph:
+        graph_block = _build_graph_context(
+            req.question,
+            caller_user_id=caller_user_id,
+            caller_team=caller_team,
+        )
+        if graph_block:
+            context_block = f"{context_block}\n\n---\n\n{graph_block}"
 
     def _stub(note: str) -> str:
         return (

@@ -117,6 +117,10 @@ class QueryRequest(BaseModel):
     # Optional per-request LLM override (e.g. "claude-cli", "codex-cli").
     provider: Optional[str] = None
     model: Optional[str] = None
+    # When true, augment retrieval with knowledge-graph context (Task 13):
+    # match question terms against node names, pull 1-hop neighbors, and append
+    # a "Knowledge graph context" block to the LLM context.
+    use_graph: bool = False
 
 
 class Citation(BaseModel):
@@ -217,6 +221,42 @@ class BatchSummarizeResponse(BaseModel):
     job_id: str
     kind: str = "summarize_batch"
     session_count: int
+
+
+# ---------------------------------------------------------------------------
+# Knowledge graph (Task 13)
+# ---------------------------------------------------------------------------
+
+GraphNodeKind = Literal["repo", "service", "feature", "person", "decision", "tool", "pr"]
+
+
+class GraphNode(BaseModel):
+    """A knowledge-graph node (deduped by (kind, name))."""
+
+    id: str
+    kind: str
+    name: str
+    summary: Optional[str] = None
+    visibility: Optional[str] = None
+    session_ids: list[str] = Field(default_factory=list)
+
+
+class GraphEdge(BaseModel):
+    """A directed relation between two graph nodes."""
+
+    id: str
+    src: str
+    dst: str
+    rel: str
+    weight: float = 1.0
+    session_id: Optional[str] = None
+
+
+class GraphResponse(BaseModel):
+    """Response for GET /v1/graph and GET /v1/graph/session/{id}."""
+
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
 
 
 # ---------------------------------------------------------------------------

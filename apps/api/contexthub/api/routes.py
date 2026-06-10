@@ -268,9 +268,9 @@ def ingest_session(
 
     # Enqueue background summarization if requested
     enqueued_job_id: Optional[str] = None
+    job_store = getattr(request.app.state, "job_store", None)
     if summarize:
         try:
-            job_store = request.app.state.job_store
             enqueued_job_id = job_store.enqueue(
                 kind="summarize_session",
                 payload={"session_json": body.session.model_dump_json()},
@@ -278,6 +278,17 @@ def ingest_session(
             logger.info("Enqueued summarize_session job %s for session %s", enqueued_job_id, session.id)
         except Exception:
             logger.exception("Failed to enqueue summarize_session job for session %s", session.id)
+
+    # Enqueue knowledge-graph extraction off the request path (Task 13).
+    if job_store is not None:
+        try:
+            graph_job_id = job_store.enqueue(
+                kind="graph_extract",
+                payload={"session_id": session.id},
+            )
+            logger.info("Enqueued graph_extract job %s for session %s", graph_job_id, session.id)
+        except Exception:
+            logger.exception("Failed to enqueue graph_extract job for session %s", session.id)
 
     logger.info("Ingested session %s — %d chunks", session.id, len(chunks))
     return IngestResponse(
@@ -559,3 +570,88 @@ def harvest_status(
     """
     from contexthub.jobs.harvest import get_harvest_status
     return get_harvest_status(settings)
+
+
+# ---------------------------------------------------------------------------
+# Knowledge graph (Task 13)
+# ---------------------------------------------------------------------------
+
+def _build_graph_response(store, nodes: list[dict], edges: list[dict]) -> "GraphResponse":
+    """Attach session provenance and convert raw rows to a GraphResponse."""
+    from contexthub.models import GraphEdge, GraphNode, GraphResponse
+
+    out_nodes = [
+        GraphNode(
+            id=n["id"],
+            kind=n["kind"],
+            name=n["name"],
+            summary=n.get("summary"),
+            visibility=n.get("visibility"),
+            session_ids=store.sessions_for_node(n["id"]),
+        )
+        for n in nodes
+    ]
+    out_edges = [
+        GraphEdge(
+            id=e["id"], src=e["src"], dst=e["dst"], rel=e["rel"],
+            weight=float(e.get("weight", 1.0)), session_id=e.get("session_id"),
+        )
+        for e in edges
+    ]
+    return GraphResponse(nodes=out_nodes, edges=out_edges)
+
+
+@router.get("/v1/graph", tags=["graph"])
+def get_graph(
+    focus: Optional[str] = Query(None, description="Focus node name; returns its depth-hop neighborhood."),
+    depth: int = Query(1, ge=0, le=4),
+    caller: Caller = Depends(require_api_key),
+):
+    """Return the knowledge graph, optionally focused on a node's neighborhood.
+
+    Without ``focus`` the full visible graph is returned (nodes + edges).
+    With ``focus`` we match the term against node names and return the union of
+    each match's ``depth``-hop neighborhood.  Visibility is enforced: graph rows
+    carry the visibility of the session that produced them.
+    """
+    from contexthub.graph.store import get_graph_store
+    from contexthub.models import GraphResponse
+
+    store = get_graph_store()
+
+    if not focus:
+        nodes = store.list_nodes(caller_user_id=caller.user_id, caller_team=caller.team)
+        edges = store.list_edges(caller_user_id=caller.user_id, caller_team=caller.team)
+        return _build_graph_response(store, nodes, edges)
+
+    # Focused: find matching nodes, union their neighborhoods.
+    matches = store.find_nodes_by_terms(
+        [focus], caller_user_id=caller.user_id, caller_team=caller.team
+    )
+    merged_nodes: dict[str, dict] = {}
+    merged_edges: dict[str, dict] = {}
+    for m in matches:
+        sub = store.neighbors(
+            m["id"], depth=depth,
+            caller_user_id=caller.user_id, caller_team=caller.team,
+        )
+        for n in sub["nodes"]:
+            merged_nodes[n["id"]] = n
+        for e in sub["edges"]:
+            merged_edges[e["id"]] = e
+    return _build_graph_response(store, list(merged_nodes.values()), list(merged_edges.values()))
+
+
+@router.get("/v1/graph/session/{session_id}", tags=["graph"])
+def get_graph_for_session(
+    session_id: str,
+    caller: Caller = Depends(require_api_key),
+):
+    """Return the subgraph (nodes + edges) extracted from a single session."""
+    from contexthub.graph.store import get_graph_store
+
+    store = get_graph_store()
+    sub = store.session_subgraph(
+        session_id, caller_user_id=caller.user_id, caller_team=caller.team
+    )
+    return _build_graph_response(store, sub["nodes"], sub["edges"])

@@ -573,6 +573,11 @@
           "default": 8,
           "title": "Top K",
           "type": "integer"
+        },
+        "use_graph": {
+          "default": false,
+          "title": "Use Graph",
+          "type": "boolean"
         }
       },
       "required": [

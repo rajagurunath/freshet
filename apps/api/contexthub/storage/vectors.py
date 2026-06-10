@@ -111,6 +111,7 @@ def _sessions_schema() -> pa.Schema:
         pa.field("tokens_input", pa.int64()),
         pa.field("tokens_output", pa.int64()),
         pa.field("tokens_total", pa.int64()),        # denormalised sum for sorting
+        pa.field("graph_extracted", pa.bool_()),     # True once graph_extract has run (Task 13)
     ])
 
 
@@ -123,12 +124,17 @@ class VectorStore:
 
     def __init__(self, uri: str, embedding_dim: int) -> None:
         import lancedb  # lazy import
+        import threading
 
         self._uri = uri
         self._dim = embedding_dim
         self._db = lancedb.connect(uri)
         self._chunks_tbl = None
         self._sessions_tbl = None
+        # Serialise writes: the singleton store is shared between the request
+        # thread and the background job worker thread, and LanceDB merge_insert
+        # is not safe under concurrent writers to the same table.
+        self._write_lock = threading.RLock()
 
     # ------------------------------------------------------------------
     # Table access (lazy creation)
@@ -149,10 +155,14 @@ class VectorStore:
             if "chunks" in self._existing_table_names():
                 self._chunks_tbl = self._db.open_table("chunks")
             else:
-                self._chunks_tbl = self._db.create_table(
-                    "chunks",
-                    schema=_chunks_schema(self._dim),
-                )
+                try:
+                    self._chunks_tbl = self._db.create_table(
+                        "chunks",
+                        schema=_chunks_schema(self._dim),
+                    )
+                except (ValueError, OSError):
+                    # Concurrent creator won the race — open the existing table.
+                    self._chunks_tbl = self._db.open_table("chunks")
         return self._chunks_tbl
 
     def _get_sessions_table(self):
@@ -160,10 +170,14 @@ class VectorStore:
             if "sessions" in self._existing_table_names():
                 self._sessions_tbl = self._db.open_table("sessions")
             else:
-                self._sessions_tbl = self._db.create_table(
-                    "sessions",
-                    schema=_sessions_schema(),
-                )
+                try:
+                    self._sessions_tbl = self._db.create_table(
+                        "sessions",
+                        schema=_sessions_schema(),
+                    )
+                except (ValueError, OSError):
+                    # Concurrent creator won the race — open the existing table.
+                    self._sessions_tbl = self._db.open_table("sessions")
         return self._sessions_tbl
 
     # ------------------------------------------------------------------
@@ -197,12 +211,13 @@ class VectorStore:
         import pyarrow as pa
         batch = pa.RecordBatch.from_pylist(coerced, schema=_chunks_schema(self._dim))
         try:
-            (
-                tbl.merge_insert("id")
-                .when_matched_update_all()
-                .when_not_matched_insert_all()
-                .execute(batch)
-            )
+            with self._write_lock:
+                (
+                    tbl.merge_insert("id")
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                    .execute(batch)
+                )
         except Exception:
             logger.exception("upsert_chunks failed for session %s", rows[0].get("session_id", "?"))
             raise
@@ -218,19 +233,36 @@ class VectorStore:
                 processed["models"] = json.loads(processed["models"])
             except Exception:
                 processed["models"] = []
+        # Default columns that may be absent on rows built before they existed.
+        processed.setdefault("graph_extracted", False)
 
         import pyarrow as pa
         batch = pa.RecordBatch.from_pylist([processed], schema=_sessions_schema())
         try:
-            (
-                tbl.merge_insert("id")
-                .when_matched_update_all()
-                .when_not_matched_insert_all()
-                .execute(batch)
-            )
+            with self._write_lock:
+                (
+                    tbl.merge_insert("id")
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                    .execute(batch)
+                )
         except Exception:
             logger.exception("upsert_session failed for session %s", row.get("id", "?"))
             raise
+
+    def mark_graph_extracted(self, session_id: str) -> None:
+        """Flag a session's catalog row as having had graph extraction run.
+
+        Read-modify-write is performed under the write lock so a concurrent
+        ingest of the same session is not lost.
+        """
+        with self._write_lock:
+            row = self.get_session(session_id)
+            if not row:
+                return
+            updated = dict(row)
+            updated["graph_extracted"] = True
+            self.upsert_session(updated)
 
     # ------------------------------------------------------------------
     # Search
@@ -487,7 +519,10 @@ class VectorStore:
         # SQL-style ORDER BY + LIMIT + OFFSET in a single call on all backends,
         # so we do sort/slice in Python after fetching the matching set).
         try:
-            arrow_tbl = tbl.search().where(where_clause).limit(100_000).to_arrow()
+            # Hold the write lock for the scan so the list does not observe a
+            # transient empty/partial state during a concurrent merge_insert.
+            with self._write_lock:
+                arrow_tbl = tbl.search().where(where_clause).limit(100_000).to_arrow()
         except Exception:
             logger.exception("list_sessions scan failed")
             raise
@@ -538,7 +573,11 @@ class VectorStore:
         else:
             where = id_clause
 
-        rows = tbl.search().where(where).limit(1).to_list()
+        # Hold the write lock for the read too: a single-row lookup must not
+        # observe a transient empty result while a concurrent merge_insert (from
+        # the background job worker) is mid-flight on the same shared table.
+        with self._write_lock:
+            rows = tbl.search().where(where).limit(1).to_list()
         return rows[0] if rows else None
 
     # ------------------------------------------------------------------

@@ -368,6 +368,79 @@ def summarize_pending_handler(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# graph_extract handler (Task 13)
+# ---------------------------------------------------------------------------
+
+def graph_extract_handler(payload: dict[str, Any]) -> dict[str, Any]:
+    """Extract a knowledge graph from a session and persist it.
+
+    Payload keys:
+      session_id  str  — id of the session to extract from
+      provider    str? — optional LLM provider override
+      model       str? — optional model override
+
+    Reads the session catalog row for its summary + visibility, reconstructs the
+    session from the raw blob (for transcript fallback), runs LLM extraction, and
+    marks the session row graph_extracted=True so the harvester does not re-queue it.
+    """
+    from contexthub.graph.extract import extract_graph
+    from contexthub.graph.store import get_graph_store
+    from contexthub.models import NormalizedSession
+    from contexthub.storage.blob import get_blob_store
+    from contexthub.storage.vectors import get_vector_store
+
+    session_id = payload.get("session_id") or ""
+    if not session_id:
+        return {"session_id": "", "nodes_upserted": 0, "edges_upserted": 0, "error": "missing session_id"}
+
+    vectors = get_vector_store()
+    row = vectors.get_session(session_id)
+    if not row:
+        logger.warning("graph_extract_handler: session %s not found", session_id)
+        return {"session_id": session_id, "nodes_upserted": 0, "edges_upserted": 0, "error": "not_found"}
+
+    summary = row.get("summary") or ""
+    visibility = row.get("visibility") or "company"
+    author = row.get("author") or None
+    team = row.get("team") or None
+
+    # Reconstruct the session from the raw blob for transcript fallback.
+    session: NormalizedSession
+    blob = get_blob_store()
+    raw = blob.get_session(author_id=author or "", session_id=session_id)
+    if raw:
+        try:
+            envelope = json.loads(raw)
+            session_data = envelope.get("session") or envelope
+            session_data["id"] = session_id
+            session = NormalizedSession.model_validate(session_data)
+        except Exception:
+            session = NormalizedSession(id=session_id, tool=row.get("tool", "claude-code"), title=row.get("title", ""))
+    else:
+        session = NormalizedSession(id=session_id, tool=row.get("tool", "claude-code"), title=row.get("title", ""))
+
+    store = get_graph_store()
+    result = extract_graph(
+        session=session,
+        summary=summary,
+        store=store,
+        provider=payload.get("provider"),
+        model=payload.get("model"),
+        visibility=visibility,
+        author=author,
+        team=team,
+    )
+
+    # Mark the session so the harvester does not re-enqueue it.
+    try:
+        vectors.mark_graph_extracted(session_id)
+    except Exception:
+        logger.exception("graph_extract_handler: failed to mark session %s extracted", session_id)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # harvest_check handler (Task 12)
 # ---------------------------------------------------------------------------
 
@@ -389,5 +462,6 @@ HANDLER_REGISTRY: dict[str, Any] = {
     "summarize_batch": summarize_batch_handler,
     "batch_poll": batch_poll_handler,
     "summarize_pending": summarize_pending_handler,
+    "graph_extract": graph_extract_handler,
     "harvest_check": harvest_check_handler,
 }

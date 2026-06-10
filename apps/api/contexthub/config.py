@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # SQLite path for the async jobs queue
     jobs_db: str = "./data/jobs.db"
 
+    # SQLite path for the knowledge graph (Task 13)
+    graph_db: str = "./data/graph.db"
+
     # Bearer-token allowlist (comma-separated in env, parsed here)
     api_keys: str = "dev-key"
 

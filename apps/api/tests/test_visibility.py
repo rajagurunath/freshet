@@ -27,12 +27,17 @@ from fastapi.testclient import TestClient
 @pytest.fixture(scope="module")
 def tmp_dirs():
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield os.path.join(tmpdir, "lancedb"), os.path.join(tmpdir, "blobs")
+        yield (
+            os.path.join(tmpdir, "lancedb"),
+            os.path.join(tmpdir, "blobs"),
+            os.path.join(tmpdir, "jobs.db"),
+            os.path.join(tmpdir, "graph.db"),
+        )
 
 
 @pytest.fixture(scope="module")
 def client(tmp_dirs) -> Generator[TestClient, None, None]:
-    lancedb_uri, blob_dir = tmp_dirs
+    lancedb_uri, blob_dir, jobs_db, graph_db = tmp_dirs
 
     # Three API keys:
     #   alice-key  → alice  / team-red
@@ -42,6 +47,8 @@ def client(tmp_dirs) -> Generator[TestClient, None, None]:
         "EMBEDDING_PROVIDER": "hash",
         "LANCEDB_URI": lancedb_uri,
         "BLOB_DIR": blob_dir,
+        "JOBS_DB": jobs_db,
+        "GRAPH_DB": graph_db,
         "API_KEYS": "alice-key:alice:team-red,bob-key:bob:team-blue,anon-key",
         "ANTHROPIC_API_KEY": "",
         "LLM_PROVIDER": "anthropic",

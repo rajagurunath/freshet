@@ -35,21 +35,28 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture(scope="module")
 def tmp_dirs():
-    """Yield (lancedb_uri, blob_dir) in a temporary directory."""
+    """Yield (lancedb_uri, blob_dir, jobs_db, graph_db) in a temporary directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield os.path.join(tmpdir, "lancedb"), os.path.join(tmpdir, "blobs")
+        yield (
+            os.path.join(tmpdir, "lancedb"),
+            os.path.join(tmpdir, "blobs"),
+            os.path.join(tmpdir, "jobs.db"),
+            os.path.join(tmpdir, "graph.db"),
+        )
 
 
 @pytest.fixture(scope="module")
 def client(tmp_dirs) -> Generator[TestClient, None, None]:
     """Build a hermetic TestClient with patched settings."""
-    lancedb_uri, blob_dir = tmp_dirs
+    lancedb_uri, blob_dir, jobs_db, graph_db = tmp_dirs
 
     # Patch env before any module-level imports so pydantic-settings picks them up
     env_patch = {
         "EMBEDDING_PROVIDER": "hash",
         "LANCEDB_URI": lancedb_uri,
         "BLOB_DIR": blob_dir,
+        "JOBS_DB": jobs_db,
+        "GRAPH_DB": graph_db,
         "API_KEYS": "test-key",
         "ANTHROPIC_API_KEY": "",       # no key
         "LLM_PROVIDER": "anthropic",   # unavailable w/o key → exercises stub path (hermetic)
