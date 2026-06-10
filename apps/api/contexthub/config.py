@@ -68,6 +68,16 @@ class Settings(BaseSettings):
     # SQLite path for the rules store (Task 14)
     rules_db: str = "./data/rules.db"
 
+    # SQLite path for the asset hub (Task 15)
+    assets_db: str = "./data/assets.db"
+
+    # Local directory for asset ZIP blobs (Task 15)
+    asset_blob_dir: str = "./data/asset_blobs"
+
+    # HMAC secret for signing short-lived asset download tokens (Task 15).
+    # Override via ASSET_TOKEN_SECRET env var in production.
+    asset_token_secret: str = "changeme-asset-token-secret"
+
     # Bearer-token allowlist (comma-separated in env, parsed here)
     api_keys: str = "dev-key"
 

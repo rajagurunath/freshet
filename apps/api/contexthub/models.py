@@ -290,6 +290,39 @@ class RulePage(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Assets (Task 15)
+# ---------------------------------------------------------------------------
+
+AssetKindLiteral = Literal["skill", "script", "config", "prompt"]
+
+
+class AssetMetadata(BaseModel):
+    """Response model for an uploaded or listed asset."""
+
+    id: str
+    kind: str
+    name: str
+    description: str = ""
+    category: str = "general"
+    author: str
+    team: Optional[str] = None
+    visibility: str = "company"
+    files: list[str] = Field(default_factory=list)
+    blob_uri: str
+    version: str = "1.0.0"
+    created_at: str
+
+
+class AssetPage(BaseModel):
+    """Paginated list of asset metadata rows."""
+
+    items: list[AssetMetadata]
+    total: int
+    limit: int
+    offset: int
+
+
+# ---------------------------------------------------------------------------
 # Jobs
 # ---------------------------------------------------------------------------
 

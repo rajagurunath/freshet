@@ -19,6 +19,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from contexthub.api.opensharing import opensharing_router
 from contexthub.api.routes import router
 from contexthub.config import get_settings
 
@@ -152,6 +153,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(router)
+    app.include_router(opensharing_router)
 
     return app
 

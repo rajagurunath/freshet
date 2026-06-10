@@ -20,7 +20,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 
 from contexthub.config import Settings, get_settings
 from contexthub.deps import Caller, require_api_key
@@ -28,6 +28,8 @@ from contexthub.embeddings import get_embedder
 from contexthub.ingest.chunker import build_chunks
 from contexthub.ingest.redact import redact_text
 from contexthub.models import (
+    AssetMetadata,
+    AssetPage,
     BatchSummarizeRequest,
     BatchSummarizeResponse,
     IngestRequest,
@@ -821,3 +823,211 @@ def mine_rules(
         n_sessions,
     )
     return {"job_id": job_id, "kind": "rules_extract", "author": effective_author}
+
+
+# ---------------------------------------------------------------------------
+# Asset hub (Task 15)
+# ---------------------------------------------------------------------------
+
+def _row_to_asset_metadata(r: dict) -> AssetMetadata:
+    """Convert an AssetStore dict to an AssetMetadata model."""
+    return AssetMetadata(
+        id=r["id"],
+        kind=r["kind"],
+        name=r["name"],
+        description=r.get("description", ""),
+        category=r.get("category", "general"),
+        author=r.get("author", ""),
+        team=r.get("team") or None,
+        visibility=r.get("visibility", "company"),
+        files=r.get("files") or [],
+        blob_uri=r.get("blob_uri", ""),
+        version=r.get("version", "1.0.0"),
+        created_at=r.get("created_at", ""),
+    )
+
+
+@router.post("/v1/assets", response_model=AssetMetadata, tags=["assets"])
+async def upload_asset(
+    kind: str = Form(..., description="Asset kind: skill | script | config | prompt"),
+    name: str = Form(..., description="Human-readable asset name"),
+    description: str = Form("", description="Asset description (used for FTS search)"),
+    category: str = Form("general", description="Asset category (used as OpenSharing schema)"),
+    visibility: str = Form("company", description="company | team | private"),
+    version: str = Form("1.0.0"),
+    file: UploadFile = File(..., description="ZIP archive containing the asset files"),
+    caller: Caller = Depends(require_api_key),
+    settings: Settings = Depends(get_settings),
+):
+    """Upload an asset (skill, script, config, or prompt) as a multipart ZIP.
+
+    The ZIP payload is stored in the local blob directory (or S3 in production).
+    Metadata is indexed in SQLite with FTS over name + description.
+
+    Returns the created AssetMetadata record.
+    """
+    import json as _json
+
+    from contexthub.assets.store import get_asset_store
+
+    # Validate kind
+    valid_kinds = ("skill", "script", "config", "prompt")
+    if kind not in valid_kinds:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid kind '{kind}'. Must be one of: {', '.join(valid_kinds)}",
+        )
+
+    # Read the uploaded file
+    data = await file.read()
+    original_filename = file.filename or "payload.zip"
+
+    store = get_asset_store()
+
+    # Create a placeholder asset record to get an id, then store the blob
+    asset_id = store.create_asset(
+        kind=kind,
+        name=name,
+        description=description,
+        category=category,
+        author=caller.user_id or "anonymous",
+        team=caller.team,
+        visibility=visibility,
+        files_json=_json.dumps([original_filename]),
+        blob_uri="",   # will be updated after blob write
+        version=version,
+    )
+
+    # Store the blob and get back the URI
+    blob_uri = store.store_blob(asset_id, data, filename=original_filename)
+
+    # Update the record with the real blob_uri
+    with store._connect() as conn:
+        conn.execute(
+            "UPDATE assets SET blob_uri = ? WHERE id = ?",
+            (blob_uri, asset_id),
+        )
+        conn.commit()
+
+    asset = store.get_asset(asset_id)
+    if asset is None:
+        raise HTTPException(status_code=500, detail="Failed to retrieve asset after creation.")
+
+    logger.info("Uploaded asset %s (%s): %s", asset_id, kind, name)
+    return _row_to_asset_metadata(asset)
+
+
+@router.get("/v1/assets", response_model=AssetPage, tags=["assets"])
+def list_assets(
+    kind: Optional[str] = Query(None, description="Filter by kind: skill | script | config | prompt"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    q: Optional[str] = Query(None, description="Full-text search over name + description"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    caller: Caller = Depends(require_api_key),
+):
+    """List assets with optional kind/category filter and FTS search.
+
+    Visibility is enforced: private assets are only visible to their owner;
+    team-scoped assets are visible only to callers on the same team.
+    """
+    from contexthub.assets.store import get_asset_store
+
+    store = get_asset_store()
+    items = store.list_assets(
+        kind=kind,
+        category=category,
+        q=q,
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
+        limit=limit,
+        offset=offset,
+    )
+    # Count without q for accurate pagination (FTS count is expensive; use filtered count)
+    total = store.count_assets(
+        kind=kind,
+        category=category,
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
+    )
+    return AssetPage(
+        items=[_row_to_asset_metadata(r) for r in items],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/v1/assets/{asset_id}", response_model=AssetMetadata, tags=["assets"])
+def get_asset(
+    asset_id: str,
+    caller: Caller = Depends(require_api_key),
+):
+    """Return metadata for a single asset.
+
+    Returns 404 when the asset does not exist OR when the caller is not
+    authorised to view it (visibility enforcement).
+    """
+    from contexthub.assets.store import get_asset_store
+
+    store = get_asset_store()
+    asset = store.get_asset(
+        asset_id,
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
+        enforce_visibility=True,
+    )
+    if asset is None:
+        raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")
+    return _row_to_asset_metadata(asset)
+
+
+@router.get("/v1/assets/{asset_id}/download", tags=["assets"])
+def download_asset(
+    asset_id: str,
+    token: Optional[str] = Query(None, description="HMAC signed download token"),
+    expiry: Optional[int] = Query(None, description="Token expiry (UNIX epoch)"),
+    caller: Optional[Caller] = Depends(require_api_key),
+    settings: Settings = Depends(get_settings),
+):
+    """Download an asset's ZIP payload.
+
+    Two modes:
+      1. Authenticated caller (Bearer token) — no signed token required;
+         the caller's identity is used for visibility check.
+      2. Pre-signed download URL (token + expiry params) — used by the
+         OpenSharing credential vending flow; bypasses Bearer auth.
+
+    Returns the file content with Content-Disposition: attachment.
+    """
+    from fastapi.responses import FileResponse
+
+    from contexthub.assets.store import get_asset_store, verify_download_token
+
+    store = get_asset_store()
+
+    # Validate token if provided (pre-signed URL flow)
+    if token and expiry is not None:
+        if not verify_download_token(asset_id, token, expiry, settings.asset_token_secret):
+            raise HTTPException(status_code=403, detail="Invalid or expired download token.")
+
+    # Fetch asset with visibility enforcement
+    asset = store.get_asset(
+        asset_id,
+        caller_user_id=caller.user_id if caller else None,
+        caller_team=caller.team if caller else None,
+        enforce_visibility=True,
+    )
+    if asset is None:
+        raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")
+
+    blob_path = store.get_blob_path(asset.get("blob_uri", ""))
+    if blob_path is None or not blob_path.exists():
+        raise HTTPException(status_code=404, detail="Asset payload not found in blob store.")
+
+    filename = blob_path.name
+    return FileResponse(
+        path=str(blob_path),
+        filename=filename,
+        media_type="application/zip",
+    )
