@@ -247,6 +247,11 @@ def ingest_session(
     except Exception:
         logger.warning("FTS index refresh failed after ingest of session %s — keyword search may be stale", session.id)
 
+    # Serialize links from the session for link-based filtering (Task 16).
+    links_json = json.dumps(
+        [lnk.model_dump(mode="json") for lnk in session.links]
+    )
+
     catalog_row = {
         "id": session.id,
         "tool": session.tool,
@@ -267,6 +272,7 @@ def ingest_session(
         "tokens_input": tokens_input,
         "tokens_output": tokens_output,
         "tokens_total": tokens_total,
+        "links_json": links_json,
     }
     vectors.upsert_session(catalog_row)
 
@@ -318,6 +324,7 @@ def list_sessions(
     project: Optional[str] = Query(None),
     author: Optional[str] = Query(None),
     visibility: Optional[str] = Query(None),
+    link: Optional[str] = Query(None, description="Filter sessions whose links[] contains this URL (Task 16)."),
     limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
     offset: int = Query(0, ge=0),
     sort: str = Query("created_at"),
@@ -362,6 +369,7 @@ def list_sessions(
         order=order,
         caller_user_id=caller.user_id,
         caller_team=caller.team,
+        link_url=link or None,
     )
 
     items = [_row_to_catalog(r) for r in result["items"]]
@@ -404,6 +412,140 @@ def get_session(
         catalog=catalog,
         raw=json.loads(raw) if raw else None,
     )
+
+
+# ---------------------------------------------------------------------------
+# PR context links (Task 16)
+# ---------------------------------------------------------------------------
+
+@router.post("/v1/sessions/{session_id}/share", tags=["context"])
+def share_session(
+    session_id: str,
+    caller: Caller = Depends(require_api_key),
+    settings: Settings = Depends(get_settings),
+    request: Request = None,
+):
+    """Mint a short-lived HMAC share token for a session context page.
+
+    Returns ``{url, token}`` where url points to GET /c/{session_id}?t=<token>&expiry=<n>.
+    The context page is token-gated — no Bearer auth required, suitable for
+    sharing with PR reviewers who do not have a hub account.
+
+    The calling user must be able to see the session (visibility enforced).
+    """
+    from contexthub.api.context_page import sign_share_token
+
+    vectors = get_vector_store()
+    row = vectors.get_session(
+        session_id,
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
+        enforce_visibility=True,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
+
+    secret = settings.share_token_secret
+    token, expiry = sign_share_token(session_id, secret, ttl_seconds=86400)
+
+    # Build the context page URL.  In production the base URL comes from the
+    # request's base URL; in tests Request may be None — use a relative path.
+    base_url = ""
+    if request is not None:
+        base_url = str(request.base_url).rstrip("/")
+
+    url = f"{base_url}/c/{session_id}?t={token}&expiry={expiry}"
+    return {"url": url, "token": token, "expiry": expiry}
+
+
+@router.get("/c/{session_id}", tags=["context"], include_in_schema=False)
+def context_page(
+    session_id: str,
+    t: Optional[str] = Query(None, description="HMAC share token"),
+    expiry: Optional[int] = Query(None, description="Token expiry (UNIX epoch)"),
+    settings: Settings = Depends(get_settings),
+):
+    """Render a token-gated HTML context page for a session.
+
+    No Bearer auth — callers supply ?t=<token>&expiry=<n> from the share URL.
+    Returns a self-contained HTML page showing the session title, summary
+    ("why this PR"), PR/issue links, and a decision timeline with tool
+    messages collapsed.
+
+    Returns 403 when the token is missing, expired, or invalid.
+    """
+    from fastapi.responses import HTMLResponse
+
+    from contexthub.api.context_page import render_context_page, verify_share_token
+
+    # Validate token before doing anything else
+    if not t or expiry is None:
+        raise HTTPException(status_code=403, detail="Missing or invalid share token.")
+
+    if not verify_share_token(session_id, t, expiry, settings.share_token_secret):
+        raise HTTPException(status_code=403, detail="Invalid or expired share token.")
+
+    # Fetch the session (no visibility enforcement — token is the gate)
+    vectors = get_vector_store()
+    row = vectors.get_session(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    # Fetch raw blob to get messages and links
+    blob = get_blob_store()
+    author_id = row.get("author", "")
+    raw_bytes = blob.get_session(author_id=author_id, session_id=session_id)
+
+    messages: list[dict] = []
+    links: list[dict] = []
+    if raw_bytes:
+        try:
+            raw_data = json.loads(raw_bytes)
+            session_data = raw_data.get("session", {})
+            messages = [
+                {
+                    "role": m.get("role", ""),
+                    "text": m.get("text", ""),
+                    "tool_name": m.get("tool_name"),
+                }
+                for m in session_data.get("messages", [])
+            ]
+            links = [
+                {"kind": lnk.get("kind", "link"), "url": lnk.get("url", ""), "label": lnk.get("label")}
+                for lnk in session_data.get("links", [])
+            ]
+        except Exception:
+            logger.exception("Failed to parse raw blob for context page session %s", session_id)
+
+    # Fall back to links_json from the catalog row if blob is unavailable
+    if not links:
+        try:
+            links = json.loads(row.get("links_json") or "[]")
+        except Exception:
+            links = []
+
+    # Optionally pull graph neighbors (best-effort; no error if graph is unavailable)
+    graph_neighbors: list[dict] = []
+    try:
+        from contexthub.graph.store import get_graph_store
+        gstore = get_graph_store()
+        sub = gstore.session_subgraph(session_id)
+        graph_neighbors = [{"name": n.get("name", ""), "kind": n.get("kind", "")} for n in sub.get("nodes", [])]
+    except Exception:
+        pass  # Graph is optional — do not fail the page render
+
+    html = render_context_page(
+        session_id=session_id,
+        title=row.get("title", "Untitled session"),
+        author=row.get("author", ""),
+        summary=row.get("summary") or None,
+        messages=messages,
+        links=links,
+        graph_neighbors=graph_neighbors,
+        pr_url=None,
+        created_at=row.get("created_at"),
+    )
+    return HTMLResponse(content=html, status_code=200)
 
 
 # ---------------------------------------------------------------------------

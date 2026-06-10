@@ -112,6 +112,7 @@ def _sessions_schema() -> pa.Schema:
         pa.field("tokens_output", pa.int64()),
         pa.field("tokens_total", pa.int64()),        # denormalised sum for sorting
         pa.field("graph_extracted", pa.bool_()),     # True once graph_extract has run (Task 13)
+        pa.field("links_json", pa.string()),          # JSON array of SessionLink dicts (Task 16)
     ])
 
 
@@ -235,6 +236,7 @@ class VectorStore:
                 processed["models"] = []
         # Default columns that may be absent on rows built before they existed.
         processed.setdefault("graph_extracted", False)
+        processed.setdefault("links_json", "[]")
 
         import pyarrow as pa
         batch = pa.RecordBatch.from_pylist([processed], schema=_sessions_schema())
@@ -483,6 +485,7 @@ class VectorStore:
         order: str = "desc",
         caller_user_id: Optional[str] = None,
         caller_team: Optional[str] = None,
+        link_url: Optional[str] = None,
     ) -> dict[str, Any]:
         """Return a paginated, sorted catalog result dict with keys:
         ``items``, ``total``, ``limit``, ``offset``.
@@ -528,6 +531,21 @@ class VectorStore:
             raise
 
         all_rows: list[dict[str, Any]] = arrow_tbl.to_pylist()
+
+        # Post-filter by link URL if requested (Task 16): links are stored as a
+        # JSON array string in the links_json column; scan in Python.
+        if link_url:
+            filtered: list[dict[str, Any]] = []
+            for r in all_rows:
+                raw_links = r.get("links_json") or "[]"
+                try:
+                    links = json.loads(raw_links)
+                except Exception:
+                    links = []
+                if any(lnk.get("url") == link_url for lnk in links):
+                    filtered.append(r)
+            all_rows = filtered
+
         total = len(all_rows)
 
         # Sort

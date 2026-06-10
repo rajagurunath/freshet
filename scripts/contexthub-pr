@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# contexthub-pr — attach an agent context link to a GitHub PR.
+#
+# Usage:
+#   contexthub-pr <pr-number> [--session <session-id>] [--hub <hub-url>]
+#
+# What it does:
+#   1. Resolves the current repo (from git remote origin) and the most-recent
+#      session whose cwd matches the repo root (or --session overrides this).
+#   2. Calls POST /v1/sessions/{id}/share on the hub to mint a context-page URL.
+#   3. Posts a PR comment via `gh pr comment` with the context link.
+#   4. Appends the session link to the PR body via `gh pr edit` so the link is
+#      discoverable in the PR list view.
+#
+# Dependencies: curl, jq, gh (GitHub CLI).
+#
+# Environment variables:
+#   CONTEXT_HUB_URL   — hub base URL (default: http://localhost:8787)
+#   CONTEXT_HUB_KEY   — bearer token for the hub API (default: dev-key)
+#
+# Security note:
+#   The share token minted by /share is an HMAC-SHA256 over (session_id, expiry).
+#   It is appended to the URL as ?t=<token>&expiry=<n>.  Anyone with the URL can
+#   view the context page for 24 hours — treat it like a secret link.
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+PR_NUMBER=""
+SESSION_ID=""
+HUB_URL="${CONTEXT_HUB_URL:-http://localhost:8787}"
+HUB_KEY="${CONTEXT_HUB_KEY:-dev-key}"
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --session)
+      SESSION_ID="$2"
+      shift 2
+      ;;
+    --hub)
+      HUB_URL="$2"
+      shift 2
+      ;;
+    --help|-h)
+      sed -n '/^# contexthub-pr/,/^[^#]/p' "$0" | sed 's/^# \?//'
+      exit 0
+      ;;
+    *)
+      if [[ -z "$PR_NUMBER" ]]; then
+        PR_NUMBER="$1"
+      else
+        echo "ERROR: unexpected argument '$1'" >&2
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$PR_NUMBER" ]]; then
+  echo "Usage: contexthub-pr <pr-number> [--session <id>] [--hub <url>]" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Dependency checks
+# ---------------------------------------------------------------------------
+for cmd in curl jq gh git; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "ERROR: '$cmd' is required but not found on PATH." >&2
+    exit 1
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# Resolve session id
+# ---------------------------------------------------------------------------
+if [[ -z "$SESSION_ID" ]]; then
+  # Ask the hub for the most recent session whose cwd matches the repo root.
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+  SESSIONS_JSON="$(curl -s -f \
+    -H "Authorization: Bearer ${HUB_KEY}" \
+    "${HUB_URL}/v1/sessions?sort=created_at&order=desc&limit=50")"
+
+  # Find the first session whose project or cwd matches the repo root name.
+  REPO_NAME="$(basename "${REPO_ROOT}")"
+
+  SESSION_ID="$(echo "${SESSIONS_JSON}" | jq -r \
+    --arg repo "${REPO_NAME}" \
+    '.items[] | select(.project == $repo or (.project | test($repo; "i"))) | .id' \
+    | head -1)"
+
+  if [[ -z "$SESSION_ID" ]]; then
+    echo "ERROR: No recent session found for project '${REPO_NAME}'." >&2
+    echo "       Pass --session <id> to specify a session explicitly." >&2
+    exit 1
+  fi
+  echo "Resolved session: ${SESSION_ID}"
+fi
+
+# ---------------------------------------------------------------------------
+# Mint share token
+# ---------------------------------------------------------------------------
+echo "Minting share token for session ${SESSION_ID}..."
+SHARE_RESPONSE="$(curl -s -f -X POST \
+  -H "Authorization: Bearer ${HUB_KEY}" \
+  "${HUB_URL}/v1/sessions/${SESSION_ID}/share")"
+
+if [[ $? -ne 0 ]]; then
+  echo "ERROR: Failed to mint share token (hub returned non-200)." >&2
+  exit 1
+fi
+
+CONTEXT_URL="$(echo "${SHARE_RESPONSE}" | jq -r '.url')"
+
+if [[ -z "$CONTEXT_URL" || "$CONTEXT_URL" == "null" ]]; then
+  echo "ERROR: Hub did not return a context URL.  Response:" >&2
+  echo "${SHARE_RESPONSE}" >&2
+  exit 1
+fi
+
+echo "Context page: ${CONTEXT_URL}"
+
+# ---------------------------------------------------------------------------
+# Post PR comment
+# ---------------------------------------------------------------------------
+COMMENT_BODY="$(cat <<EOF
+🧠 **Agent context:** why this PR exists, the full thought process
+
+The agent session that produced this change has been captured in Context Hub.
+View the decision timeline, tool calls, and reasoning here:
+
+**[View context page](${CONTEXT_URL})**
+
+> Context captured by [Context Hub](${HUB_URL}) — expires in 24 h.
+EOF
+)"
+
+echo "Posting comment to PR #${PR_NUMBER}..."
+gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}"
+
+# ---------------------------------------------------------------------------
+# Append link to PR body
+# ---------------------------------------------------------------------------
+echo "Appending context link to PR body..."
+CURRENT_BODY="$(gh pr view "${PR_NUMBER}" --json body --jq '.body // ""')"
+LINK_LINE="\n\n---\n**Agent context:** ${CONTEXT_URL}"
+
+# Only append if the link is not already present (idempotent)
+if echo "${CURRENT_BODY}" | grep -qF "${CONTEXT_URL}"; then
+  echo "Link already present in PR body — skipping edit."
+else
+  NEW_BODY="${CURRENT_BODY}${LINK_LINE}"
+  gh pr edit "${PR_NUMBER}" --body "${NEW_BODY}"
+  echo "PR body updated."
+fi
+
+echo ""
+echo "Done. Context page URL:"
+echo "  ${CONTEXT_URL}"

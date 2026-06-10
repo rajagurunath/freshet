@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     # Override via ASSET_TOKEN_SECRET env var in production.
     asset_token_secret: str = "changeme-asset-token-secret"
 
+    # HMAC secret for signing share tokens on context-page URLs (Task 16).
+    # Override via SHARE_TOKEN_SECRET env var in production.
+    share_token_secret: str = "changeme-share-token-secret"
+
     # Bearer-token allowlist (comma-separated in env, parsed here)
     api_keys: str = "dev-key"
 
