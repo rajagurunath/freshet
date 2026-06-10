@@ -110,6 +110,8 @@ class QueryRequest(BaseModel):
     question: str
     filters: Optional[QueryFilters] = None
     top_k: int = 8
+    # Search mode: hybrid (FTS + vector + RRF), vector-only, or keyword-only.
+    mode: Literal["hybrid", "vector", "keyword"] = "hybrid"
     # Optional per-request LLM override (e.g. "claude-cli", "codex-cli").
     provider: Optional[str] = None
     model: Optional[str] = None

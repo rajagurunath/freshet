@@ -51,10 +51,13 @@ def _build_context_block(results: list[dict[str, Any]]) -> tuple[str, list[dict[
     for i, row in enumerate(results, start=1):
         text = (row.get("text") or "").strip()
         session_id = row.get("session_id", "")
-        # LanceDB returns an L2 _distance (lower = closer). Convert to a
-        # bounded 0..1 relevance score (higher = better) for display.
-        distance = float(row.get("_distance", 0.0))
-        score = 1.0 / (1.0 + distance)
+        # Prefer the fused RRF score from hybrid search (_score field).
+        # Fall back to converting an L2 _distance to a similarity score.
+        if "_score" in row:
+            score = float(row["_score"])
+        else:
+            distance = float(row.get("_distance", 0.0))
+            score = 1.0 / (1.0 + distance)
         lines.append(
             f"[{i}] Session: {session_id} | Tool: {row.get('tool', '')} "
             f"| Category: {row.get('category', '')} | Project: {row.get('project', '')}\n"
@@ -123,11 +126,13 @@ def answer_query(
         if req.filters.author:
             raw_filters["author"] = req.filters.author
 
-    # 3. Search
-    results = vectors.search(
+    # 3. Search — use hybrid (FTS + vector + RRF) by default
+    results = vectors.hybrid_search(
+        query=req.question,
         query_vec=query_vec,
         top_k=req.top_k,
         filters=raw_filters or None,
+        mode=req.mode,
     )
 
     if not results:

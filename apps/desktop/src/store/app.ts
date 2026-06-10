@@ -4,8 +4,27 @@
  */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { NormalizedSession } from "../lib/types";
+import type { NormalizedSession, Tool } from "../lib/types";
 import { scanLocalSessions } from "../lib/parsers/index";
+
+// ─── sort / filter types ──────────────────────────────────────────────────────
+
+/** Fields on which the session list can be sorted. */
+export type SortField = "date" | "project" | "tool" | "tokens" | "cost" | "messages";
+
+/** Sort direction. */
+export type SortOrder = "asc" | "desc";
+
+/** Date-range presets for the session list filter. */
+export type DateRange = "7d" | "30d" | "90d" | "all";
+
+/** Persisted sort + filter preferences for the session list page. */
+export interface SessionListPrefs {
+  sortField: SortField;
+  sortOrder: SortOrder;
+  dateRange: DateRange;
+  compactedOnly: boolean;
+}
 
 export interface AppState {
   // ── session cache ───────────────────────────────────────────────────────
@@ -16,6 +35,9 @@ export interface AppState {
   // ── pushed tracking (persisted) ─────────────────────────────────────────
   pushedIds: string[];
 
+  // ── sort + filter prefs (persisted) ─────────────────────────────────────
+  listPrefs: SessionListPrefs;
+
   // ── actions ─────────────────────────────────────────────────────────────
   loadSessions: () => Promise<void>;
   getSession: (id: string) => NormalizedSession | undefined;
@@ -23,7 +45,16 @@ export interface AppState {
   markPushed: (id: string) => void;
   markAsPushed: (id: string) => void;
   isPushed: (id: string) => boolean;
+  /** Update sort + filter preferences. */
+  setListPrefs: (prefs: Partial<SessionListPrefs>) => void;
 }
+
+const DEFAULT_LIST_PREFS: SessionListPrefs = {
+  sortField: "date",
+  sortOrder: "desc",
+  dateRange: "all",
+  compactedOnly: false,
+};
 
 export const useApp = create<AppState>()(
   persist(
@@ -32,6 +63,7 @@ export const useApp = create<AppState>()(
       loading: false,
       error: null,
       pushedIds: [],
+      listPrefs: DEFAULT_LIST_PREFS,
 
       loadSessions: async () => {
         set({ loading: true, error: null });
@@ -66,12 +98,19 @@ export const useApp = create<AppState>()(
       isPushed: (id: string) => {
         return get().pushedIds.includes(id);
       },
+
+      setListPrefs: (prefs: Partial<SessionListPrefs>) => {
+        set((state) => ({
+          listPrefs: { ...state.listPrefs, ...prefs },
+        }));
+      },
     }),
     {
       name: "context-hub-app",
-      // Only persist pushedIds; sessions & loading state are transient
+      // Persist pushedIds and listPrefs; sessions & loading state are transient
       partialize: (state) => ({
         pushedIds: state.pushedIds,
+        listPrefs: state.listPrefs,
       }),
     }
   )

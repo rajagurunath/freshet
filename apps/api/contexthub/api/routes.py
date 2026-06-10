@@ -220,6 +220,15 @@ def ingest_session(
     ]
     vectors.upsert_chunks(chunk_rows)
 
+    # Refresh FTS index so new chunks are immediately searchable via keyword/hybrid modes.
+    # This is intentionally done after each ingest (rather than per-query) to keep search
+    # requests fast.  For high-throughput batch ingests, callers can call ensure_fts_index
+    # directly after the batch rather than relying on per-ingest refresh.
+    try:
+        vectors.ensure_fts_index()
+    except Exception:
+        logger.warning("FTS index refresh failed after ingest of session %s — keyword search may be stale", session.id)
+
     catalog_row = {
         "id": session.id,
         "tool": session.tool,

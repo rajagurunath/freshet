@@ -1,13 +1,17 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, TerminalSquare } from "lucide-react";
+import { ArrowDown, ArrowUp, Search, TerminalSquare } from "lucide-react";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
+import { Toggle } from "@/components/ui/Toggle";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SessionRowSkeleton } from "@/components/ui/Skeleton";
 import { SessionRow } from "@/components/SessionRow";
 import { WelcomeHero } from "./WelcomeHero";
 import { useApp } from "@/store/app";
+import type { SortField } from "@/store/app";
+import { filterSessions, sortSessions, deriveProjects } from "@/lib/sessions-filter";
 import type { Tool } from "@/lib/types";
 
 type FilterTab = "all" | Tool;
@@ -19,11 +23,28 @@ const filterTabs: { value: FilterTab; label: string }[] = [
   { value: "kilo-code", label: "Kilo Code" },
 ];
 
+const SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: "date", label: "Date" },
+  { value: "project", label: "Project" },
+  { value: "tool", label: "Tool" },
+  { value: "tokens", label: "Tokens" },
+  { value: "cost", label: "Cost" },
+  { value: "messages", label: "Messages" },
+];
+
+const DATE_RANGE_OPTIONS = [
+  { value: "all", label: "All time" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "90d", label: "Last 90 days" },
+] as const;
+
 export function SessionsPage() {
   const navigate = useNavigate();
-  const { sessions, loading, pushedIds } = useApp();
+  const { sessions, loading, pushedIds, listPrefs, setListPrefs } = useApp();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<FilterTab>("all");
+  const [project, setProject] = useState("all");
 
   const pushedSet = useMemo((): Set<string> => {
     if (pushedIds instanceof Set) return pushedIds as Set<string>;
@@ -31,18 +52,23 @@ export function SessionsPage() {
     return new Set();
   }, [pushedIds]);
 
+  // Derive unique project list for the dropdown
+  const projects = useMemo(() => deriveProjects(sessions), [sessions]);
+
+  const projectOptions = useMemo(() => [
+    { value: "all", label: "All projects" },
+    ...projects.map((p) => ({ value: p, label: p })),
+  ], [projects]);
+
   const filtered = useMemo(() => {
-    return sessions.filter((s) => {
-      const matchesTab = tab === "all" || s.tool === tab;
-      const q = search.toLowerCase();
-      const matchesSearch =
-        !q ||
-        s.title.toLowerCase().includes(q) ||
-        s.preview.toLowerCase().includes(q) ||
-        (s.project?.toLowerCase().includes(q) ?? false);
-      return matchesTab && matchesSearch;
+    const f = filterSessions(sessions, {
+      tab,
+      search,
+      project,
+      prefs: { dateRange: listPrefs.dateRange, compactedOnly: listPrefs.compactedOnly },
     });
-  }, [sessions, tab, search]);
+    return sortSessions(f, { sortField: listPrefs.sortField, sortOrder: listPrefs.sortOrder });
+  }, [sessions, tab, search, project, listPrefs]);
 
   // Show welcome hero only when no sessions AND no loading
   if (!loading && sessions.length === 0) {
@@ -72,8 +98,9 @@ export function SessionsPage() {
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="px-6 py-3 border-b border-border bg-bg shrink-0">
+      {/* Filter toolbar */}
+      <div className="px-6 py-3 border-b border-border bg-bg shrink-0 flex flex-wrap items-center gap-3">
+        {/* Tool tabs */}
         <Tabs
           items={filterTabs.map((t) => ({
             ...t,
@@ -84,6 +111,62 @@ export function SessionsPage() {
           }))}
           value={tab}
           onChange={setTab}
+        />
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Project dropdown */}
+        {projects.length > 0 && (
+          <div className="w-40">
+            <Select
+              options={projectOptions}
+              value={project}
+              onChange={(e) => setProject(e.target.value)}
+              aria-label="Filter by project"
+            />
+          </div>
+        )}
+
+        {/* Date range dropdown */}
+        <div className="w-36">
+          <Select
+            options={[...DATE_RANGE_OPTIONS]}
+            value={listPrefs.dateRange}
+            onChange={(e) =>
+              setListPrefs({ dateRange: e.target.value as typeof listPrefs.dateRange })
+            }
+            aria-label="Filter by date range"
+          />
+        </div>
+
+        {/* Sort field + direction */}
+        <div className="flex items-center gap-1">
+          <div className="w-32">
+            <Select
+              options={SORT_OPTIONS}
+              value={listPrefs.sortField}
+              onChange={(e) => setListPrefs({ sortField: e.target.value as SortField })}
+              aria-label="Sort by"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setListPrefs({ sortOrder: listPrefs.sortOrder === "asc" ? "desc" : "asc" })
+            }
+            className="h-9 w-9 flex items-center justify-center rounded-[8px] border border-border bg-bg-elevated text-ink-faint hover:text-ink hover:border-border-strong transition-colors duration-150 focus-ring"
+            aria-label={listPrefs.sortOrder === "asc" ? "Sort ascending" : "Sort descending"}
+          >
+            {listPrefs.sortOrder === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+          </button>
+        </div>
+
+        {/* Compacted only toggle */}
+        <Toggle
+          checked={listPrefs.compactedOnly}
+          onChange={(v) => setListPrefs({ compactedOnly: v })}
+          label="Compacted only"
         />
       </div>
 
@@ -106,6 +189,8 @@ export function SessionsPage() {
                 onClick={() => {
                   setSearch("");
                   setTab("all");
+                  setProject("all");
+                  setListPrefs({ dateRange: "all", compactedOnly: false });
                 }}
               >
                 Clear filters

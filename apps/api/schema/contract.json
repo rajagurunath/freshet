@@ -507,6 +507,16 @@
           ],
           "default": null
         },
+        "mode": {
+          "default": "hybrid",
+          "enum": [
+            "hybrid",
+            "vector",
+            "keyword"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
         "model": {
           "anyOf": [
             {

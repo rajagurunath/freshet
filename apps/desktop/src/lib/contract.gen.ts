@@ -82,6 +82,7 @@ export interface QueryFilters {
 
 export interface QueryRequest {
   filters?: QueryFilters;
+  mode?: "hybrid" | "vector" | "keyword";
   model?: string;
   provider?: string;
   question: string;

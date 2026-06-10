@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -20,6 +21,38 @@ import pyarrow as pa
 from contexthub.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Reciprocal Rank Fusion
+# ---------------------------------------------------------------------------
+
+def rrf(rank_lists: list[list[str]], k: int = 60) -> list[str]:
+    """Merge multiple ranked lists using Reciprocal Rank Fusion.
+
+    Each item's fused score is the sum of 1/(k + rank + 1) across all lists
+    that contain it (1-indexed rank).  Returns a list of ids sorted by fused
+    score descending.
+
+    Args:
+        rank_lists: Each inner list is an ordered sequence of item ids (best
+                    ranked first).
+        k:          RRF constant — higher values reduce the advantage of
+                    top-ranked items.  Default 60 (standard in literature).
+
+    Returns:
+        Deduplicated list of ids ordered by fused score descending.
+    """
+    if not rank_lists:
+        return []
+
+    scores: dict[str, float] = defaultdict(float)
+    for ranks in rank_lists:
+        for i, row_id in enumerate(ranks):
+            scores[row_id] += 1.0 / (k + i + 1)
+
+    return sorted(scores, key=lambda x: scores[x], reverse=True)
+
 
 # ---------------------------------------------------------------------------
 # Sort field allowlist
@@ -220,6 +253,150 @@ class VectorStore:
                 q = q.where(" AND ".join(where_parts))
         results = q.to_list()
         return results
+
+    # ------------------------------------------------------------------
+    # FTS index management
+    # ------------------------------------------------------------------
+
+    def ensure_fts_index(self) -> None:
+        """Create (or recreate) the FTS index on chunks.text.
+
+        Uses LanceDB's native FTS (use_tantivy=False).  The index is created
+        with stemming and stop-word removal disabled so that exact identifiers
+        (e.g. ERR_5021_FOO) are always retrievable verbatim.
+
+        This is called after batch upserts rather than per-request to amortise
+        the index-build cost.  Calling it when the index already exists is safe
+        because replace=True drops and recreates it.
+        """
+        tbl = self._get_chunks_table()
+        try:
+            tbl.create_fts_index(
+                "text",
+                replace=True,
+                use_tantivy=False,
+                # Preserve original casing and skip stemming / stop-word
+                # removal so that exact tokens like ERR_5021_FOO are indexed.
+                lower_case=False,
+                stem=False,
+                remove_stop_words=False,
+            )
+            logger.debug("FTS index created/refreshed on chunks.text")
+        except Exception:
+            logger.exception("ensure_fts_index failed — FTS search will be unavailable")
+            raise
+
+    # ------------------------------------------------------------------
+    # Hybrid search (vector + FTS + RRF)
+    # ------------------------------------------------------------------
+
+    def hybrid_search(
+        self,
+        query: str,
+        query_vec: list[float],
+        top_k: int,
+        filters: Optional[dict[str, Any]] = None,
+        mode: str = "hybrid",
+    ) -> list[dict[str, Any]]:
+        """Search chunks using vector, FTS, or hybrid (RRF-fused) strategy.
+
+        Args:
+            query:     Raw query string (used for FTS).
+            query_vec: Query embedding (used for vector search).
+            top_k:     Maximum number of results to return.
+            filters:   Optional metadata equality filters (key→value).
+            mode:      "hybrid" (default), "vector", or "keyword".
+
+        Returns:
+            List of row dicts, each augmented with a ``_score`` field carrying
+            the fused RRF score (higher = more relevant).  At most ``top_k``
+            results are returned.
+        """
+        tbl = self._get_chunks_table()
+        candidate_limit = top_k * 3  # oversample before RRF merge
+
+        # Build a LanceDB WHERE clause from filters
+        where_clause: Optional[str] = None
+        if filters:
+            parts = []
+            for key, val in filters.items():
+                if val is not None:
+                    safe = str(val).replace("'", "''")
+                    parts.append(f"{key} = '{safe}'")
+            if parts:
+                where_clause = " AND ".join(parts)
+
+        # Helper: run vector ANN search
+        def _vector_search() -> list[dict[str, Any]]:
+            q = tbl.search(query_vec).limit(candidate_limit)
+            if where_clause:
+                q = q.where(where_clause)
+            try:
+                return q.to_list()
+            except Exception:
+                logger.exception("Vector search failed")
+                return []
+
+        # Helper: run FTS search
+        def _fts_search() -> list[dict[str, Any]]:
+            try:
+                q = tbl.search(query, query_type="fts").limit(candidate_limit)
+                if where_clause:
+                    q = q.where(where_clause)
+                return q.to_list()
+            except Exception:
+                # FTS index may not exist yet or query may be malformed;
+                # fall back gracefully to an empty result set.
+                logger.warning(
+                    "FTS search failed (index may need refresh): %s",
+                    query,
+                    exc_info=True,
+                )
+                return []
+
+        if mode == "vector":
+            vec_rows = _vector_search()
+            results_by_id: dict[str, dict[str, Any]] = {r["id"]: r for r in vec_rows}
+            ranked_ids = [r["id"] for r in vec_rows]
+            fused = ranked_ids[:top_k]
+            score_map = {rid: 1.0 / (60 + i + 1) for i, rid in enumerate(fused)}
+        elif mode == "keyword":
+            fts_rows = _fts_search()
+            results_by_id = {r["id"]: r for r in fts_rows}
+            ranked_ids = [r["id"] for r in fts_rows]
+            fused = ranked_ids[:top_k]
+            score_map = {rid: 1.0 / (60 + i + 1) for i, rid in enumerate(fused)}
+        else:
+            # Hybrid: run both searches and merge with RRF
+            vec_rows = _vector_search()
+            fts_rows = _fts_search()
+
+            results_by_id = {r["id"]: r for r in vec_rows}
+            for r in fts_rows:
+                results_by_id.setdefault(r["id"], r)
+
+            vec_rank = [r["id"] for r in vec_rows]
+            fts_rank = [r["id"] for r in fts_rows]
+            fused_ids = rrf([vec_rank, fts_rank], k=60)
+
+            # Compute per-id RRF scores for the return value
+            from collections import defaultdict as _dd
+            raw_scores: dict[str, float] = _dd(float)
+            for rank_list in [vec_rank, fts_rank]:
+                for i, rid in enumerate(rank_list):
+                    raw_scores[rid] += 1.0 / (60 + i + 1)
+
+            fused = fused_ids[:top_k]
+            score_map = {rid: raw_scores[rid] for rid in fused}
+
+        # Assemble output rows, attaching the fused _score
+        output = []
+        for rid in fused:
+            row = dict(results_by_id[rid])
+            row["_score"] = float(score_map.get(rid, 0.0))
+            output.append(row)
+
+        return output
 
     # ------------------------------------------------------------------
     # Catalog queries (paginated + sorted)

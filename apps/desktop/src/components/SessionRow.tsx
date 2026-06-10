@@ -1,26 +1,10 @@
 import React from "react";
-import { CheckCircle2, MessageSquare, Scissors, Zap } from "lucide-react";
+import { CheckCircle2, DollarSign, MessageSquare, Scissors, Zap } from "lucide-react";
 import { cn } from "./ui/cn";
 import { ToolChip } from "./ToolChip";
+import { relativeTime, formatTokens } from "@/lib/format";
+import { estimateCost, formatCost } from "@/lib/pricing";
 import type { NormalizedSession } from "@/lib/types";
-
-// Format helpers — inline since @/lib/format may not exist yet
-function relativeTimeFallback(iso?: string): string {
-  if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function formatTokensFallback(n?: number): string {
-  if (n === undefined) return "";
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
 
 interface SessionRowProps {
   session: NormalizedSession;
@@ -32,6 +16,8 @@ interface SessionRowProps {
 export function SessionRow({ session, pushed = false, onClick, className }: SessionRowProps) {
   const totalTokens =
     session.tokens ? session.tokens.input + session.tokens.output : undefined;
+
+  const costEstimate = session.tokens ? estimateCost(session) : null;
 
   return (
     <div
@@ -85,10 +71,17 @@ export function SessionRow({ session, pushed = false, onClick, className }: Sess
         {totalTokens !== undefined && (
           <span className="flex items-center gap-1">
             <Zap size={12} />
-            {formatTokensFallback(totalTokens)}
+            {formatTokens(totalTokens)}
           </span>
         )}
-        <span>{relativeTimeFallback(session.startedAt)}</span>
+        {costEstimate !== null && costEstimate.usd > 0 && (
+          <span className="flex items-center gap-1" title={costEstimate.known ? "Estimated cost" : "Estimated cost (unknown model — approximate)"}>
+            <DollarSign size={12} />
+            {formatCost(costEstimate).replace("$", "")}
+            {!costEstimate.known && <span className="text-micro">~</span>}
+          </span>
+        )}
+        <span>{relativeTime(session.startedAt)}</span>
       </div>
     </div>
   );
