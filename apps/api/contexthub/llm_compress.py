@@ -83,7 +83,11 @@ def compress_text(
 
     try:
         messages = [{"role": "user", "content": text}]
-        kwargs: dict = {}
+        # Our "user message" is an archived transcript being prepped for
+        # summarization/extraction, not a live query — so opt in to user-message
+        # compression and disable recency protection (headroom's documented
+        # document-compression mode; defaults would pass it through untouched).
+        kwargs: dict = {"compress_user_messages": True, "protect_recent": 0}
         if model is not None:
             kwargs["model"] = model
         result = compress_fn(messages, **kwargs)
