@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Share2, Search, RefreshCw, X, ExternalLink } from "lucide-react";
+import { Share2, Search, RefreshCw, X, ExternalLink, Cpu } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -32,7 +33,8 @@ export function GraphPage() {
   const navigate = useNavigate();
   const settings = useSettings();
   const localSessions = useApp((s) => s.sessions);
-  const { error: toastError } = useToast();
+  const { info: toastInfo, error: toastError } = useToast();
+  const [backfilling, setBackfilling] = useState(false);
 
   const [data, setData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +87,22 @@ export function GraphPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleBackfill = useCallback(async () => {
+    if (!settings.apiBaseUrl) return;
+    setBackfilling(true);
+    try {
+      const client = makeApiClient(settings.apiBaseUrl, settings.apiKey ?? "");
+      const result = await client.backfillGraph();
+      toastInfo(`Queued ${result.enqueued} session${result.enqueued !== 1 ? "s" : ""} for extraction`);
+      // Re-fetch the graph after a short delay to pick up any fast extractions
+      setTimeout(() => void load(), 5000);
+    } catch {
+      toastError("Failed to queue graph extraction.");
+    } finally {
+      setBackfilling(false);
+    }
+  }, [settings.apiBaseUrl, settings.apiKey, toastInfo, toastError, load]);
 
   const layout = useMemo(() => {
     if (!data) return new Map<string, { x: number; y: number }>();
@@ -178,6 +196,17 @@ export function GraphPage() {
           >
             <RefreshCw size={14} className={cn(loading && "animate-spin")} />
           </button>
+          {hasApi && (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={backfilling}
+              onClick={() => void handleBackfill()}
+            >
+              <Cpu size={13} />
+              Generate graph
+            </Button>
+          )}
         </form>
       </div>
 
@@ -225,6 +254,19 @@ export function GraphPage() {
                 focus
                   ? "Try a different node name, or clear the focus to see the full graph."
                   : "Push sessions to the hub — graph extraction runs automatically and entities will appear here."
+              }
+              cta={
+                !focus ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={backfilling}
+                    onClick={() => void handleBackfill()}
+                  >
+                    <Cpu size={13} />
+                    Generate graph
+                  </Button>
+                ) : undefined
               }
             />
           ) : (

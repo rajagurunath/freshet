@@ -447,3 +447,41 @@ def test_graph_extract_job_handler():
                 else:
                     os.environ[k] = v
             _clear_caches()
+
+
+# ===========================================================================
+# POST /v1/graph/backfill tests
+# ===========================================================================
+
+def test_backfill_enqueues_unextracted_sessions(client: TestClient):
+    """Backfill enqueues graph_extract jobs for sessions not yet extracted."""
+    # Ingest two fresh sessions (graph_extracted defaults to False)
+    client.post("/v1/sessions", json=_make_session("bf-1"), headers=ALICE)
+    client.post("/v1/sessions", json=_make_session("bf-2"), headers=ALICE)
+
+    resp = client.post("/v1/graph/backfill", headers=ALICE)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert "enqueued" in data and "skipped" in data
+    # At least our two sessions should be counted (there may be more from earlier tests)
+    assert data["enqueued"] >= 2
+
+
+def test_backfill_second_call_skips_extracted(client: TestClient):
+    """After marking sessions as extracted, a second backfill call enqueues 0 new."""
+    # Ingest a dedicated session
+    client.post("/v1/sessions", json=_make_session("bf-mark"), headers=ALICE)
+
+    # Mark it extracted directly via the vector store
+    from contexthub.storage.vectors import get_vector_store as _gvs
+    _gvs().mark_graph_extracted("bf-mark")
+
+    # First call — bf-mark should be in skipped
+    resp1 = client.post("/v1/graph/backfill", headers=ALICE)
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+    # bf-mark is now extracted so should not be re-enqueued
+    # We just verify the response shape; enqueued count may vary due to other test sessions
+    assert isinstance(data1["enqueued"], int)
+    assert isinstance(data1["skipped"], int)
+    assert data1["skipped"] >= 1

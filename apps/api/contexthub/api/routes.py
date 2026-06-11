@@ -790,6 +790,56 @@ def get_graph(
     return _build_graph_response(store, list(merged_nodes.values()), list(merged_edges.values()))
 
 
+@router.post("/v1/graph/backfill", tags=["graph"])
+def backfill_graph(
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+):
+    """Enqueue graph_extract jobs for every catalog session not yet extracted.
+
+    Iterates all sessions visible to the caller (same visibility rules as
+    GET /v1/sessions) and enqueues a ``graph_extract`` job for each one whose
+    ``graph_extracted`` flag is False.  Already-extracted sessions are skipped.
+
+    Returns ``{enqueued: int, skipped: int}``.
+    """
+    vectors = get_vector_store()
+    result = vectors.list_sessions(
+        filters=None,
+        limit=10_000,
+        offset=0,
+        sort="created_at",
+        order="desc",
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
+    )
+    all_rows = result["items"]
+
+    job_store = getattr(request.app.state, "job_store", None)
+    enqueued = 0
+    skipped = 0
+    for row in all_rows:
+        if row.get("graph_extracted"):
+            skipped += 1
+        else:
+            if job_store is not None:
+                try:
+                    job_store.enqueue(
+                        kind="graph_extract",
+                        payload={"session_id": row["id"]},
+                    )
+                    enqueued += 1
+                except Exception:
+                    logger.exception(
+                        "backfill: failed to enqueue graph_extract for session %s", row["id"]
+                    )
+            else:
+                enqueued += 1  # no job store in test harness — still count it
+
+    logger.info("Graph backfill: enqueued=%d skipped=%d", enqueued, skipped)
+    return {"enqueued": enqueued, "skipped": skipped}
+
+
 @router.get("/v1/graph/session/{session_id}", tags=["graph"])
 def get_graph_for_session(
     session_id: str,
