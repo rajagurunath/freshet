@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Globe, BarChart2, User } from "lucide-react";
+import { Globe, BarChart2, User, Link } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -45,7 +45,7 @@ interface StatsData {
 export function HubPage() {
   const navigate = useNavigate();
   const settings = useSettings();
-  const { error: toastError } = useToast();
+  const { success, error: toastError } = useToast();
 
   const [stats, setStats] = useState<StatsData | null>(null);
   const [sessions, setSessions] = useState<HubSession[]>([]);
@@ -53,6 +53,21 @@ export function HubPage() {
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
   const [search, setSearch] = useState("");
+
+  const copyShareLink = useCallback(
+    async (e: React.MouseEvent, sessionId: string) => {
+      e.stopPropagation();
+      try {
+        const client = makeApiClient(settings.apiBaseUrl ?? "", settings.apiKey ?? "");
+        const { url } = await client.shareSession(sessionId);
+        await navigator.clipboard.writeText(url);
+        success("Share link copied — paste it into your PR");
+      } catch {
+        toastError("Failed to generate share link.");
+      }
+    },
+    [settings.apiBaseUrl, settings.apiKey, success, toastError],
+  );
 
   const load = useCallback(async () => {
     if (!settings.apiBaseUrl) {
@@ -257,6 +272,15 @@ export function HubPage() {
                         </>
                       )}
                       <span>{relativeTime(s.startedAt)}</span>
+                      <button
+                        onClick={(e) => void copyShareLink(e, s.id)}
+                        className="ml-auto flex items-center gap-1 text-ink-faint hover:text-accent transition-colors duration-120"
+                        title="Copy share link"
+                        aria-label="Copy share link"
+                      >
+                        <Link size={11} />
+                        Copy link
+                      </button>
                     </div>
                   </Card>
                 ))}

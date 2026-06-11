@@ -403,6 +403,24 @@ export class ApiClient {
     return res.blob();
   }
 
+  /** Mint a short-lived HMAC share link for a session context page. */
+  async shareSession(sessionId: string): Promise<{ url: string }> {
+    const raw = await this.request<{ url: string; token: string; expiry: number }>(
+      "POST",
+      `/v1/sessions/${encodeURIComponent(sessionId)}/share`,
+    );
+    return { url: raw.url };
+  }
+
+  /** Trigger knowledge-graph backfill for all unextracted sessions. */
+  async backfillGraph(): Promise<{ enqueued: number; skipped: number }> {
+    const raw = await this.request<{ enqueued: number; skipped: number }>(
+      "POST",
+      "/v1/graph/backfill",
+    );
+    return { enqueued: raw.enqueued, skipped: raw.skipped };
+  }
+
   /** Retrieve hub-level statistics, normalized to the app's shape. */
   async stats(): Promise<HubStats> {
     const r = await this.request<{

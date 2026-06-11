@@ -17,6 +17,7 @@ import {
   GitBranch,
   Copy,
   Check,
+  Link,
 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/Button";
@@ -397,6 +398,18 @@ export function SessionDetailPage() {
     void runSummarize();
   };
 
+  const handleCopyShareLink = async () => {
+    if (!session) return;
+    try {
+      const client = makeApiClient(settings.apiBaseUrl ?? "", settings.apiKey ?? "");
+      const { url } = await client.shareSession(session.id);
+      await navigator.clipboard.writeText(url);
+      success("Share link copied — paste it into your PR");
+    } catch {
+      toastError("Failed to generate share link.");
+    }
+  };
+
   const handlePush = async () => {
     if (!session) return;
     setPushing(true);
@@ -722,6 +735,15 @@ export function SessionDetailPage() {
                 variant="ghost"
                 size="sm"
                 className="mt-3 w-full"
+                onClick={handleCopyShareLink}
+              >
+                <Link size={13} />
+                Copy share link
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 w-full"
                 loading={pushing}
                 onClick={handlePush}
               >

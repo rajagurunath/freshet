@@ -46,6 +46,35 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("shareSession", () => {
+  it("POSTs to /v1/sessions/{id}/share and returns the url", async () => {
+    const fn = mockFetchOnce({
+      url: "https://hub.example.com/c/s1?t=tok&expiry=9999",
+      token: "tok",
+      expiry: 9999,
+    });
+    const client = makeApiClient("http://localhost:8787", "dev-key");
+    const result = await client.shareSession("s1");
+    expect(result.url).toBe("https://hub.example.com/c/s1?t=tok&expiry=9999");
+    const [url, init] = fn.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8787/v1/sessions/s1/share");
+    expect((init as RequestInit).method).toBe("POST");
+  });
+});
+
+describe("backfillGraph", () => {
+  it("POSTs to /v1/graph/backfill and returns enqueued/skipped counts", async () => {
+    const fn = mockFetchOnce({ enqueued: 3, skipped: 1 });
+    const client = makeApiClient("http://localhost:8787", "dev-key");
+    const result = await client.backfillGraph();
+    expect(result.enqueued).toBe(3);
+    expect(result.skipped).toBe(1);
+    const [url, init] = fn.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8787/v1/graph/backfill");
+    expect((init as RequestInit).method).toBe("POST");
+  });
+});
+
 describe("listHubSessions", () => {
   it("unwraps the paginated {items} envelope from GET /v1/sessions", async () => {
     mockFetchOnce(PAGE_RESPONSE);
