@@ -49,6 +49,8 @@ interface RawUserLine {
   timestamp?: string;
   sessionId?: string;
   cwd?: string;
+  /** Set by Claude Code on the post-/compact continuation message; its text IS the compact summary. */
+  isCompactSummary?: boolean;
 }
 
 interface RawAssistantLine {
@@ -163,6 +165,24 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
       compacted = true;
       compactSummary = summaryLine.summary;
       if (summaryLine.sessionId) sessionId = summaryLine.sessionId;
+    } else if (
+      parsed.type === "system" &&
+      (parsed as { subtype?: string }).subtype === "compact_boundary"
+    ) {
+      // Real-world /compact marker: Claude Code emits a system line with
+      // subtype "compact_boundary" (and compactMetadata) at the compaction
+      // point. (`type:"summary"` lines, handled above, are not what /compact
+      // writes — kept only for robustness.)
+      compacted = true;
+      const sysLine = parsed as { timestamp?: string; sessionId?: string };
+      if (sysLine.sessionId) sessionId = sysLine.sessionId;
+      messages.push({
+        id: `m${msgIdx++}`,
+        role: "system",
+        text: "Conversation compacted",
+        timestamp: sysLine.timestamp,
+        kind: "compact-marker",
+      });
     } else if (parsed.type === "user") {
       const line = parsed as RawUserLine;
       const ts = line.timestamp;
@@ -177,10 +197,17 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
       const content = line.message?.content;
       if (!content) continue;
 
+      // Claude Code flags the post-/compact continuation message with a
+      // top-level isCompactSummary: true; its text is the compact summary.
+      // The text heuristic remains as a fallback for older versions.
+      const lineIsCompact = line.isCompactSummary === true;
+
       if (typeof content === "string") {
-        if (isSystemLikeText(content)) continue;
+        if (!lineIsCompact && isSystemLikeText(content)) continue;
         // Detect the post-compact continuation marker.
-        if (isCompactContinuationMarker(content)) {
+        if (lineIsCompact || isCompactContinuationMarker(content)) {
+          compacted = true;
+          compactSummary = content;
           messages.push({
             id: `m${msgIdx++}`,
             role: "user",
@@ -202,9 +229,11 @@ export function parseClaude(text: string, filePath: string): NormalizedSession {
         for (const block of content) {
           if (block.type === "text") {
             const t = (block as RawContentText).text;
-            if (isSystemLikeText(t)) {
+            if (!lineIsCompact && isSystemLikeText(t)) {
               // skip
-            } else if (isCompactContinuationMarker(t)) {
+            } else if (lineIsCompact || isCompactContinuationMarker(t)) {
+              compacted = true;
+              compactSummary = t;
               messages.push({
                 id: `m${msgIdx++}`,
                 role: "user",

@@ -375,8 +375,8 @@ describe("parseClaude – compact awareness", () => {
     expect(session.compacted).toBe(true);
   });
 
-  it("captures the summary text as compactSummary", () => {
-    expect(session.compactSummary).toBe(
+  it("captures the summary text as compactSummary (continuation message wins — it carries the latest compact summary)", () => {
+    expect(session.compactSummary).toContain(
       "The agent fixed the S3 retry bug by adding exponential backoff."
     );
   });
@@ -534,5 +534,109 @@ describe("parseKilo", () => {
 
   it("has correct messageCount matching messages array length", () => {
     expect(session.messageCount).toBe(session.messages.length);
+  });
+});
+
+// ─── parseClaude: real-world /compact markers ─────────────────────────────────
+//
+// Regression: Claude Code does NOT emit `type:"summary"` lines for /compact.
+// It emits (a) a `type:"system", subtype:"compact_boundary"` line and (b) a
+// user line flagged top-level `isCompactSummary: true` whose text IS the
+// summary ("This session is being continued from a previous conversation...").
+// The parser only set `compacted` in the dead type:"summary" branch, so the
+// "Compacted only" filter matched zero real sessions.
+
+const REAL_COMPACT_FIXTURE = [
+  JSON.stringify({
+    type: "system",
+    subtype: "compact_boundary",
+    content: "Conversation compacted",
+    isMeta: false,
+    level: "info",
+    compactMetadata: { trigger: "manual", preTokens: 980724 },
+    timestamp: "2026-05-10T06:00:18.160Z",
+    sessionId: "real-compact-1",
+    uuid: "u-boundary",
+  }),
+  JSON.stringify({
+    type: "user",
+    isCompactSummary: true,
+    message: {
+      role: "user",
+      content:
+        "This session is being continued from a previous conversation that ran out of context. The summary: fixed the fleet sync race and added locks.",
+    },
+    timestamp: "2026-05-10T06:00:19.000Z",
+    sessionId: "real-compact-1",
+    cwd: "/Users/x/proj",
+  }),
+  JSON.stringify({
+    type: "user",
+    message: { role: "user", content: "Now add tests for the lock." },
+    timestamp: "2026-05-10T06:01:00.000Z",
+    sessionId: "real-compact-1",
+  }),
+  JSON.stringify({
+    type: "assistant",
+    message: {
+      role: "assistant",
+      model: "claude-sonnet-4-6",
+      content: [{ type: "text", text: "Adding the tests now." }],
+    },
+    timestamp: "2026-05-10T06:01:05.000Z",
+    sessionId: "real-compact-1",
+  }),
+].join("\n");
+
+describe("parseClaude — real compact_boundary + isCompactSummary lines", () => {
+  const session = parseClaude(
+    REAL_COMPACT_FIXTURE,
+    "/Users/x/.claude/projects/proj/real-compact-1.jsonl"
+  );
+
+  it("sets compacted=true from the compact_boundary system line", () => {
+    expect(session.compacted).toBe(true);
+  });
+
+  it("captures the isCompactSummary message text as compactSummary", () => {
+    expect(session.compactSummary).toContain(
+      "fixed the fleet sync race and added locks"
+    );
+  });
+
+  it("tags the continuation message as kind:compact-marker", () => {
+    const markers = session.messages.filter((m) => m.kind === "compact-marker");
+    expect(markers.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does not use the compact summary as the session title", () => {
+    expect(session.title).toBe("Now add tests for the lock.");
+  });
+});
+
+describe("parseClaude — isCompactSummary only (no boundary line)", () => {
+  const fixture = [
+    JSON.stringify({
+      type: "user",
+      isCompactSummary: true,
+      message: {
+        role: "user",
+        content: "This session is being continued from a previous conversation. Summary text here.",
+      },
+      timestamp: "2026-05-11T01:00:00.000Z",
+      sessionId: "real-compact-2",
+    }),
+    JSON.stringify({
+      type: "user",
+      message: { role: "user", content: "Continue the migration." },
+      timestamp: "2026-05-11T01:01:00.000Z",
+      sessionId: "real-compact-2",
+    }),
+  ].join("\n");
+
+  it("still sets compacted=true", () => {
+    const s = parseClaude(fixture, "/x/real-compact-2.jsonl");
+    expect(s.compacted).toBe(true);
+    expect(s.compactSummary).toContain("Summary text here");
   });
 });
