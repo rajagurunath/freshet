@@ -224,3 +224,33 @@ describe("mergeScanResult", () => {
     expect(updatedCache["/tmp/new.jsonl"].sessionId).toBe("sess-brand-new");
   });
 });
+
+// ─── needsParse (regression: empty sessions after app restart) ────────────────
+//
+// scanCache is persisted across app launches but parsed sessions are not.
+// A cache-fresh file with no in-memory session MUST still be parsed, or every
+// restart shows an empty sessions list until a file changes on disk.
+
+import { needsParse } from "./scan-cache";
+
+describe("needsParse", () => {
+  const entry = { mtime: 100, size: 50, sessionId: "s1" };
+  const sameInfo = { mtime: 100, size: 50 };
+  const changedInfo = { mtime: 999, size: 50 };
+
+  it("parses a cache-fresh file when no previous session exists (app restart)", () => {
+    expect(needsParse(entry, sameInfo, false)).toBe(true);
+  });
+
+  it("skips a cache-fresh file when the session is already in memory", () => {
+    expect(needsParse(entry, sameInfo, true)).toBe(false);
+  });
+
+  it("parses a changed file even when a previous session exists", () => {
+    expect(needsParse(entry, changedInfo, true)).toBe(true);
+  });
+
+  it("parses an uncached file", () => {
+    expect(needsParse(undefined, sameInfo, false)).toBe(true);
+  });
+});

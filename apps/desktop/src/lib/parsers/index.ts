@@ -9,7 +9,7 @@ import { getSessionRoots, listSessionFiles, readText, statFile, isTauri } from "
 import { MOCK_SESSIONS } from "../mock";
 import { basename, joinPath } from "../path-utils";
 import {
-  isCacheEntryStale,
+  needsParse,
   mergeScanResult,
   type ScanCache,
   type ScanFileInfo,
@@ -135,12 +135,14 @@ export async function scanLocalSessions(
 
   const cache = previousCache ?? {};
   const prev = previousSessions ?? [];
+  const prevPaths = new Set(prev.map((s) => s.filePath).filter(Boolean));
 
-  // Determine which files need (re-)parsing
+  // Determine which files need (re-)parsing. A cache-fresh file still needs
+  // parsing when its session is not in memory (fresh app launch).
   const toParseFiles = allFiles.filter(({ path }) => {
     const info = fileInfoMap[path];
     if (!info) return false; // stat failed; skip
-    return isCacheEntryStale(cache[path], info);
+    return needsParse(cache[path], info, prevPaths.has(path));
   });
 
   // Parse only the stale/new files

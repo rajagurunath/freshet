@@ -53,6 +53,22 @@ export function isCacheEntryStale(
   return entry.mtime !== info.mtime || entry.size !== info.size;
 }
 
+/**
+ * Decide whether a file must be (re-)parsed.
+ *
+ * The cache survives app restarts (persisted) but parsed sessions do not, so a
+ * cache-fresh file still needs parsing when its session is not in memory —
+ * otherwise every fresh launch renders an empty sessions list.
+ */
+export function needsParse(
+  entry: ScanCacheEntry | undefined,
+  info: ScanFileInfo,
+  hasPrevSession: boolean,
+): boolean {
+  if (!hasPrevSession) return true;
+  return isCacheEntryStale(entry, info);
+}
+
 // ─── buildScanCache ───────────────────────────────────────────────────────────
 
 /**
