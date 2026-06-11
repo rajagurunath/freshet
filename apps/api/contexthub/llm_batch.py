@@ -60,7 +60,12 @@ Be concise. Do not include any section not listed above.
 # ---------------------------------------------------------------------------
 
 def _build_transcript(messages: list[dict], char_limit: int = _TRANSCRIPT_CHAR_LIMIT) -> str:
-    """Render a list of message dicts to a truncated transcript string."""
+    """Render a list of message dicts to a truncated transcript string.
+
+    When ``COMPRESS_BEFORE_LLM=true``, the joined transcript is compressed via
+    headroom-ai before the char-limit guard is applied.  The char limit still
+    acts as a final hard cap regardless of whether compression ran.
+    """
     parts: list[str] = []
     total = 0
     for msg in messages:
@@ -74,7 +79,24 @@ def _build_transcript(messages: list[dict], char_limit: int = _TRANSCRIPT_CHAR_L
             break
         parts.append(line)
         total += len(line)
-    return "".join(parts)
+    transcript = "".join(parts)
+
+    # Optional pre-LLM compression (headroom-ai); pass-through when disabled.
+    from contexthub.llm_compress import compress_text  # lazy import
+    transcript, stats = compress_text(transcript)
+    if stats.get("enabled"):
+        logger.info(
+            "_build_transcript: compression saved %d tokens (ratio %.2f)",
+            stats.get("tokens_saved", 0),
+            stats.get("compression_ratio", 0.0),
+        )
+
+    # Final hard char-limit guard (protects against very long compressed output
+    # or when compression is disabled).
+    if len(transcript) > char_limit:
+        transcript = transcript[:char_limit] + f"\n[… transcript truncated at {char_limit} chars …]"
+
+    return transcript
 
 
 def build_batch_jsonl(

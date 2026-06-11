@@ -118,6 +118,14 @@ class Settings(BaseSettings):
     # How many hours before the window reset to start draining pending work.
     harvest_lookahead_hours: int = 12
 
+    # ---------------------------------------------------------------------------
+    # Pre-LLM transcript compression (optional, requires headroom-ai)
+    # ---------------------------------------------------------------------------
+    # When True, run headroom-ai compression on transcript text before sending
+    # it to the LLM. Requires: pip install 'contexthub[compress]'.
+    # Set COMPRESS_BEFORE_LLM=true to enable.
+    compress_before_llm: bool = False
+
     @property
     def api_key_list(self) -> list[str]:
         """Return the parsed list of allowed API keys (bare key only, for backward compat)."""

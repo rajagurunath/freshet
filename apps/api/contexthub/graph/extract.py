@@ -56,7 +56,11 @@ Rules:
 
 
 def _build_input(session: NormalizedSession, summary: Optional[str]) -> str:
-    """Prefer the summary; fall back to the first N chars of the transcript."""
+    """Prefer the summary; fall back to the first N chars of the transcript.
+
+    The summary path is already short — compression is only applied to the
+    transcript fallback path where token counts can be significant.
+    """
     if summary and summary.strip():
         return summary.strip()
     parts: list[str] = []
@@ -70,7 +74,19 @@ def _build_input(session: NormalizedSession, summary: Optional[str]) -> str:
             break
         parts.append(line)
         total += len(line)
-    return "".join(parts) or (session.title or session.preview or "")
+    transcript = "".join(parts) or (session.title or session.preview or "")
+
+    # Optional pre-LLM compression (headroom-ai); pass-through when disabled.
+    from contexthub.llm_compress import compress_text  # lazy import
+    transcript, stats = compress_text(transcript)
+    if stats.get("enabled"):
+        logger.info(
+            "_build_input: compression saved %d tokens (ratio %.2f)",
+            stats.get("tokens_saved", 0),
+            stats.get("compression_ratio", 0.0),
+        )
+
+    return transcript
 
 
 def _parse_json(raw: str) -> Optional[dict[str, Any]]:
