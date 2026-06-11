@@ -12,6 +12,7 @@
     "fs:allow-read-text-file",
     "fs:allow-read-dir",
     "fs:allow-exists",
+    "fs:allow-stat",
     {
       "comment": "Read scope covers session roots plus the asset-hub scan directories: $HOME/.claude/{skills,commands,agents}/** (listed explicitly for clarity even though $HOME/.claude/** already includes them).",
       "identifier": "fs:scope",

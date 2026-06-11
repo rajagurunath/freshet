@@ -188,7 +188,12 @@ export class ApiClient {
   /** List sessions from the hub catalog. */
   async listHubSessions(filters?: SessionFilters): Promise<HubSessionRecord[]> {
     const qs = filters ? this.buildQuery(filters as Record<string, unknown>) : "";
-    const rows = await this.request<unknown[]>("GET", `/v1/sessions${qs}`);
+    const raw = await this.request<unknown>("GET", `/v1/sessions${qs}`);
+    // v2 servers return a paginated envelope {items, total, limit, offset};
+    // older servers returned a bare array. Accept both.
+    const rows = Array.isArray(raw)
+      ? raw
+      : ((raw as { items?: unknown[] })?.items ?? []);
     return (camelify<HubSessionRecord[]>(rows) ?? []).map((r) => ({
       ...r,
       // catalog rows expose `createdAt`; surface it as startedAt for list views.
