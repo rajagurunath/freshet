@@ -187,21 +187,24 @@ def _graph_augment_results(
     query_vec: list[float],
     results: list[dict[str, Any]],
     vectors: VectorStore,
+    embedder: Any,
     top_k: int,
     caller_user_id: Optional[str] = None,
     caller_team: Optional[str] = None,
-    max_add: int = 3,
+    max_add: int = 4,
 ) -> list[dict[str, Any]]:
     """Inject sessions the graph connects to the vector hits but that vanilla
     retrieval missed (the bridge/alias case), as additional citation rows.
 
-    Seeds the graph walk from the current result sessions, then pulls the single
-    best-matching chunk for each newly surfaced session. Best-effort and
-    visibility-enforced (both the graph walk and the chunk fetch apply the
-    caller's scope); returns the input unchanged if the graph is unavailable.
+    Uses the same benchmarked vector+FTS+graph weighted fusion as the eval
+    harness (``graph_fused_search``) to rank sessions, then pulls the single
+    best-matching chunk for each newly surfaced session in fused order. This way
+    the production query path delivers the lift the benchmark proves, rather than
+    a weaker heuristic. Best-effort and visibility-enforced; returns the input
+    unchanged if the graph is unavailable.
     """
     try:
-        from contexthub.graph.retrieve import graph_search
+        from contexthub.graph.retrieve import graph_fused_search
         from contexthub.graph.store import get_graph_store
 
         store = get_graph_store()
@@ -209,24 +212,24 @@ def _graph_augment_results(
         return results
 
     seen: set[str] = set()
-    base_sids: list[str] = []
     for r in results:
         sid = r.get("session_id", "")
-        if sid and sid not in seen:
+        if sid:
             seen.add(sid)
-            base_sids.append(sid)
 
     try:
-        graph_sids = graph_search(
-            question, store, seed_session_ids=base_sids[:8],
-            caller_user_id=caller_user_id, caller_team=caller_team, limit=top_k,
+        # Rank sessions with the full 3-arm fusion; pull deeper than top_k so a
+        # bridge answer sitting lower in the ranking can still be recovered.
+        fused_sids = graph_fused_search(
+            question, vectors, embedder, store, top_k=max(top_k * 2, 10),
+            caller_user_id=caller_user_id, caller_team=caller_team,
         )
     except Exception:
-        logger.warning("graph augmentation: graph_search failed", exc_info=True)
+        logger.warning("graph augmentation: graph_fused_search failed", exc_info=True)
         return results
 
     extra: list[dict[str, Any]] = []
-    for sid in graph_sids:
+    for sid in fused_sids:
         if sid in seen:
             continue
         try:
@@ -303,7 +306,7 @@ def answer_query(
     # lexical/semantic arms missed by walking the knowledge graph from these hits.
     if req.use_graph:
         results = _graph_augment_results(
-            req.question, query_vec, results, vectors, req.top_k,
+            req.question, query_vec, results, vectors, embedder, req.top_k,
             caller_user_id=caller_user_id, caller_team=caller_team,
         )
 

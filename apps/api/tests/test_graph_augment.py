@@ -35,8 +35,18 @@ class _StubVectors:
         if filters and "session_id" in filters:
             row = self._by_session.get(filters["session_id"])
             return [row] if row else []
-        # Unfiltered main query → only the blog session hit.
+        # Unfiltered main query (any mode) → only the blog session hit.
         return [self._by_session["s-blog"]]
+
+
+class _StubEmbedder:
+    dim = 1
+
+    def embed_query(self, text):
+        return [0.0]
+
+    def embed_texts(self, texts):
+        return [[0.0] for _ in texts]
 
 
 @pytest.fixture
@@ -69,7 +79,7 @@ def test_graph_augment_pulls_in_bridged_session(temp_graph):
     base = [vectors._by_session["s-blog"]]
     augmented = _graph_augment_results(
         "the launch announcement feature — which service implements it?",
-        query_vec=[0.0], results=base, vectors=vectors, top_k=10,
+        query_vec=[0.0], results=base, vectors=vectors, embedder=_StubEmbedder(), top_k=10,
     )
     sids = [r["session_id"] for r in augmented]
     assert "s-blog" in sids  # original hit preserved
@@ -85,6 +95,6 @@ def test_graph_augment_noop_when_no_graph_connection(temp_graph):
     # so here we verify the inverse: an unrelated session is never fabricated.
     base = [vectors._by_session["s-blog"]]
     augmented = _graph_augment_results(
-        "anything", query_vec=[0.0], results=base, vectors=vectors, top_k=10,
+        "anything", query_vec=[0.0], results=base, vectors=vectors, embedder=_StubEmbedder(), top_k=10,
     )
     assert all(r["session_id"] in {"s-blog", "s-impl"} for r in augmented)
