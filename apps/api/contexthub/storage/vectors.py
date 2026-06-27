@@ -373,10 +373,14 @@ class VectorStore:
             if where_clause:
                 q = q.where(where_clause)
             try:
-                return q.to_list()
+                rows = q.to_list()
             except Exception:
                 logger.exception("Vector search failed")
                 return []
+            # Stable order: ascending distance, then id — so equal-distance rows
+            # don't reorder across processes (keeps fused rankings reproducible).
+            rows.sort(key=lambda r: (float(r.get("_distance", 0.0)), str(r.get("id", ""))))
+            return rows
 
         # Helper: run FTS search
         def _fts_search() -> list[dict[str, Any]]:
@@ -384,7 +388,12 @@ class VectorStore:
                 q = tbl.search(query, query_type="fts").limit(candidate_limit)
                 if where_clause:
                     q = q.where(where_clause)
-                return q.to_list()
+                rows = q.to_list()
+                # Stable order: descending BM25 score, then id. LanceDB's native
+                # FTS returns equal-score docs in process-dependent order; pinning
+                # the tie-break makes hybrid search reproducible run-to-run.
+                rows.sort(key=lambda r: (-float(r.get("_score", 0.0)), str(r.get("id", ""))))
+                return rows
             except Exception:
                 # FTS index may not exist yet or query may be malformed;
                 # fall back gracefully to an empty result set.
