@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Context Hub — Everything your team taught the AI, in one place</title>
-  <meta name="description" content="Context Hub captures every Claude Code, Codex, and Kilo Code session. Your team curates, redacts, and pushes the good ones — building a company-wide AI that knows your codebase. Runs locally." />
+  <title>Context Hub — One memory for every AI coding session your team runs</title>
+  <meta name="description" content="Context Hub captures every Claude Code, Codex, and Kilo Code session locally. Curate, redact, and push the good ones into a company-wide memory — searchable, graphed, and shareable over an open protocol. Nothing leaves your machine without your review." />
   <meta name="theme-color" content="#FBFAF8" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Context Hub — Everything your team taught the AI, in one place" />
-  <meta property="og:description" content="Capture every Claude Code, Codex, and Kilo Code session. Curate, redact, and push the good ones into a company-wide AI that knows your codebase." />
+  <meta property="og:title" content="Context Hub — One memory for every AI coding session your team runs" />
+  <meta property="og:description" content="Capture every Claude Code, Codex, and Kilo Code session. Curate, redact, and push the good ones into a company-wide memory that knows your codebase — exchanged over AICP, an open context protocol." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -36,8 +36,9 @@
     <nav class="nav__links" aria-label="Primary">
       <a class="ghost" href="#how">How it works</a>
       <a class="ghost" href="#product">Product</a>
+      <a class="ghost" href="#protocol">Protocol</a>
+      <a class="ghost" href="#workflows">Workflows</a>
       <a class="ghost" href="#privacy">Privacy</a>
-      <a class="ghost" href="#docs">Docs</a>
       <a class="ghost" href="https://github.com" rel="noopener">GitHub</a>
       <a class="btn btn-primary" href="#download">Download</a>
     </nav>
@@ -48,20 +49,23 @@
 
 <!-- ============ 2. HERO ============ -->
 <section class="hero">
+  <canvas class="hero__graph" id="hero-graph" aria-hidden="true"></canvas>
+  <div class="hero__veil" aria-hidden="true"></div>
   <div class="wrap">
     <a class="announce reveal-load" href="#download">
       <span class="announce__dot" aria-hidden="true"></span>
-      Now in beta — Context Hub for Claude Code, Codex, and Kilo Code
+      In early access — for Claude Code, Codex &amp; Kilo Code
       <span aria-hidden="true">→</span>
     </a>
 
     <div class="hero__grid">
       <div class="hero__copy">
-        <h1 class="reveal-load d1">Everything your team taught the AI, in one&nbsp;place.</h1>
+        <h1 class="reveal-load d1">One memory for every AI session<br>your team&nbsp;runs.</h1>
         <p class="hero__sub reveal-load d2">
-          Context Hub captures every Claude Code, Codex, and Kilo Code session.
-          Your team curates, redacts, and pushes the good ones. The result: a
-          company-wide AI that actually knows your codebase.
+          Context Hub captures every Claude Code, Codex, and Kilo Code session on
+          your machine. You curate, redact, and push the good ones — and they
+          become a company-wide memory that's <em>searchable, graphed, and
+          shareable</em>.
         </p>
         <div class="hero__cta reveal-load d3">
           <a class="btn btn-primary btn-lg" href="#download">
@@ -72,7 +76,7 @@
         </div>
         <p class="hero__note reveal-load d3">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          Runs locally. No data leaves your machine without your review.
+          Runs locally. No session leaves your machine without your review.
         </p>
       </div>
 
@@ -130,23 +134,24 @@
   </div>
 </section>
 
-<!-- ============ 3. TRUST STRIP ============ -->
-<section class="trust" aria-label="Used by engineering teams">
-  <div class="wrap trust__inner">
-    <span class="trust__label">Used by engineering teams at</span>
-    <div class="marquee">
-      <div class="marquee__track" id="marquee-track">
-        <span class="marquee__item">Northbeam</span>
-        <span class="marquee__item">Resolve AI</span>
-        <span class="marquee__item">Tessellate</span>
-        <span class="marquee__item">Hadron Labs</span>
-        <span class="marquee__item">Coastline</span>
-        <span class="marquee__item">Mercato</span>
-        <span class="marquee__item">Foundry Eight</span>
-        <span class="marquee__item">Loopwork</span>
-        <span class="marquee__item">Driftwood</span>
-        <span class="marquee__item">Kernel &amp; Co</span>
-      </div>
+<!-- ============ 3. CAPABILITY STRIP (factual, not social proof) ============ -->
+<section class="capstrip" aria-label="What Context Hub is">
+  <div class="wrap capstrip__inner">
+    <div class="capstrip__item">
+      <span class="capstrip__k">Built for</span>
+      <span class="capstrip__v">Claude Code · Codex · Kilo&nbsp;Code</span>
+    </div>
+    <div class="capstrip__item">
+      <span class="capstrip__k">Capture</span>
+      <span class="capstrip__v">100% local-first</span>
+    </div>
+    <div class="capstrip__item">
+      <span class="capstrip__k">Push</span>
+      <span class="capstrip__v">Human-reviewed &amp; redacted</span>
+    </div>
+    <div class="capstrip__item">
+      <span class="capstrip__k">Exchange</span>
+      <span class="capstrip__v">AICP open protocol <span class="capstrip__soft">· spec v0.1</span></span>
     </div>
   </div>
 </section>
@@ -156,9 +161,9 @@
   <div class="wrap gap__grid">
     <div class="gap__copy sr">
       <p class="eyebrow">The gap</p>
-      <h2>AI sessions contain your best engineering decisions. Right now, they vanish.</h2>
-      <p>Every day your team works through hard problems with Claude Code, Codex, and Kilo Code. The reasoning is sharp, specific, and earned. Then the terminal closes.</p>
-      <p>That knowledge never reaches the next engineer, the next agent, or the next time the same bug shows up. It is scattered across laptops, tools, and chat scrollback — and it is invisible.</p>
+      <h2>Your best engineering decisions happen in AI sessions. Then the terminal closes.</h2>
+      <p>Every day your team works through hard problems with Claude Code, Codex, and Kilo Code. The reasoning is sharp, specific, and earned.</p>
+      <p>But that knowledge never reaches the next engineer, the next agent, or the next time the same bug shows up. It's scattered across laptops, tools, and chat scrollback — and it's invisible.</p>
     </div>
     <div class="signals sr-stagger" aria-label="Where context is lost">
       <article class="signal">
@@ -174,7 +179,7 @@
       <article class="signal">
         <p class="signal__no">Signal 03</p>
         <h3 class="signal__title">No institutional memory</h3>
-        <p class="signal__body">New hires and new agents start cold. The decisions your team already made get re-litigated from scratch, every time.</p>
+        <p class="signal__body">New hires and new agents start cold. Decisions your team already made get re-litigated from scratch, every time.</p>
       </article>
       <article class="signal">
         <p class="signal__no">Signal 04</p>
@@ -196,12 +201,12 @@
       <div class="step">
         <div class="step__no">1</div>
         <h3 class="step__title">Capture automatically</h3>
-        <p class="step__body">Context Hub records every Claude Code, Codex, and Kilo Code session into a <em>local store on your machine</em>. Nothing leaves without your say-so.</p>
+        <p class="step__body">Context Hub reads your Claude Code, Codex, and Kilo Code sessions <em>from where they already live</em> on disk and parses them locally into one shared shape. Nothing uploads.</p>
       </div>
       <div class="step">
         <div class="step__no">2</div>
         <h3 class="step__title">Curate and push</h3>
-        <p class="step__body">Redact secrets, tag the session, and push the ones worth keeping. <em>Thirty seconds of review, permanent institutional value.</em></p>
+        <p class="step__body">Redact secrets with a preview diff, tag the session, and push the ones worth keeping — manually, or <em>auto-sync per tool</em> once you trust it.</p>
       </div>
       <div class="step">
         <div class="step__no">3</div>
@@ -243,19 +248,27 @@
                 </div>
                 <div class="nav-item active">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-                  Sessions
+                  My Sessions
+                </div>
+                <div class="nav-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+                  Company Hub
+                </div>
+                <div class="nav-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></svg>
+                  Ask the Agent
                 </div>
                 <div class="nav-item">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M6 8l5 8M18 8l-5 8"/></svg>
                   Knowledge Graph
                 </div>
                 <div class="nav-item">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg>
-                  Skills
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  Rules
                 </div>
                 <div class="nav-item">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
-                  PR Links
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg>
+                  Assets
                 </div>
                 <div class="app-side__group">Workspace</div>
                 <div class="nav-item">
@@ -268,7 +281,7 @@
               <div class="app-list">
                 <div class="app-list__head">
                   <h3>Sessions</h3>
-                  <span class="app-list__count">142</span>
+                  <span class="app-list__count">sort: cost ▾</span>
                 </div>
                 <div class="app-list__scroll">
                   <div class="scard active">
@@ -334,7 +347,7 @@
                     <span class="tab active">Timeline</span>
                     <span class="tab">Redact</span>
                     <span class="tab">Push</span>
-                    <span class="tab">Links</span>
+                    <span class="tab">Branch</span>
                   </div>
                 </div>
                 <div class="app-detail__body">
@@ -408,7 +421,7 @@
             <div class="kg-body">
               <div class="kg-head">
                 <h3>Knowledge Graph</h3>
-                <p>How decisions connect across 142 pushed sessions.</p>
+                <p>How decisions connect across your pushed sessions.</p>
               </div>
               <div class="kg-canvas">
                 <svg viewBox="0 0 760 360" role="presentation">
@@ -517,203 +530,248 @@
   <div class="wrap">
     <div class="section-head sr">
       <p class="eyebrow">Capabilities</p>
-      <h2>One hub. Four <span class="accent-word">superpowers</span>.</h2>
+      <h2>What a curated session corpus <span class="accent-word">unlocks</span>.</h2>
+      <p>Every capability below is built on the same thing: the sessions your team chose to keep.</p>
     </div>
     <div class="features sr-stagger">
-      <article class="feature">
-        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg></div>
-        <h3 class="feature__title">RAG Agent</h3>
-        <p class="feature__tag">Ask the agent, get your team's answer</p>
-        <p class="feature__body">Query in plain English and get answers grounded in your team's pushed sessions — with citations back to the original transcript, not a generic guess.</p>
+      <article class="feature" data-tilt>
+        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+        <h3 class="feature__title">Hybrid retrieval</h3>
+        <p class="feature__tag">Exact identifiers and fuzzy meaning, together</p>
+        <p class="feature__body">Keyword (full-text) and vector search run in parallel and merge with reciprocal rank fusion — so <code>ERR_5021</code> and "why does refresh 401" both find the right session.</p>
       </article>
-      <article class="feature">
+      <article class="feature" data-tilt>
         <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.5 6h9M6.5 8.2 11 16M17.5 8.2 13 16"/></svg></div>
-        <h3 class="feature__title">Knowledge Graph</h3>
+        <h3 class="feature__title">Knowledge graph</h3>
         <p class="feature__tag">See how decisions connect</p>
-        <p class="feature__body">Sessions become a graph of files, services, and decisions. Trace why a fix exists and what else it touches before you change it.</p>
+        <p class="feature__body">Sessions become nodes and edges — repos, services, features, decisions, people, PRs — deduped across the team, so one feature mentioned in two services is one shared node.</p>
       </article>
-      <article class="feature">
-        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.3H22l-6 4.5 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.5h7.6z"/></svg></div>
-        <h3 class="feature__title">Skills &amp; Assets</h3>
-        <p class="feature__tag">Reuse what works</p>
-        <p class="feature__body">Recurring solutions get distilled into named skills your agents can apply directly — so the same problem never costs two engineers twice.</p>
+      <article class="feature" data-tilt>
+        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="9" r="3"/><path d="M9 6h6M6 9v6M15.5 11 9 15"/></svg></div>
+        <h3 class="feature__title">Branch from any turn</h3>
+        <p class="feature__tag">Fork a session at one message</p>
+        <p class="feature__body">Pick a turn, fork it into a fresh <code>claude --resume</code> lineage, and explore a different approach. The original transcript is never touched.</p>
       </article>
-      <article class="feature">
+      <article class="feature" data-tilt>
         <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v6M18 15V9a6 6 0 0 0-6-6"/></svg></div>
-        <h3 class="feature__title">PR Context</h3>
+        <h3 class="feature__title">PR context links</h3>
         <p class="feature__tag">Every PR carries its reasoning</p>
-        <p class="feature__body">Link sessions to pull requests so reviewers see the reasoning behind a change — the why, not just the diff.</p>
+        <p class="feature__body">Mint a token-gated page from a session and drop it on the PR. Reviewers see the <em>why</em> — the decisions, the linked issues — not just the diff.</p>
+      </article>
+      <article class="feature" data-tilt>
+        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></div>
+        <h3 class="feature__title">Auto-sync &amp; cheap batch</h3>
+        <p class="feature__tag">Opt in per tool, summarize for less</p>
+        <p class="feature__body">Closed sessions redact and push themselves on a quiet timer. Summaries run on the OpenAI Batch API (cheaper, off the hot path) or a local model if your machine can host one.</p>
+      </article>
+      <article class="feature" data-tilt>
+        <div class="feature__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <h3 class="feature__title">Rules you approve</h3>
+        <p class="feature__tag">Standardize what's already true</p>
+        <p class="feature__body">Recurring conventions — commit style, patterns, preferences — are mined from your sessions and proposed as rules. Nothing standardizes until you accept it; export the set as a CLAUDE.md.</p>
       </article>
     </div>
   </div>
 </section>
 
-<!-- ============ 8. PROTOCOL FLOW ============ -->
-<section class="section" id="protocol">
+<!-- ============ 8. AICP PROTOCOL ============ -->
+<section class="section protocol" id="protocol">
   <div class="wrap">
     <div class="section-head sr">
-      <p class="eyebrow">Under the hood</p>
-      <h2>How Context Hub works under the hood.</h2>
-      <p>Capture is local. The push is a gate you control. Nothing reaches the company hub until a human approves it.</p>
+      <p class="eyebrow eyebrow--onDark">The protocol · <span class="proto-ver">aicp/0.1</span></p>
+      <h2>One open protocol for moving context between agents.</h2>
+      <p>AICP — the AI Context Protocol — lets one agent pick up where another left off, pulling only as much as it needs. It's MCP-native, vendor-neutral, and built on <em>progressive disclosure</em>: five levels, smallest first.</p>
     </div>
 
-    <div class="flow-wrap" id="flow">
-      <svg class="flow-svg" viewBox="0 0 1100 330" role="img" aria-label="Data flow: Claude Code, Codex, and Kilo Code feed a local Context Hub agent; a gated review and redact step pushes to a company cloud hub that powers a RAG agent, a knowledge graph, and a skills library.">
-        <!-- Source nodes -->
-        <g>
-          <rect class="flow-box" x="20" y="30" width="150" height="48" rx="9"/>
-          <text class="flow-label" x="95" y="59" text-anchor="middle">Claude Code</text>
-          <rect class="flow-box" x="20" y="108" width="150" height="48" rx="9"/>
-          <text class="flow-label" x="95" y="137" text-anchor="middle">Codex</text>
-          <rect class="flow-box" x="20" y="186" width="150" height="48" rx="9"/>
-          <text class="flow-label" x="95" y="215" text-anchor="middle">Kilo Code</text>
-        </g>
+    <div class="proto-grid">
+      <!-- Animated ladder -->
+      <div class="proto-ladder sr" id="proto-ladder" aria-hidden="true">
+        <div class="proto-peer proto-peer--consumer">
+          <span class="proto-peer__dot"></span>
+          <span>Consumer<small>any coding agent</small></span>
+        </div>
 
-        <!-- Arrows: sources -> local agent -->
-        <path class="flow-arrow" d="M170 54 C 230 54, 250 130, 305 132"/>
-        <path class="flow-arrow" d="M170 132 L 305 132"/>
-        <path class="flow-arrow" d="M170 210 C 230 210, 250 134, 305 132"/>
-        <polygon class="flow-arrowhead" points="305,127 315,132 305,137"/>
+        <ol class="proto-levels">
+          <li class="proto-level" data-level="0">
+            <span class="proto-level__tag">L0</span>
+            <code class="proto-level__verb">session.list</code>
+            <span class="proto-level__beam"></span>
+          </li>
+          <li class="proto-level" data-level="1">
+            <span class="proto-level__tag">L1</span>
+            <code class="proto-level__verb">session.summary</code>
+            <span class="proto-level__beam"></span>
+          </li>
+          <li class="proto-level" data-level="2">
+            <span class="proto-level__tag">L2</span>
+            <code class="proto-level__verb">session.recent</code>
+            <span class="proto-level__beam"></span>
+          </li>
+          <li class="proto-level" data-level="3">
+            <span class="proto-level__tag">L3</span>
+            <code class="proto-level__verb">session.grep</code>
+            <span class="proto-level__beam"></span>
+          </li>
+          <li class="proto-level" data-level="4">
+            <span class="proto-level__tag">L4</span>
+            <code class="proto-level__verb">session.stream</code>
+            <span class="proto-level__beam"></span>
+          </li>
+        </ol>
 
-        <!-- Local agent -->
-        <rect class="flow-box" x="320" y="100" width="170" height="64" rx="10"/>
-        <text class="flow-label" x="405" y="128" text-anchor="middle">Local Context Hub</text>
-        <text class="flow-sub" x="405" y="146" text-anchor="middle">agent · on your machine</text>
+        <div class="proto-peer proto-peer--broker">
+          <span class="proto-peer__dot"></span>
+          <span>Broker<small>desktop app or hub</small></span>
+        </div>
+      </div>
 
-        <!-- arrow agent -> gate -->
-        <path class="flow-arrow" d="M490 132 L 545 132"/>
-        <polygon class="flow-arrowhead" points="545,127 555,132 545,137"/>
-
-        <!-- Gate -->
-        <rect class="flow-box gate" x="560" y="100" width="160" height="64" rx="10"/>
-        <text class="flow-label" x="640" y="128" text-anchor="middle">Review &amp; Redact</text>
-        <text class="flow-sub" x="640" y="146" text-anchor="middle">human-gated</text>
-
-        <!-- arrow gate -> hub -->
-        <path class="flow-arrow" d="M720 132 L 785 132"/>
-        <polygon class="flow-arrowhead" points="785,127 795,132 785,137"/>
-
-        <!-- Cloud hub (bigger, accent) -->
-        <rect class="flow-box hub pulse-target" x="800" y="86" width="190" height="92" rx="12"/>
-        <text class="flow-label hub" x="895" y="124" text-anchor="middle">Company Cloud Hub</text>
-        <text class="flow-sub" x="895" y="144" text-anchor="middle">self-host or managed</text>
-
-        <!-- arrows hub -> consumers -->
-        <path class="flow-arrow" d="M895 178 C 895 220, 760 224, 690 258"/>
-        <path class="flow-arrow" d="M895 178 L 895 256"/>
-        <path class="flow-arrow" d="M895 178 C 895 220, 1030 224, 1052 256"/>
-        <polygon class="flow-arrowhead" points="685,253 678,262 690,263"/>
-        <polygon class="flow-arrowhead" points="890,256 895,266 900,256"/>
-        <polygon class="flow-arrowhead" points="1047,253 1058,259 1050,264"/>
-
-        <!-- Consumer nodes -->
-        <rect class="flow-box pulse-target" x="600" y="266" width="150" height="44" rx="9"/>
-        <text class="flow-label" x="675" y="293" text-anchor="middle">RAG Agent</text>
-        <rect class="flow-box pulse-target" x="820" y="266" width="150" height="44" rx="9"/>
-        <text class="flow-label" x="895" y="293" text-anchor="middle">Graph</text>
-        <rect class="flow-box pulse-target" x="985" y="266" width="100" height="44" rx="9"/>
-        <text class="flow-label" x="1035" y="293" text-anchor="middle">Skills</text>
-      </svg>
+      <!-- Level descriptions -->
+      <ol class="proto-desc sr-stagger">
+        <li class="proto-desc__row" data-for="0">
+          <span class="proto-desc__lvl">L0</span>
+          <div><strong>Manifest.</strong> What sessions exist — titles, tools, token counts. No message bodies, almost free.</div>
+        </li>
+        <li class="proto-desc__row" data-for="1">
+          <span class="proto-desc__lvl">L1</span>
+          <div><strong>Summary.</strong> The structured gist of a session, generated once and cached.</div>
+        </li>
+        <li class="proto-desc__row" data-for="2">
+          <span class="proto-desc__lvl">L2</span>
+          <div><strong>Recent.</strong> The last N messages — the live working context, the part that's usually enough.</div>
+        </li>
+        <li class="proto-desc__row" data-for="3">
+          <span class="proto-desc__lvl">L3</span>
+          <div><strong>Find-in-session.</strong> Keyword (and, later, semantic) matches inside one session, by message.</div>
+        </li>
+        <li class="proto-desc__row" data-for="4">
+          <span class="proto-desc__lvl">L4</span>
+          <div><strong>Full stream.</strong> The complete transcript, streamed message-by-message and <em>resumable</em> from a cursor.</div>
+        </li>
+      </ol>
     </div>
 
-    <div class="flow-callouts sr-stagger">
-      <div class="flow-callout">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        <p><strong>Local store first.</strong> Every session lands in <code>~/.context-hub</code> on your machine. Capture never touches the network.</p>
+    <div class="proto-foot sr-stagger">
+      <div class="proto-card">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 7.6 8 9 4.6-1.4 8-4 8-9V6z"/></svg>
+        <p><strong>Consent &amp; redaction, always.</strong> Every exchange honors the session's visibility scope, and redaction runs before any bytes leave. A read returns <code>consent_required</code> until you grant it.</p>
       </div>
-      <div class="flow-callout">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <p><strong>Push is a gate.</strong> Sessions reach the hub only after a human reviews and redacts. No silent sync, ever.</p>
+      <div class="proto-card">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V5l8 6 8-6v12"/><path d="m12 11 8-6M12 11 4 5"/></svg>
+        <p><strong>One-shot handoff.</strong> <code>session.handoff</code> bundles summary + recent into a single packet — the common "hand this session to another agent" case, in one call.</p>
       </div>
-      <div class="flow-callout">
+      <div class="proto-card">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-        <p><strong>Self-host the hub.</strong> Run the company hub in your own cloud or VPC. Your data stays inside your perimeter.</p>
+        <p><strong>Local broker first.</strong> AICP is specified as <code>aicp/0.1</code>; the first implementation is a local broker inside the desktop app — exposing every tool's sessions over MCP. The cloud broker is designed and comes next.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ 9. PRIVACY ============ -->
-<section class="section section--sunken privacy" id="privacy">
+<!-- ============ 9. WORKFLOWS ============ -->
+<section class="section section--sunken" id="workflows">
+  <div class="wrap">
+    <div class="section-head sr">
+      <p class="eyebrow">In practice</p>
+      <h2>Workflows the hub makes possible.</h2>
+      <p>Concrete things your team can do once sessions are captured and curated.</p>
+    </div>
+
+    <div class="flows">
+      <article class="flow sr">
+        <div class="flow__num">01</div>
+        <div class="flow__body">
+          <div class="flow__head">
+            <h3 class="flow__title">Hand a session to another agent</h3>
+            <span class="flow__tag flow__tag--soon">Roadmap · AICP v1</span>
+          </div>
+          <p class="flow__lede">The goal AICP is built for: in Codex, <em>"continue the auth refactor I did in Claude Code."</em> Codex will ask your local broker and pull only what it needs.</p>
+          <div class="flow__steps">
+            <span class="flow__step"><code>session.search</code> "auth refactor"</span>
+            <span class="flow__arrow" aria-hidden="true">→</span>
+            <span class="flow__step"><code>session.summary</code></span>
+            <span class="flow__arrow" aria-hidden="true">→</span>
+            <span class="flow__step"><code>session.recent</code></span>
+          </div>
+          <p class="flow__note">Lazy and context-budget-aware — reaching for <code>grep</code> or the full <code>stream</code> only when needed. The protocol is specced (<code>aicp/0.1</code>); the local broker that powers this is the next thing we're building. Today the desktop app already parses all three tools into one normalized view.</p>
+        </div>
+      </article>
+
+      <article class="flow sr">
+        <div class="flow__num">02</div>
+        <div class="flow__body">
+          <div class="flow__head">
+            <h3 class="flow__title">Put the reasoning on the pull request</h3>
+            <span class="flow__tag flow__tag--live">Available now</span>
+          </div>
+          <p class="flow__lede">Push the session, mint a share link, and drop it in the PR description — like a Linear ticket for the <em>why</em>.</p>
+          <div class="flow__steps">
+            <span class="flow__step">Push to hub</span>
+            <span class="flow__arrow" aria-hidden="true">→</span>
+            <span class="flow__step">Mint token-gated link</span>
+            <span class="flow__arrow" aria-hidden="true">→</span>
+            <span class="flow__step">Reviewer opens the context page</span>
+          </div>
+          <p class="flow__note">The page shows the summary, the decision timeline, and linked issues — gated by a signed, expiring token. No login required to read it.</p>
+        </div>
+      </article>
+
+      <article class="flow sr">
+        <div class="flow__num">03</div>
+        <div class="flow__body">
+          <div class="flow__head">
+            <h3 class="flow__title">Spend your whole weekly subscription</h3>
+            <span class="flow__tag flow__tag--live">Available now</span>
+          </div>
+          <p class="flow__lede">Cloud plans reset on a schedule. Before the window closes, the harvester drains pending work so unused quota doesn't evaporate.</p>
+          <div class="flow__steps">
+            <span class="flow__step">Detect reset is near</span>
+            <span class="flow__arrow" aria-hidden="true">→</span>
+            <span class="flow__step">Summarize pending sessions</span>
+            <span class="flow__arrow" aria-hidden="true">→</span>
+            <span class="flow__step">Extract knowledge graph</span>
+          </div>
+          <p class="flow__note">Time-based and best-effort — CLI providers don't expose a remaining-quota API, so the harvester works from the reset schedule you configure.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10. PRIVACY ============ -->
+<section class="section privacy" id="privacy">
   <div class="wrap">
     <div class="privacy-card sr">
       <p class="eyebrow">Privacy &amp; local-first</p>
       <h2>Your code stays on your machine until you say otherwise.</h2>
-      <p>Context Hub captures locally and pushes nothing automatically. Every session passes through a human review-and-redact step before it can leave your laptop — and the hub itself can run inside your own infrastructure.</p>
+      <p>Context Hub parses your sessions locally and pushes nothing automatically. Every session passes through a human review-and-redact step before it can leave — and the company hub can run inside your own infrastructure.</p>
 
       <div class="priv-badges">
         <div class="priv-badge">
           <span class="priv-badge__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-          <span>Local-first</span>
+          <span>Parsed locally, never auto-uploaded</span>
         </div>
         <div class="priv-badge">
           <span class="priv-badge__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A9 9 0 0 1 12 4c7 0 10 8 10 8a17 17 0 0 1-2.2 3.3M6.6 6.6A17 17 0 0 0 2 12s3 8 10 8a9 9 0 0 0 4-.9"/><path d="m2 2 20 20"/></svg></span>
-          <span>Human review before every push</span>
+          <span>Secret redaction before every push</span>
         </div>
         <div class="priv-badge">
           <span class="priv-badge__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
-          <span>Self-host the hub</span>
+          <span>Self-host the company hub</span>
         </div>
         <div class="priv-badge">
           <span class="priv-badge__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 7.6 8 9 4.6-1.4 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>
-          <span>No training on your sessions</span>
+          <span>Per-session visibility: private, team, company</span>
         </div>
       </div>
 
       <div class="priv-snippet">
-        <pre><span class="pc"># Captured locally — nothing has left your machine</span>
-~/.context-hub/sessions/<span class="po">2026-06-11</span>/auth-middleware.jsonl
-~/.context-hub/redactions/secrets.<span class="pg">allow</span>
-~/.context-hub/hub.config  <span class="pc"># self-hosted endpoint</span>
+        <pre><span class="pc"># Sessions stay where your tools already write them</span>
+~/.claude/projects/**/<span class="po">*.jsonl</span>      <span class="pc"># Claude Code</span>
+~/.codex/sessions/**/<span class="po">rollout-*.jsonl</span> <span class="pc"># Codex</span>
+VS&nbsp;Code globalStorage/<span class="po">kilocode…</span>      <span class="pc"># Kilo Code</span>
 
-<span class="pc"># Only pushed when you click "Push to Hub"</span></pre>
+<span class="pc"># Parsed in the app. Nothing leaves until you push — or opt into auto-sync.</span></pre>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 10. SOCIAL PROOF ============ -->
-<section class="section" id="proof">
-  <div class="wrap">
-    <div class="section-head sr">
-      <p class="eyebrow">From the beta</p>
-      <h2>Teams are already curating their context.</h2>
-    </div>
-    <div class="proof-grid sr-stagger">
-      <figure class="quote">
-        <blockquote class="quote__text">"Half our hard-won debugging context used to die in someone's terminal. Now a new hire can ask the agent and get the same answer the senior engineer gave three months ago — with the session to back it up."</blockquote>
-        <figcaption class="quote__who">
-          <span class="quote__av">SM</span>
-          <span><span class="quote__name">Staff Engineer</span><br><span class="quote__role">Series B infrastructure startup</span></span>
-        </figcaption>
-      </figure>
-      <figure class="quote">
-        <blockquote class="quote__text">"The review gate is what got it past security. Engineers redact before anything pushes, and we self-host the hub. It's the first 'AI memory' tool I didn't have to fight legal over."</blockquote>
-        <figcaption class="quote__who">
-          <span class="quote__av">EM</span>
-          <span><span class="quote__name">Engineering Manager</span><br><span class="quote__role">80-person engineering org</span></span>
-        </figcaption>
-      </figure>
-      <figure class="quote">
-        <blockquote class="quote__text">"We run Claude Code, Codex, and Kilo Code across the team. Context Hub is the only thing that gives us one shared memory across all three instead of three silos."</blockquote>
-        <figcaption class="quote__who">
-          <span class="quote__av">CT</span>
-          <span><span class="quote__name">CTO</span><br><span class="quote__role">Developer-tools company</span></span>
-        </figcaption>
-      </figure>
-      <figure class="quote">
-        <blockquote class="quote__text">"It's still beta and rough in places, but the skills library already saved us a re-debug of a webhook idempotency bug we'd solved before. That paid for it."</blockquote>
-        <figcaption class="quote__who">
-          <span class="quote__av">PE</span>
-          <span><span class="quote__name">Principal Engineer</span><br><span class="quote__role">Fintech platform team</span></span>
-        </figcaption>
-      </figure>
-    </div>
-
-    <div class="metric-strip sr-stagger" aria-label="Beta metrics">
-      <div class="metric"><div class="metric__num">2,400+</div><div class="metric__lbl">sessions curated in beta</div></div>
-      <div class="metric"><div class="metric__num">34</div><div class="metric__lbl">engineering teams</div></div>
-      <div class="metric"><div class="metric__num">18</div><div class="metric__lbl">companies in early access</div></div>
     </div>
   </div>
 </section>
@@ -723,13 +781,13 @@
   <div class="wrap">
     <div class="sr">
       <h2>Your team's best thinking shouldn't live in a terminal buffer.</h2>
-      <p>Context Hub is in early access. Get it for your team.</p>
+      <p>Context Hub is in early access. It's local-first, self-hostable, and built in the open.</p>
       <div class="final__cta">
         <a class="btn btn-primary btn-lg" href="#download">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 1.6c.1 1-.3 2-1 2.8-.7.8-1.8 1.4-2.8 1.3-.1-1 .4-2 1-2.7.7-.8 1.9-1.4 2.8-1.4zM19 17.3c-.5 1.2-.8 1.7-1.4 2.7-.9 1.4-2.2 3.2-3.8 3.2-1.4 0-1.8-.9-3.7-.9s-2.3.9-3.7.9c-1.6 0-2.8-1.6-3.7-3C-.1 16.7-.4 11.2 2 8.4c1-1.3 2.4-2 3.8-2 1.5 0 2.5.9 3.7.9 1.2 0 2-.9 3.7-.9 1.3 0 2.6.7 3.6 1.9-3.1 1.7-2.6 6.2.2 7.9z"/></svg>
           Download for Mac
         </a>
-        <a class="btn btn-secondary btn-lg" href="#download">Request team access</a>
+        <a class="btn btn-secondary btn-lg" href="https://github.com" rel="noopener">View on GitHub</a>
       </div>
       <p class="final__fine">The company hub is fully self-hostable — run it in your own cloud or VPC.</p>
     </div>
@@ -762,19 +820,20 @@
         <a href="#product">Product</a>
         <a href="#how">How it works</a>
         <a href="#features">Capabilities</a>
+        <a href="#workflows">Workflows</a>
         <a href="#download">Download</a>
       </div>
       <div class="footer__col">
-        <h4>Resources</h4>
-        <a href="#docs" id="docs">Docs</a>
-        <a href="https://github.com" rel="noopener">GitHub</a>
-        <a href="#changelog">Changelog</a>
+        <h4>Protocol</h4>
+        <a href="#protocol">AICP overview</a>
+        <a href="https://github.com" rel="noopener">Spec</a>
+        <a href="#privacy">Privacy</a>
       </div>
       <div class="footer__col">
-        <h4>Company</h4>
-        <a href="#about">About</a>
-        <a href="#privacy">Privacy</a>
-        <a href="#security">Security</a>
+        <h4>Project</h4>
+        <a href="https://github.com" rel="noopener">GitHub</a>
+        <a href="https://github.com" rel="noopener">Docs</a>
+        <a href="#protocol">Architecture</a>
       </div>
     </div>
     <div class="footer__bottom">
