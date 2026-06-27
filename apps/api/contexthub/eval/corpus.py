@@ -205,6 +205,10 @@ def _storylines() -> list[_Story]:
                  "gold": ["s-auth-ratelimit"], "type": "lookup"},
                 {"question": "Summarize every authentication change across the session-service and the gateway.",
                  "gold": ["s-auth-jwt", "s-auth-oauth", "s-auth-ratelimit"], "type": "synthesis"},
+                # bridge: question points at the gateway throttling session; the gold
+                # is the token-format session, reachable only via shared session-service.
+                {"question": "We throttled the sign-in route at the gateway — what token format does the service it shields hand out?",
+                 "gold": ["s-auth-jwt"], "type": "bridge"},
             ],
         ),
         _Story(
@@ -270,6 +274,10 @@ def _storylines() -> list[_Story]:
                  "gold": ["s-search-rerank"], "type": "lookup"},
                 {"question": "Walk through the search-service retrieval pipeline end to end.",
                  "gold": ["s-search-embed", "s-search-rerank"], "type": "synthesis"},
+                # bridge: points at the reranking session; gold is the embeddings
+                # session, reachable only via shared search-service.
+                {"question": "We bolted a cross-encoder reorder step onto the results — how does the same service fetch its initial candidates?",
+                 "gold": ["s-search-embed"], "type": "bridge"},
             ],
         ),
         _Story(
@@ -301,6 +309,10 @@ def _storylines() -> list[_Story]:
                  "gold": ["s-billing-invoices"], "type": "lookup"},
                 {"question": "What happens when someone's card keeps getting declined?",
                  "gold": ["s-billing-dunning"], "type": "lookup"},
+                # bridge: points at the dunning/failed-payment session; gold is the
+                # invoice-generation session, reachable only via shared billing-service.
+                {"question": "After the failed-payment retries give up, what process originally produced the bill they were chasing?",
+                 "gold": ["s-billing-invoices"], "type": "bridge"},
             ],
         ),
         _Story(

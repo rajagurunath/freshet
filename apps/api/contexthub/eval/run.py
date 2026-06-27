@@ -41,7 +41,10 @@ def main() -> None:
               f"(embedder={args.embedder})\n")
 
         # Registry of named retrievers. Later slices append here.
-        retrievers = {"baseline (vec+fts)": env.baseline_retriever()}
+        retrievers = {
+            "baseline (vec+fts)": env.baseline_retriever(),
+            "graph (vec+fts+graph)": env.graph_retriever(),
+        }
 
         header = f"{'retriever':<22} " + "  ".join(f"{c:>9}" for c in _COLS)
         print(header)
@@ -51,12 +54,13 @@ def main() -> None:
             print(_fmt_row(name, m))
 
         if args.by_type:
-            print("\nBaseline by question type:")
-            by = evaluate_by_type(env.baseline_retriever(), corpus.questions)
-            print(f"{'type':<22} " + "  ".join(f"{c:>9}" for c in _COLS))
-            print("-" * len(header))
-            for t, m in sorted(by.items()):
-                print(_fmt_row(t, m))
+            for name, r in retrievers.items():
+                print(f"\n{name} — by question type:")
+                by = evaluate_by_type(r, corpus.questions)
+                print(f"{'type':<22} " + "  ".join(f"{c:>9}" for c in _COLS))
+                print("-" * len(header))
+                for t, m in sorted(by.items()):
+                    print(_fmt_row(t, m))
         print()
     finally:
         env.close()

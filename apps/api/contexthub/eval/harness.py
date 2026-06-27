@@ -71,6 +71,18 @@ class EvalEnv:
             return _dedup_keep_order([r.get("session_id", "") for r in rows])[:k]
         return retrieve
 
+    def graph_retriever(self) -> Callable[[str, int], list[str]]:
+        """Vector + FTS + graph-arm retriever (3-arm RRF). Requires ``with_graph``."""
+        if self.graph is None:
+            raise ValueError("graph_retriever requires build_env(with_graph=True)")
+        from contexthub.graph.retrieve import graph_fused_search
+
+        def retrieve(question: str, k: int) -> list[str]:
+            return graph_fused_search(
+                question, self.vectors, self.embedder, self.graph, top_k=k,
+            )
+        return retrieve
+
 
 def _populate_graph(graph, corpus: Corpus) -> None:
     """Deterministically build the knowledge graph from planted entities.
