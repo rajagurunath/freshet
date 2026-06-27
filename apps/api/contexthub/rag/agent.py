@@ -182,6 +182,69 @@ def _build_graph_context(
     return "\n".join(lines)
 
 
+def _graph_augment_results(
+    question: str,
+    query_vec: list[float],
+    results: list[dict[str, Any]],
+    vectors: VectorStore,
+    top_k: int,
+    caller_user_id: Optional[str] = None,
+    caller_team: Optional[str] = None,
+    max_add: int = 3,
+) -> list[dict[str, Any]]:
+    """Inject sessions the graph connects to the vector hits but that vanilla
+    retrieval missed (the bridge/alias case), as additional citation rows.
+
+    Seeds the graph walk from the current result sessions, then pulls the single
+    best-matching chunk for each newly surfaced session. Best-effort and
+    visibility-enforced (both the graph walk and the chunk fetch apply the
+    caller's scope); returns the input unchanged if the graph is unavailable.
+    """
+    try:
+        from contexthub.graph.retrieve import graph_search
+        from contexthub.graph.store import get_graph_store
+
+        store = get_graph_store()
+    except Exception:
+        return results
+
+    seen: set[str] = set()
+    base_sids: list[str] = []
+    for r in results:
+        sid = r.get("session_id", "")
+        if sid and sid not in seen:
+            seen.add(sid)
+            base_sids.append(sid)
+
+    try:
+        graph_sids = graph_search(
+            question, store, seed_session_ids=base_sids[:8],
+            caller_user_id=caller_user_id, caller_team=caller_team, limit=top_k,
+        )
+    except Exception:
+        logger.warning("graph augmentation: graph_search failed", exc_info=True)
+        return results
+
+    extra: list[dict[str, Any]] = []
+    for sid in graph_sids:
+        if sid in seen:
+            continue
+        try:
+            rows = vectors.hybrid_search(
+                query=question, query_vec=query_vec, top_k=1,
+                filters={"session_id": sid},
+                caller_user_id=caller_user_id, caller_team=caller_team,
+            )
+        except Exception:
+            rows = []
+        if rows:
+            extra.append(rows[0])
+            seen.add(sid)
+        if len(extra) >= max_add:
+            break
+    return results + extra
+
+
 def answer_query(
     req: QueryRequest,
     vectors: VectorStore,
@@ -234,6 +297,14 @@ def answer_query(
         return QueryResponse(
             answer="No relevant session excerpts found for your query.",
             citations=[],
+        )
+
+    # 3b. Graph retrieval arm — when enabled, surface bridge/alias sessions the
+    # lexical/semantic arms missed by walking the knowledge graph from these hits.
+    if req.use_graph:
+        results = _graph_augment_results(
+            req.question, query_vec, results, vectors, req.top_k,
+            caller_user_id=caller_user_id, caller_team=caller_team,
         )
 
     # 4. Fetch titles for the matched sessions (for citation display)
