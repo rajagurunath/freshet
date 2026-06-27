@@ -30,6 +30,12 @@ dev = [
 compress = [
     "headroom-ai>=0.24",
 ]
+# Optional NLP entity extraction (Slice S5). The regex + gazetteer core works
+# without this; spaCy adds person/org NER. After install run:
+#   python -m spacy download en_core_web_sm
+nlp = [
+    "spacy>=3.7",
+]
 
 [project.scripts]
 contexthub-api = "contexthub.main:main"

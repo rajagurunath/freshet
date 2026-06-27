@@ -107,10 +107,25 @@ def _populate_graph(graph, corpus: Corpus) -> None:
                                   session_id=it.session.id)
 
 
+def _populate_graph_ner(graph, corpus: Corpus) -> None:
+    """Build the graph by running the REAL NER pipeline on each session's text.
+
+    Unlike ``_populate_graph`` (oracle planted entities), this measures what the
+    shipping deterministic extractor actually recovers — structural entities like
+    services and libraries. It does NOT recover bare feature concepts ("checkout"),
+    which need the LLM extractor or GLiNER; that gap is the point of measuring it.
+    """
+    from contexthub.graph.ner import extract_ner_graph
+
+    for it in corpus.items:
+        extract_ner_graph(it.session, it.summary, graph, visibility="company")
+
+
 def build_env(
     embedder_provider: str = "local",
     body_chars: int = 2400,
     with_graph: bool = False,
+    graph_source: str = "planted",
 ) -> EvalEnv:
     """Build and ingest an isolated evaluation environment.
 
@@ -118,7 +133,9 @@ def build_env(
         embedder_provider: "local" (real MiniLM — for meaningful numbers) or
             "hash" (offline, deterministic — for plumbing tests; not semantic).
         body_chars: transcript length per session.
-        with_graph: also build a GraphStore populated from planted entities.
+        with_graph: also build a GraphStore.
+        graph_source: "planted" (oracle entities — represents LLM+NER combined) or
+            "ner" (run the real deterministic NER pipeline — honest lower bound).
     """
     tmpdir = tempfile.mkdtemp(prefix="ctxhub-eval-")
     corpus = build_corpus(body_chars=body_chars)
@@ -156,7 +173,10 @@ def build_env(
     if with_graph:
         from contexthub.graph.store import GraphStore
         graph = GraphStore(f"{tmpdir}/graph.db")
-        _populate_graph(graph, corpus)
+        if graph_source == "ner":
+            _populate_graph_ner(graph, corpus)
+        else:
+            _populate_graph(graph, corpus)
 
     return EvalEnv(corpus=corpus, vectors=vectors, embedder=embedder,
                    graph=graph, _tmpdir=tmpdir)

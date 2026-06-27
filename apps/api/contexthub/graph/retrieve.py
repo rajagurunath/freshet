@@ -57,6 +57,7 @@ def graph_search(
     max_hops: int = 2,
     decay: float = 0.5,
     limit: int = 20,
+    hub_max_sessions: int = 12,
 ) -> list[str]:
     """Rank sessions by graph proximity to the query. Returns ranked session ids.
 
@@ -66,6 +67,10 @@ def graph_search(
         extra_seed_node_ids: node ids to seed from directly (e.g. node-vector hits).
         max_hops / decay: BFS depth and per-hop score decay (``same_as`` = no decay).
         limit: max sessions returned.
+        hub_max_sessions: don't *expand through* a node that appears in more than
+            this many sessions — a generic hub entity (e.g. a ubiquitous library)
+            would otherwise drag in everything. We still score it; we just don't
+            let it propagate. Caps the entity-sprawl noise the research warns about.
     """
     # --- 1. collect seed node ids -------------------------------------------
     seeds: dict[str, float] = {}
@@ -107,6 +112,13 @@ def graph_search(
             node_score[nid] = max(node_score.get(nid, 0.0), w)
             if hop >= max_hops:
                 continue
+            # Hub guard: a node that belongs to very many sessions is generic;
+            # scoring it is fine but expanding *through* it floods the walk.
+            try:
+                if len(store.sessions_for_node(nid)) > hub_max_sessions:
+                    continue
+            except Exception:
+                pass
             try:
                 sub = store.neighbors(
                     nid, depth=1, caller_user_id=caller_user_id,

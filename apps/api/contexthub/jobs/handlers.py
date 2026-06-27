@@ -420,6 +420,29 @@ def graph_extract_handler(payload: dict[str, Any]) -> dict[str, Any]:
         session = NormalizedSession(id=session_id, tool=row.get("tool", "claude-code"), title=row.get("title", ""))
 
     store = get_graph_store()
+
+    # Deterministic NER backbone first (Slice S5): cheap, offline, builds the
+    # entity nodes + co-occurrence edges the graph retrieval arm expands over.
+    # Best-effort and additive — the LLM extractor below still runs and adds
+    # relations/decisions the regex/gazetteer core can't infer.
+    ner_nodes = 0
+    try:
+        from contexthub.config import get_settings
+
+        settings = get_settings()
+        if getattr(settings, "ner_enabled", True):
+            from contexthub.graph.ner import extract_ner_graph
+
+            ner_res = extract_ner_graph(
+                session=session, summary=summary, store=store,
+                visibility=visibility, author=author, team=team,
+                use_spacy=getattr(settings, "ner_use_spacy", True),
+                granular=getattr(settings, "ner_granular", False),
+            )
+            ner_nodes = ner_res.get("nodes_upserted", 0)
+    except Exception:
+        logger.exception("graph_extract_handler: NER pass failed for session %s", session_id)
+
     result = extract_graph(
         session=session,
         summary=summary,
@@ -430,6 +453,7 @@ def graph_extract_handler(payload: dict[str, Any]) -> dict[str, Any]:
         author=author,
         team=team,
     )
+    result["ner_nodes_upserted"] = ner_nodes
 
     # Mark the session so the harvester does not re-enqueue it.
     try:
@@ -440,7 +464,7 @@ def graph_extract_handler(payload: dict[str, Any]) -> dict[str, Any]:
     # Now that this session has nodes, link them to same-concept nodes from other
     # sessions (cross-session graph memory, Slice 1). Run off the request path as
     # its own job so extraction latency is unaffected.
-    if result.get("nodes_upserted", 0) > 0:
+    if result.get("nodes_upserted", 0) > 0 or ner_nodes > 0:
         try:
             job_store = _get_job_store()
             job_store.enqueue(

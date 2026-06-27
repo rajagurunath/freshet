@@ -87,6 +87,18 @@ class Settings(BaseSettings):
     er_high_threshold: float = 0.85
     er_low_threshold: float = 0.55
 
+    # ---------------------------------------------------------------------------
+    # NER entity extraction (Slice S5)
+    # ---------------------------------------------------------------------------
+    # Run the deterministic NER pass (regex + gazetteer core, optional spaCy) on
+    # ingest to build the entity backbone the graph retrieval arm expands over.
+    # The regex core needs no extra deps; spaCy adds person/org entities when the
+    # optional ``contexthub[nlp]`` extra is installed. Override via NER_ENABLED etc.
+    ner_enabled: bool = True
+    ner_use_spacy: bool = True
+    # Include granular, mostly session-local kinds (file/function/config/error).
+    ner_granular: bool = False
+
     # SQLite path for the asset hub (Task 15)
     assets_db: str = "./data/assets.db"
 
