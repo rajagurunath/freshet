@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Share2, Search, RefreshCw, X, ExternalLink, Cpu } from "lucide-react";
+import { Share2, Search, RefreshCw, X, ExternalLink, Cpu, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -35,6 +35,7 @@ export function GraphPage() {
   const localSessions = useApp((s) => s.sessions);
   const { info: toastInfo, error: toastError } = useToast();
   const [backfilling, setBackfilling] = useState(false);
+  const [resolving, setResolving] = useState(false);
 
   const [data, setData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,6 +102,24 @@ export function GraphPage() {
       toastError("Failed to queue graph extraction.");
     } finally {
       setBackfilling(false);
+    }
+  }, [settings.apiBaseUrl, settings.apiKey, toastInfo, toastError, load]);
+
+  const handleResolve = useCallback(async () => {
+    if (!settings.apiBaseUrl) return;
+    setResolving(true);
+    try {
+      const client = makeApiClient(settings.apiBaseUrl, settings.apiKey ?? "");
+      const result = await client.resolveBackfillGraph();
+      toastInfo(
+        `Linking ${result.enqueued} session${result.enqueued !== 1 ? "s" : ""} — same-concept nodes will connect`,
+      );
+      // Re-fetch after a short delay to pick up any same_as edges just written.
+      setTimeout(() => void load(), 5000);
+    } catch {
+      toastError("Failed to queue cross-session linking.");
+    } finally {
+      setResolving(false);
     }
   }, [settings.apiBaseUrl, settings.apiKey, toastInfo, toastError, load]);
 
@@ -205,6 +224,18 @@ export function GraphPage() {
             >
               <Cpu size={13} />
               Generate graph
+            </Button>
+          )}
+          {hasApi && (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={resolving}
+              onClick={() => void handleResolve()}
+              title="Link same-concept nodes across sessions (creates same_as edges)"
+            >
+              <Link2 size={13} />
+              Link concepts
             </Button>
           )}
         </form>

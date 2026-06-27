@@ -318,6 +318,89 @@ class GraphStore:
             ).fetchall()
         return [r["session_id"] for r in rows]
 
+    def session_ids_with_nodes(self) -> list[str]:
+        """Distinct session ids that contributed at least one node to the graph.
+
+        Used by resolve-backfill to target every session whose graph actually
+        exists, independent of the catalog's ``graph_extracted`` bookkeeping.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT session_id FROM node_sessions"
+            ).fetchall()
+        return [r["session_id"] for r in rows if r["session_id"]]
+
+    def node_ids_for_session(self, session_id: str) -> list[str]:
+        """Return the ids of every node that carries the given session provenance.
+
+        Unlike ``session_subgraph`` this applies no visibility filter: it is used
+        by the internal entity-resolution pass, which must see every node the
+        session produced regardless of who can read it.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT node_id FROM node_sessions WHERE session_id = ?", (session_id,)
+            ).fetchall()
+        return [r["node_id"] for r in rows]
+
+    def get_nodes_by_kind(
+        self,
+        kind: str,
+        caller_user_id: Optional[str] = None,
+        caller_team: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        """Return all visible nodes of a single ``kind``.
+
+        Reuses ``_visibility_clause`` so the same company/team/private rules as
+        every other read apply.  Used by entity resolution to gather same-kind
+        candidates for blocking.
+        """
+        kind = (kind or "").strip().lower()
+        if not kind:
+            return []
+        clause, params = self._visibility_clause(caller_user_id, caller_team)
+        sql = f"SELECT * FROM nodes WHERE kind = ? AND {clause}"
+        with self._connect() as conn:
+            rows = conn.execute(sql, [kind] + list(params)).fetchall()
+        return [self._row_to_node(r) for r in rows]
+
+    def get_nodes(self, ids: Any) -> list[dict[str, Any]]:
+        """Fetch full node rows by id with no visibility filter and no limit.
+
+        Used by the internal entity-resolution pass, which must see every node a
+        session produced regardless of who can read it (``list_nodes`` would drop
+        team/private rows and truncate at its 2000 limit). Ids are de-duplicated
+        and chunked to stay under SQLite's bound-parameter ceiling.
+        """
+        ordered = [i for i in dict.fromkeys(ids) if i]
+        if not ordered:
+            return []
+        out: list[dict[str, Any]] = []
+        with self._connect() as conn:
+            for start in range(0, len(ordered), 500):
+                chunk = ordered[start : start + 500]
+                placeholders = ",".join("?" * len(chunk))
+                rows = conn.execute(
+                    f"SELECT * FROM nodes WHERE id IN ({placeholders})", chunk
+                ).fetchall()
+                out.extend(self._row_to_node(r) for r in rows)
+        return out
+
+    def edges_by_rel(self, rel: str) -> list[tuple[str, str]]:
+        """Return every ``(src, dst)`` pair for edges of a relation, unfiltered.
+
+        No visibility clause: entity resolution and ``same_as`` component walks
+        must consider links between non-company nodes too.
+        """
+        rel = (rel or "").strip().lower()
+        if not rel:
+            return []
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT src, dst FROM edges WHERE LOWER(rel) = ?", (rel,)
+            ).fetchall()
+        return [(r["src"], r["dst"]) for r in rows]
+
     def find_nodes_by_terms(
         self,
         terms: list[str],

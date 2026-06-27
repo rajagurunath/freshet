@@ -32,6 +32,7 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { ToolChip } from "@/components/ToolChip";
 import { CategoryChip } from "@/components/CategoryChip";
 import { AiConsentModal } from "@/components/AiConsentModal";
+import { SessionGraph } from "@/components/SessionGraph";
 import { useToast } from "@/components/ui/Toast";
 import { useApp } from "@/store/app";
 import { useSettings } from "@/store/settings";
@@ -159,10 +160,12 @@ function SummaryTab({
   session,
   summary,
   stats,
+  sessionId,
 }: {
   session: NormalizedSession;
   summary: string;
   stats: ReturnType<typeof sessionStats> | null;
+  sessionId: string;
 }) {
   const totalTokens = session.tokens
     ? session.tokens.input + session.tokens.output
@@ -247,6 +250,9 @@ function SummaryTab({
           </ul>
         </div>
       )}
+
+      {/* This session's knowledge graph (+ its cross-session same_as links) */}
+      <SessionGraph sessionId={sessionId} />
     </div>
   );
 }
@@ -640,7 +646,7 @@ export function SessionDetailPage() {
         {/* Tab content */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {activeTab === "summary" ? (
-            <SummaryTab session={session} summary={summary} stats={stats} />
+            <SummaryTab session={session} summary={summary} stats={stats} sessionId={session.id} />
           ) : (
             <VirtualTranscript
               messages={session.messages}

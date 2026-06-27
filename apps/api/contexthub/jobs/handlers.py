@@ -437,6 +437,72 @@ def graph_extract_handler(payload: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         logger.exception("graph_extract_handler: failed to mark session %s extracted", session_id)
 
+    # Now that this session has nodes, link them to same-concept nodes from other
+    # sessions (cross-session graph memory, Slice 1). Run off the request path as
+    # its own job so extraction latency is unaffected.
+    if result.get("nodes_upserted", 0) > 0:
+        try:
+            job_store = _get_job_store()
+            job_store.enqueue(
+                kind="entity_resolve",
+                payload={"session_id": session_id},
+            )
+        except Exception:
+            logger.exception(
+                "graph_extract_handler: failed to enqueue entity_resolve for session %s",
+                session_id,
+            )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# entity_resolve handler (Slice 1: cross-session graph memory)
+# ---------------------------------------------------------------------------
+
+def entity_resolve_handler(payload: dict[str, Any]) -> dict[str, Any]:
+    """Link a session's graph nodes to same-concept nodes from other sessions.
+
+    Payload keys:
+      session_id  str  — id of the session whose nodes are resolved
+
+    For every node the session upserted, finds same-kind candidates elsewhere in
+    the graph and, when name + embedding agreement clears ``er_high_threshold``,
+    writes a reversible ``same_as`` edge so the two session graphs connect.
+    """
+    from contexthub.config import get_settings
+    from contexthub.embeddings import get_embedder
+    from contexthub.graph import resolve
+    from contexthub.graph.store import get_graph_store
+    from contexthub.llm import get_llm
+    from contexthub.storage.vectors import get_vector_store
+
+    session_id = payload.get("session_id") or ""
+    if not session_id:
+        return {"same_as_added": 0, "rejected": 0, "error": "missing session_id"}
+
+    settings = get_settings()
+    store = get_graph_store()
+    embedder = get_embedder()
+    llm = get_llm(settings)
+
+    # Scope the candidate pool to the session's own author/team so same-author
+    # private and same-team nodes are eligible targets (never cross-user/team).
+    row = get_vector_store().get_session(session_id) or {}
+
+    result = resolve.resolve_session_nodes(
+        session_id=session_id,
+        store=store,
+        embedder=embedder,
+        llm=llm,
+        settings=settings,
+        caller_user_id=row.get("author") or None,
+        caller_team=row.get("team") or None,
+    )
+    logger.info(
+        "entity_resolve_handler: session %s → %d same_as added, %d rejected",
+        session_id, result.get("same_as_added", 0), result.get("rejected", 0),
+    )
     return result
 
 
@@ -549,6 +615,7 @@ HANDLER_REGISTRY: dict[str, Any] = {
     "batch_poll": batch_poll_handler,
     "summarize_pending": summarize_pending_handler,
     "graph_extract": graph_extract_handler,
+    "entity_resolve": entity_resolve_handler,
     "harvest_check": harvest_check_handler,
     "rules_extract": rules_extract_handler,
 }

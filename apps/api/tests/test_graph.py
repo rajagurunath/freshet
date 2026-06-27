@@ -485,3 +485,23 @@ def test_backfill_second_call_skips_extracted(client: TestClient):
     assert isinstance(data1["enqueued"], int)
     assert isinstance(data1["skipped"], int)
     assert data1["skipped"] >= 1
+
+
+def test_resolve_backfill_targets_extracted_sessions(client: TestClient):
+    """resolve-backfill enqueues entity_resolve for already-extracted sessions
+    and skips sessions whose graph has not been extracted yet (the inverse of
+    graph/backfill)."""
+    from contexthub.storage.vectors import get_vector_store as _gvs
+
+    # One extracted session (a resolution target) and one not-yet-extracted.
+    client.post("/v1/sessions", json=_make_session("rb-extracted"), headers=ALICE)
+    client.post("/v1/sessions", json=_make_session("rb-pending"), headers=ALICE)
+    _gvs().mark_graph_extracted("rb-extracted")
+
+    resp = client.post("/v1/graph/resolve-backfill", headers=ALICE)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert "enqueued" in data and "skipped" in data
+    # The extracted session is a resolution target; the pending one is skipped.
+    assert data["enqueued"] >= 1
+    assert data["skipped"] >= 1

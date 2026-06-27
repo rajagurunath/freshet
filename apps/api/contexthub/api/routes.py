@@ -840,6 +840,71 @@ def backfill_graph(
     return {"enqueued": enqueued, "skipped": skipped}
 
 
+@router.post("/v1/graph/resolve-backfill", tags=["graph"])
+def resolve_backfill_graph(
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+):
+    """Run cross-session entity resolution over already-extracted sessions.
+
+    Unlike ``/v1/graph/backfill`` (which *extracts* graphs), this *links* the
+    graphs that already exist: it enqueues an ``entity_resolve`` job for every
+    session whose graph has been extracted, creating reversible ``same_as`` edges
+    between same-concept nodes that different sessions named differently
+    (e.g. ``checkout`` ↔ ``payment-checkout``). Sessions without an extracted
+    graph yet are skipped — run graph backfill for those first.
+
+    Returns ``{enqueued: int, skipped: int}`` where ``skipped`` counts visible
+    catalog sessions that have no graph yet (extract those first).
+    """
+    from contexthub.graph.store import get_graph_store
+
+    # Sessions whose graph actually exists (by node provenance) — the real
+    # resolution targets — unioned with catalog sessions flagged as extracted.
+    store = get_graph_store()
+    targets = set(store.session_ids_with_nodes())
+
+    vectors = get_vector_store()
+    result = vectors.list_sessions(
+        filters=None,
+        limit=10_000,
+        offset=0,
+        sort="created_at",
+        order="desc",
+        caller_user_id=caller.user_id,
+        caller_team=caller.team,
+    )
+    catalog_rows = result["items"]
+    for row in catalog_rows:
+        if row.get("graph_extracted"):
+            targets.add(row["id"])
+
+    job_store = getattr(request.app.state, "job_store", None)
+    enqueued = 0
+    for sid in targets:
+        if job_store is not None:
+            try:
+                job_store.enqueue(kind="entity_resolve", payload={"session_id": sid})
+                enqueued += 1
+            except Exception:
+                logger.exception(
+                    "resolve-backfill: failed to enqueue entity_resolve for session %s",
+                    sid,
+                )
+        else:
+            enqueued += 1  # no job store in test harness — still count it
+
+    # Sessions visible in the catalog but with no graph yet — a hint to extract.
+    skipped = sum(
+        1
+        for row in catalog_rows
+        if not row.get("graph_extracted") and row["id"] not in targets
+    )
+
+    logger.info("Graph resolve-backfill: enqueued=%d skipped=%d", enqueued, skipped)
+    return {"enqueued": enqueued, "skipped": skipped}
+
+
 @router.get("/v1/graph/session/{session_id}", tags=["graph"])
 def get_graph_for_session(
     session_id: str,

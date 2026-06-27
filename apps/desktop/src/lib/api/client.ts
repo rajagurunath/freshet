@@ -421,6 +421,15 @@ export class ApiClient {
     return { enqueued: raw.enqueued, skipped: raw.skipped };
   }
 
+  /** Link existing session graphs by enqueuing cross-session entity resolution. */
+  async resolveBackfillGraph(): Promise<{ enqueued: number; skipped: number }> {
+    const raw = await this.request<{ enqueued: number; skipped: number }>(
+      "POST",
+      "/v1/graph/resolve-backfill",
+    );
+    return { enqueued: raw.enqueued, skipped: raw.skipped };
+  }
+
   /** Retrieve hub-level statistics, normalized to the app's shape. */
   async stats(): Promise<HubStats> {
     const r = await this.request<{

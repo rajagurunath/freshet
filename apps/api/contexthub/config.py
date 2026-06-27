@@ -77,6 +77,16 @@ class Settings(BaseSettings):
     # SQLite path for the rules store (Task 14)
     rules_db: str = "./data/rules.db"
 
+    # ---------------------------------------------------------------------------
+    # Cross-session entity resolution (Slice 1)
+    # ---------------------------------------------------------------------------
+    # Combined (n-gram + embedding) score at/above which two same-kind nodes are
+    # linked with a reversible ``same_as`` edge. Below er_low_threshold the pair
+    # is rejected; the band in between is reserved for LLM adjudication.
+    # Override via ER_HIGH_THRESHOLD / ER_LOW_THRESHOLD.
+    er_high_threshold: float = 0.85
+    er_low_threshold: float = 0.55
+
     # SQLite path for the asset hub (Task 15)
     assets_db: str = "./data/assets.db"
 
