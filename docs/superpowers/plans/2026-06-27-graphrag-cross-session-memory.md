@@ -1,6 +1,9 @@
 # GraphRAG + Cross-Session Semantic Correlation — Experiment Plan
 
-**Status:** APPROVED (autonomous, opinionated — author away)
+**Status:** COMPLETE — S1–S8 + production wiring shipped on-branch; 306 tests pass.
+See results: [2026-06-27-graphrag-RESULTS.md](./2026-06-27-graphrag-RESULTS.md). Moat proven
+(MRR +14%, nDCG +12%, bridge Recall@10 0.75→1.0). S9 (bi-temporal validity) / S10 (Leiden
+communities) remain as the documented next tier.
 **Branch:** `experiment/graphrag-semantic-memory` (off `master` @ Slice-1 committed)
 **Date:** 2026-06-27
 **Companion docs:** [[context-hub-v2-plan]], `cross-session-graph-memory` memory, AICP spec
