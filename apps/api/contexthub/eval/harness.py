@@ -83,6 +83,38 @@ class EvalEnv:
             )
         return retrieve
 
+    def rerank_retriever(self, use_graph: bool = True) -> Callable[[str, int], list[str]]:
+        """Wide candidate retrieval (vector+FTS, optionally graph-augmented) →
+        cross-encoder rerank → de-duplicated session ids. No-op rerank when the
+        optional FlashRank extra is absent."""
+        from contexthub.rag.rerank import rerank
+
+        def retrieve(question: str, k: int) -> list[str]:
+            qv = self.embedder.embed_query(question)
+            rows = self.vectors.hybrid_search(
+                query=question, query_vec=qv, top_k=30, mode="hybrid",
+            )
+            cands = list(rows)
+            if use_graph and self.graph is not None:
+                from contexthub.graph.retrieve import graph_search
+                base = _dedup_keep_order([r.get("session_id", "") for r in rows])
+                seen = set(base)
+                gsids = graph_search(question, self.graph,
+                                     seed_session_ids=base[:8], limit=k * 2)
+                for sid in gsids:
+                    if sid in seen:
+                        continue
+                    extra = self.vectors.hybrid_search(
+                        query=question, query_vec=qv, top_k=1,
+                        filters={"session_id": sid},
+                    )
+                    if extra:
+                        cands.append(extra[0])
+                        seen.add(sid)
+            reranked = rerank(question, cands, top_k=k * 3)
+            return _dedup_keep_order([r.get("session_id", "") for r in reranked])[:k]
+        return retrieve
+
 
 def _populate_graph(graph, corpus: Corpus) -> None:
     """Deterministically build the knowledge graph from planted entities.

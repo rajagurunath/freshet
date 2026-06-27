@@ -44,6 +44,7 @@ def main() -> None:
         retrievers = {
             "baseline (vec+fts)": env.baseline_retriever(),
             "graph (vec+fts+graph)": env.graph_retriever(),
+            "graph+rerank": env.rerank_retriever(use_graph=True),
         }
 
         header = f"{'retriever':<22} " + "  ".join(f"{c:>9}" for c in _COLS)

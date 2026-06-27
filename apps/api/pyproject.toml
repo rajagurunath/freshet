@@ -36,6 +36,11 @@ compress = [
 nlp = [
     "spacy>=3.7",
 ]
+# Optional cross-encoder reranking (Slice S4). Torch-free ONNX; tiny CPU models.
+# Retrieval works without it (identity pass-through).
+rerank = [
+    "flashrank>=0.2",
+]
 
 [project.scripts]
 contexthub-api = "contexthub.main:main"
