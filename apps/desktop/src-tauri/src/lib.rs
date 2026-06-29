@@ -166,19 +166,25 @@ fn extract_meta(tool: &str, head: &str, file_path: &str) -> (String, String, Str
         }
         if first_user.is_empty() {
             let t = v.get("type").and_then(|x| x.as_str()).unwrap_or("");
-            if tool == "codex" && t == "response_item" {
+            let cand = if tool == "codex" && t == "response_item" {
                 let p = v.get("payload");
                 let is_msg = p.and_then(|p| p.get("type")).and_then(|x| x.as_str()) == Some("message");
                 let role = p.and_then(|p| p.get("role")).and_then(|x| x.as_str()).unwrap_or("");
                 if is_msg && role == "user" {
-                    if let Some(c) = p.and_then(|p| p.get("content")) {
-                        first_user = content_text(c);
-                    }
+                    p.and_then(|p| p.get("content")).map(content_text).unwrap_or_default()
+                } else {
+                    String::new()
                 }
             } else if t == "user" {
-                if let Some(c) = v.pointer("/message/content") {
-                    first_user = content_text(c);
-                }
+                v.pointer("/message/content").map(content_text).unwrap_or_default()
+            } else {
+                String::new()
+            };
+            // Skip system-injected wrappers (Codex prepends an <environment_context>
+            // user turn) and tool/hook noise — we want the human's real first prompt.
+            let trimmed = cand.trim_start();
+            if !trimmed.is_empty() && !trimmed.starts_with("<environment_context") && !trimmed.starts_with('<') {
+                first_user = cand;
             }
         }
     }
