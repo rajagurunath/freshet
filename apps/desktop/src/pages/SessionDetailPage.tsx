@@ -654,6 +654,10 @@ export function SessionDetailPage() {
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {activeTab === "summary" ? (
             <SummaryTab session={session} summary={summary} stats={stats} sessionId={session.id} />
+          ) : session.messages.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-small text-ink-faint">
+              Loading transcript…
+            </div>
           ) : (
             <VirtualTranscript
               messages={session.messages}

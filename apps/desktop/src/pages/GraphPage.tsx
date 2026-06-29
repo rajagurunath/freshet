@@ -45,6 +45,11 @@ export function GraphPage() {
   const [depth, setDepth] = useState("1");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Pan/zoom viewport for the graph (translate x/y + scale k).
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+  const panRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  const [panning, setPanning] = useState(false);
+
   // Measure the canvas so the layout fills the available space.
   const canvasRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 900, height: 620 });
@@ -307,8 +312,43 @@ export function GraphPage() {
               viewBox={`0 0 ${size.width} ${size.height}`}
               role="img"
               aria-label="Knowledge graph"
+              style={{ cursor: panning ? "grabbing" : "grab", touchAction: "none" }}
               onClick={() => setSelectedId(null)}
+              onWheel={(ev) => {
+                ev.preventDefault();
+                const rect = ev.currentTarget.getBoundingClientRect();
+                const mx = ev.clientX - rect.left;
+                const my = ev.clientY - rect.top;
+                setView((v) => {
+                  const factor = Math.exp(-ev.deltaY * 0.0015);
+                  const k = Math.min(4, Math.max(0.2, v.k * factor));
+                  // keep the point under the cursor fixed while zooming
+                  const x = mx - ((mx - v.x) * k) / v.k;
+                  const y = my - ((my - v.y) * k) / v.k;
+                  return { x, y, k };
+                });
+              }}
+              onMouseDown={(ev) => {
+                panRef.current = { x: ev.clientX, y: ev.clientY, vx: view.x, vy: view.y };
+                setPanning(true);
+              }}
+              onMouseMove={(ev) => {
+                if (!panRef.current) return;
+                const dx = ev.clientX - panRef.current.x;
+                const dy = ev.clientY - panRef.current.y;
+                setView((v) => ({ ...v, x: panRef.current!.vx + dx, y: panRef.current!.vy + dy }));
+              }}
+              onMouseUp={() => {
+                panRef.current = null;
+                setPanning(false);
+              }}
+              onMouseLeave={() => {
+                panRef.current = null;
+                setPanning(false);
+              }}
+              onDoubleClick={() => setView({ x: 0, y: 0, k: 1 })}
             >
+              <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
               {/* Edges */}
               {data!.edges.map((e) => {
                 const a = layout.get(e.src);
@@ -369,6 +409,7 @@ export function GraphPage() {
                   </g>
                 );
               })}
+              </g>
             </svg>
           )}
 

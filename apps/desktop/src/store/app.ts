@@ -130,8 +130,12 @@ export const useApp = create<AppState>()(
         if (!s || s.messages.length > 0) return; // already full (or unknown id)
         const full = await hydrateSessionFile(s.filePath, s.tool);
         if (full) {
+          // Keep the id/filePath the list used as the stable key — the parsers
+          // derive id from an in-file sessionId/payload.id that can differ from
+          // the filename stem, which would otherwise break the open route.
+          const merged = { ...full, id, filePath: s.filePath };
           set((state) => ({
-            sessions: state.sessions.map((x) => (x.id === id ? full : x)),
+            sessions: state.sessions.map((x) => (x.id === id ? merged : x)),
           }));
         }
       },
