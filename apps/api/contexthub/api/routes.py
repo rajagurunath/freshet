@@ -905,6 +905,19 @@ def resolve_backfill_graph(
     return {"enqueued": enqueued, "skipped": skipped}
 
 
+@router.get("/v1/graph/sessions", tags=["graph"])
+def list_graph_sessions(caller: Caller = Depends(require_api_key)):
+    """Return the ids of sessions that have a knowledge graph extracted.
+
+    Lets the desktop filter its (disk-scanned) session list down to the ones the
+    hub has already graphed.
+    """
+    from contexthub.graph.store import get_graph_store
+
+    store = get_graph_store()
+    return {"session_ids": store.session_ids_with_nodes()}
+
+
 @router.get("/v1/graph/session/{session_id}", tags=["graph"])
 def get_graph_for_session(
     session_id: str,

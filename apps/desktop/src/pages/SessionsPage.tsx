@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowDown, ArrowUp, Search, TerminalSquare } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -11,6 +11,8 @@ import { SessionRowSkeleton } from "@/components/ui/Skeleton";
 import { SessionRow } from "@/components/SessionRow";
 import { WelcomeHero } from "./WelcomeHero";
 import { useApp } from "@/store/app";
+import { useSettings } from "@/store/settings";
+import { makeApiClient } from "@/lib/api/client";
 import type { SortField } from "@/store/app";
 import { filterSessions, sortSessions, deriveProjects } from "@/lib/sessions-filter";
 import type { Tool } from "@/lib/types";
@@ -91,10 +93,30 @@ function VirtualSessionList({
 
 export function SessionsPage() {
   const navigate = useNavigate();
+  const settings = useSettings();
   const { sessions, loading, pushedIds, listPrefs, setListPrefs } = useApp();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<FilterTab>("all");
   const [project, setProject] = useState("all");
+  const [graphOnly, setGraphOnly] = useState(false);
+
+  // Ids of sessions the hub has already graphed (for the "Has graph" filter).
+  const [graphIds, setGraphIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!settings.apiBaseUrl) return;
+    let cancelled = false;
+    makeApiClient(settings.apiBaseUrl, settings.apiKey ?? "")
+      .getGraphSessionIds()
+      .then((ids) => {
+        if (!cancelled) setGraphIds(new Set(ids));
+      })
+      .catch(() => {
+        /* hub unreachable — leave the filter empty */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.apiBaseUrl, settings.apiKey]);
 
   const pushedSet = useMemo((): Set<string> => {
     if (pushedIds instanceof Set) return pushedIds as Set<string>;
@@ -111,14 +133,15 @@ export function SessionsPage() {
   ], [projects]);
 
   const filtered = useMemo(() => {
-    const f = filterSessions(sessions, {
+    let f = filterSessions(sessions, {
       tab,
       search,
       project,
       prefs: { dateRange: listPrefs.dateRange, compactedOnly: listPrefs.compactedOnly },
     });
+    if (graphOnly) f = f.filter((s) => graphIds.has(s.id));
     return sortSessions(f, { sortField: listPrefs.sortField, sortOrder: listPrefs.sortOrder });
-  }, [sessions, tab, search, project, listPrefs]);
+  }, [sessions, tab, search, project, listPrefs, graphOnly, graphIds]);
 
   // Show welcome hero only when no sessions AND no loading
   if (!loading && sessions.length === 0) {
@@ -211,6 +234,15 @@ export function SessionsPage() {
             {listPrefs.sortOrder === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
           </button>
         </div>
+
+        {/* Has-graph toggle */}
+        {graphIds.size > 0 && (
+          <Toggle
+            checked={graphOnly}
+            onChange={setGraphOnly}
+            label={`Has graph (${graphIds.size})`}
+          />
+        )}
 
         {/* Compacted only toggle */}
         <Toggle

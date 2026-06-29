@@ -247,11 +247,18 @@ export class ApiClient {
     filters?: QueryFilters,
     provider?: string,
     model?: string,
+    useGraph?: boolean,
   ): Promise<QueryResponse> {
     const raw = await this.request<{ answer: string; citations: unknown[] }>(
       "POST",
       "/v1/query",
-      { question, filters: filters ? snakeify(filters) : undefined, provider, model },
+      {
+        question,
+        filters: filters ? snakeify(filters) : undefined,
+        provider,
+        model,
+        use_graph: useGraph ?? false,
+      },
     );
     return {
       answer: raw.answer,
@@ -270,6 +277,15 @@ export class ApiClient {
       nodes: camelify<GraphData["nodes"]>(raw.nodes) ?? [],
       edges: camelify<GraphData["edges"]>(raw.edges) ?? [],
     };
+  }
+
+  /** Ids of sessions that already have a knowledge graph extracted. */
+  async getGraphSessionIds(): Promise<string[]> {
+    const raw = await this.request<{ session_ids: string[] }>(
+      "GET",
+      "/v1/graph/sessions",
+    );
+    return raw.session_ids ?? [];
   }
 
   /** Fetch the subgraph extracted from a single session. */
