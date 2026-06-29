@@ -5,7 +5,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { NormalizedSession, Tool } from "../lib/types";
-import { scanLocalSessions } from "../lib/parsers/index";
+import {
+  scanLocalSessionMeta,
+  hydrateSessionFile,
+} from "../lib/parsers/index";
 import type { ScanCache } from "../lib/scan-cache";
 import type { SyncState } from "../lib/autosync";
 
@@ -53,6 +56,8 @@ export interface AppState {
   /** Re-scan local files (incremental — only parses new/changed files). */
   rescan: () => Promise<void>;
   getSession: (id: string) => NormalizedSession | undefined;
+  /** Lazily parse a lite session's full transcript (called when it's opened). */
+  hydrateSession: (id: string) => Promise<void>;
   /** Mark a session as pushed. Alias: markAsPushed. */
   markPushed: (id: string) => void;
   markAsPushed: (id: string) => void;
@@ -93,11 +98,10 @@ export const useApp = create<AppState>()(
       loadSessions: async () => {
         set({ loading: true, error: null });
         try {
-          const { sessions, updatedCache } = await scanLocalSessions(
-            get().scanCache,
-            get().sessions,
-          );
-          set({ sessions, scanCache: updatedCache, loading: false });
+          // Fast metadata-only scan (file heads, native) — list appears instantly
+          // even for hundreds of MB of history. Bodies load lazily on open.
+          const sessions = await scanLocalSessionMeta();
+          set({ sessions, loading: false });
         } catch (err) {
           const message =
             err instanceof Error ? err.message : "Failed to load sessions";
@@ -108,11 +112,8 @@ export const useApp = create<AppState>()(
       rescan: async () => {
         set({ loading: true, error: null });
         try {
-          const { sessions, updatedCache } = await scanLocalSessions(
-            get().scanCache,
-            get().sessions,
-          );
-          set({ sessions, scanCache: updatedCache, loading: false });
+          const sessions = await scanLocalSessionMeta();
+          set({ sessions, loading: false });
         } catch (err) {
           const message =
             err instanceof Error ? err.message : "Failed to rescan sessions";
@@ -122,6 +123,17 @@ export const useApp = create<AppState>()(
 
       getSession: (id: string) => {
         return get().sessions.find((s) => s.id === id);
+      },
+
+      hydrateSession: async (id: string) => {
+        const s = get().sessions.find((x) => x.id === id);
+        if (!s || s.messages.length > 0) return; // already full (or unknown id)
+        const full = await hydrateSessionFile(s.filePath, s.tool);
+        if (full) {
+          set((state) => ({
+            sessions: state.sessions.map((x) => (x.id === id ? full : x)),
+          }));
+        }
       },
 
       markPushed: (id: string) => {

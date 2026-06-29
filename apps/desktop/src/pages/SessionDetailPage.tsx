@@ -264,11 +264,18 @@ type DetailTab = "summary" | "transcript";
 export function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getSession, pushedIds, markPushed, rescan } = useApp();
+  const { getSession, hydrateSession, pushedIds, markPushed, rescan } = useApp();
   const settings = useSettings();
   const { success, error: toastError } = useToast();
 
   const session = id ? getSession(id) : undefined;
+
+  // Lazily parse the full transcript when opening a lite (metadata-only) session.
+  useEffect(() => {
+    if (id && session && session.messages.length === 0) {
+      void hydrateSession(id);
+    }
+  }, [id, session, hydrateSession]);
 
   // ── Branch-from-turn state ──────────────────────────────────────────────
   const [branchMessageId, setBranchMessageId] = useState<string | null>(null);

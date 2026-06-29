@@ -5,7 +5,14 @@ import type { NormalizedSession, Tool } from "../types";
 import { parseClaude } from "./claude";
 import { parseCodex } from "./codex";
 import { parseKilo } from "./kilo";
-import { getSessionRoots, listSessionFiles, readText, statFile, isTauri } from "../tauri";
+import {
+  getSessionRoots,
+  listSessionFiles,
+  readText,
+  statFile,
+  isTauri,
+  scanSessionMeta,
+} from "../tauri";
 import { MOCK_SESSIONS } from "../mock";
 import { basename, joinPath } from "../path-utils";
 import {
@@ -178,6 +185,74 @@ async function mapLimit<T, R>(
     for (const r of results) if (r != null) out.push(r);
   }
   return out;
+}
+
+/**
+ * FAST list scan: lightweight per-session metadata (native, file-heads only),
+ * mapped to "lite" sessions with empty `messages`. The transcript body is loaded
+ * lazily when a session is opened (see `hydrateSessionFile`). This is what keeps
+ * startup instant regardless of total history size.
+ *
+ * Kilo Code isn't covered by the Rust head-scanner yet, so we fold its (usually
+ * few) sessions in via the existing full parser so nothing is dropped.
+ */
+export async function scanLocalSessionMeta(): Promise<NormalizedSession[]> {
+  if (!isTauri()) return MOCK_SESSIONS;
+
+  const metas = await scanSessionMeta();
+  const lite: NormalizedSession[] = metas.map((m) => ({
+    id: m.id,
+    tool: m.tool as Tool,
+    title: m.title || m.project || m.id,
+    project: m.project,
+    startedAt: m.startedAt || new Date(m.mtime * 1000).toISOString(),
+    preview: m.preview,
+    filePath: m.filePath,
+    messageCount: 0, // unknown until hydrated
+    models: [],
+    messages: [],
+  }));
+
+  // Kilo Code (full parse — small in practice).
+  try {
+    const roots = await getSessionRoots();
+    const kiloRoots = roots.filter((r) => r.replace(/\\/g, "/").includes("kilocode.kilo-code"));
+    if (kiloRoots.length) {
+      const kiloFiles: { path: string; tool: Tool }[] = [];
+      for (const root of kiloRoots) {
+        const tasksDir = joinPath(root, "tasks");
+        const jsonFiles = await listSessionFiles(tasksDir, ["json"]);
+        for (const f of jsonFiles) {
+          if (basename(f) === "api_conversation_history.json") {
+            kiloFiles.push({ path: f, tool: "kilo-code" });
+          }
+        }
+      }
+      await parseFiles(kiloFiles, lite);
+    }
+  } catch (err) {
+    console.warn("[context-hub] kilo meta scan failed:", err);
+  }
+
+  lite.sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
+  return lite;
+}
+
+/** Lazily parse one session file's full transcript (for the detail view). */
+export async function hydrateSessionFile(
+  filePath: string,
+  tool: Tool,
+): Promise<NormalizedSession | null> {
+  if (!isTauri() || !filePath) return null;
+  try {
+    const text = await readText(filePath);
+    if (tool === "claude-code") return parseClaude(text, filePath);
+    if (tool === "codex") return parseCodex(text, filePath);
+    return null; // kilo sessions are already fully parsed in the list pass
+  } catch (err) {
+    console.warn("[context-hub] hydrate failed:", filePath, err);
+    return null;
+  }
 }
 
 /** Parse a list of {path, tool} entries into `out`, handling kilo grouping. */

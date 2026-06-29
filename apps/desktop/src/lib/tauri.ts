@@ -24,6 +24,26 @@ export async function listSessionFiles(
   return invoke<string[]>("list_session_files", { dir, exts });
 }
 
+/** Lightweight per-session metadata for the list view, read natively from file
+ * heads only (no transcript bodies). One IPC call; see Rust `scan_session_meta`. */
+export interface RawSessionMeta {
+  id: string;
+  tool: string;
+  project: string;
+  title: string;
+  preview: string;
+  startedAt: string;
+  filePath: string;
+  mtime: number;
+  size: number;
+}
+
+export async function scanSessionMeta(): Promise<RawSessionMeta[]> {
+  if (!isTauri()) return [];
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<RawSessionMeta[]>("scan_session_meta");
+}
+
 export async function readText(path: string): Promise<string> {
   if (!isTauri()) return "";
   const { readTextFile } = await import("@tauri-apps/plugin-fs");
