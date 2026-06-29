@@ -65,8 +65,13 @@ _RE_SERVICE = re.compile(
     r"\b([a-z][a-z0-9]*(?:-[a-z0-9]+)*-(?:service|api|gateway|worker|daemon|server))\b",
     re.IGNORECASE,
 )
-# repo: org/name (exactly one slash, no leading slash, not a file path)
-_RE_REPO = re.compile(r"(?<![\w/])([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?![\w/])")
+# repo: ONLY from a github/gitlab URL context — a bare "x/y" in prose is far too
+# often a path, a "request/response", "win/mac", etc. (verified noisy on real
+# transcripts). Capturing the owner/repo from a real host avoids that garbage.
+_RE_REPO = re.compile(
+    r"(?:github|gitlab)\.com/([A-Za-z0-9][A-Za-z0-9._-]+/[A-Za-z0-9][A-Za-z0-9._-]+)",
+    re.IGNORECASE,
+)
 # file: a path ending in a known source/code extension
 _RE_FILE = re.compile(
     r"\b([\w./-]+\.(?:py|ts|tsx|js|jsx|rs|go|java|rb|json|ya?ml|toml|md|sql|sh|css|html))\b"
@@ -81,6 +86,17 @@ _RE_ERROR = re.compile(r"\b((?:[A-Z][a-zA-Z0-9]*)?(?:Error|Exception)|ERR_[A-Z0-
 
 _LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+", re.IGNORECASE)
 
+# Never emit anything that looks like a credential — defense in depth so a token
+# pasted into a transcript can't leak into the graph (or a shared hub) as a node.
+_SECRET_RE = re.compile(
+    r"(sk-[a-z0-9-]|xox[bapr]-|ghp_|gho_|github_pat_|AKIA[0-9A-Z]|AIza[0-9A-Za-z]|"
+    r"-----BEGIN|eyJ[A-Za-z0-9_-]{10}|[a-f0-9]{32,})",
+    re.IGNORECASE,
+)
+# Reject obvious non-entity noise: filesystem/temp paths and bare UUIDs that the
+# regexes pick up from pasted paths / session ids.
+_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}", re.IGNORECASE)
+
 
 def _norm(name: str) -> str:
     # Strip a leading article so spaCy spans like "the Stripe SDK" normalize to
@@ -88,9 +104,20 @@ def _norm(name: str) -> str:
     return _LEADING_ARTICLE.sub("", name.strip()).strip().lower()
 
 
+def _is_noise(name: str) -> bool:
+    if _SECRET_RE.search(name) or _UUID_RE.search(name):
+        return True
+    # path-ish fragments (temp dirs, encoded cwds) and over-long blobs
+    if name.startswith((".", "/")) or "-users-" in name or "/private/" in name:
+        return True
+    if len(name) > 40 or name.count("/") > 1:
+        return True
+    return False
+
+
 def _add(out: dict[tuple[str, str], Entity], kind: str, name: str) -> None:
     name = _norm(name)
-    if not name:
+    if not name or _is_noise(name):
         return
     out[(kind, name)] = Entity(kind=kind, name=name)
 
@@ -125,7 +152,9 @@ def extract_code_entities(text: str, granular: bool = False) -> list[Entity]:
 
     if granular:
         for m in _RE_FILE.finditer(text):
-            _add(out, "file", m.group(1))
+            # The basename is the useful entity (a "store.py" node, not the whole
+            # path) and stays clear of the path-noise filter.
+            _add(out, "file", m.group(1).rsplit("/", 1)[-1])
         for m in _RE_FUNC.finditer(text):
             _add(out, "function", m.group(1))
         for m in _RE_CONST.finditer(text):
@@ -227,7 +256,10 @@ _MAX_ENTITIES_PER_SESSION = 25  # cap to bound the co-occurrence edge count
 # noisy on technical prose ("the API", "JSON", "CI"), so they're deliberately
 # excluded from the graph feed even though ``extract_entities`` still returns
 # them for callers that want them.
-_GRAPH_KINDS = {"service", "repo", "tool", "person"}
+# Clean, high-precision kinds for the shared graph. ``person`` is excluded by
+# default: spaCy PERSON is too noisy on technical transcripts (verified ~90
+# false positives across 60 real sessions). Callers can opt person back in.
+_GRAPH_KINDS = {"service", "repo", "tool"}
 _GRAPH_KINDS_GRANULAR = _GRAPH_KINDS | {"file", "function", "config", "error"}
 
 

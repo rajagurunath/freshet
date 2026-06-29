@@ -28,13 +28,30 @@ def test_service_extraction():
     assert "auth-gateway" in services
 
 
-def test_repo_vs_file_disambiguation():
-    text = "Pushed to org/payments and edited contexthub/graph/store.py in the repo."
-    ents = extract_code_entities(text, granular=True)
-    assert "org/payments" in _names(ents, "repo")
-    # A path ending in .py is a file, never a repo.
+def test_repo_only_from_host_url():
+    # A bare "x/y" in prose is NOT a repo (too noisy on real transcripts); only a
+    # real github.com/gitlab.com URL yields a repo node.
+    bare = extract_code_entities("Pushed to org/payments and request/response handling.")
+    assert _names(bare, "repo") == set()
+    url = extract_code_entities("Cloned https://github.com/acme/payments-api today.")
+    assert "acme/payments-api" in _names(url, "repo")
+
+
+def test_file_disambiguation():
+    ents = extract_code_entities("Edited contexthub/graph/store.py in the repo.", granular=True)
     assert "contexthub/graph/store.py" not in _names(ents, "repo")
     assert any(f.endswith("store.py") for f in _names(ents, "file"))
+
+
+def test_secrets_and_noise_never_emitted():
+    # Token-like and path/uuid fragments must never become graph nodes.
+    from contexthub.graph.ner import extract_entities
+    txt = ("export OPENAI_API_KEY=sk-abc123def456 and a slack xoxb-99-token; "
+           "session 8fd2d404-f3d0-4fb6-9620-a788f60e18e2 under /private/tmp/-users-foo.")
+    names = {e.name for e in extract_entities(txt, use_spacy=False, granular=True)}
+    assert not any("sk-abc" in n or "xoxb" in n for n in names)
+    assert not any("8fd2d404" in n for n in names)
+    assert not any(n.startswith(("/", ".")) or "-users-" in n for n in names)
 
 
 def test_gazetteer_tools():
