@@ -122,7 +122,7 @@ export function computeForceLayout(
 
   // Ideal pairwise distance for the available area. Larger factor = more spread
   // so dense graphs (many co-occurrence edges) don't collapse into one ball.
-  const k = Math.sqrt((width * height) / n) * 1.3;
+  const k = Math.sqrt((width * height) / n) * 1.7;
   const dx = new Float64Array(n);
   const dy = new Float64Array(n);
 

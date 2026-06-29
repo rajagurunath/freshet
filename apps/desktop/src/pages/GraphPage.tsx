@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Share2, Search, RefreshCw, X, ExternalLink, Cpu, Link2 } from "lucide-react";
+import { Share2, Search, RefreshCw, X, ExternalLink, Cpu, Link2, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -20,6 +20,7 @@ import {
   type GraphData,
   type GraphNode,
 } from "@/lib/graph";
+import { loadRejected, saveRejected, entityKey } from "@/lib/entityReview";
 
 const DEPTH_OPTIONS = [
   { value: "1", label: "1 hop" },
@@ -46,6 +47,18 @@ export function GraphPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Pan/zoom viewport for the graph (translate x/y + scale k).
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [rejected, setRejected] = useState<Set<string>>(() => loadRejected());
+  const toggleRejected = useCallback((kind: string, name: string) => {
+    setRejected((prev) => {
+      const next = new Set(prev);
+      const key = entityKey(kind, name);
+      next.has(key) ? next.delete(key) : next.add(key);
+      saveRejected(next);
+      return next;
+    });
+  }, []);
+
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const panRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const [panning, setPanning] = useState(false);
@@ -128,21 +141,32 @@ export function GraphPage() {
     }
   }, [settings.apiBaseUrl, settings.apiKey, toastInfo, toastError, load]);
 
+  // Drop user-rejected entities (and their edges) from everything below.
+  const visibleNodes = useMemo(
+    () => (data?.nodes ?? []).filter((n) => !rejected.has(entityKey(n.kind, n.name))),
+    [data, rejected],
+  );
+  const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
+  const visibleEdges = useMemo(
+    () => (data?.edges ?? []).filter((e) => visibleNodeIds.has(e.src) && visibleNodeIds.has(e.dst)),
+    [data, visibleNodeIds],
+  );
+
   // Lay out in a virtual canvas that grows with node count, so nodes have room
   // to spread instead of overlapping in the small viewport. We then auto-fit it.
   const layoutDims = useMemo(() => {
-    const nn = data?.nodes.length ?? 1;
+    const nn = visibleNodes.length || 1;
     const span = Math.ceil(Math.sqrt(nn));
     return {
-      width: Math.max(size.width, span * 200),
-      height: Math.max(size.height, span * 150),
+      width: Math.max(size.width, span * 260),
+      height: Math.max(size.height, span * 195),
     };
-  }, [data, size.width, size.height]);
+  }, [visibleNodes, size.width, size.height]);
 
   const layout = useMemo(() => {
-    if (!data) return new Map<string, { x: number; y: number }>();
-    return computeForceLayout(data.nodes, data.edges, layoutDims);
-  }, [data, layoutDims]);
+    if (!visibleNodes.length) return new Map<string, { x: number; y: number }>();
+    return computeForceLayout(visibleNodes, visibleEdges, layoutDims);
+  }, [visibleNodes, visibleEdges, layoutDims]);
 
   // Auto-fit the (possibly larger) layout into the viewport whenever it changes,
   // so the whole graph is visible; the user can then wheel-zoom / drag to explore.
@@ -168,9 +192,9 @@ export function GraphPage() {
 
   const nodeById = useMemo(() => {
     const m = new Map<string, GraphNode>();
-    for (const n of data?.nodes ?? []) m.set(n.id, n);
+    for (const n of visibleNodes) m.set(n.id, n);
     return m;
-  }, [data]);
+  }, [visibleNodes]);
 
   const selected = selectedId ? nodeById.get(selectedId) ?? null : null;
 
@@ -194,6 +218,20 @@ export function GraphPage() {
     [localSessions],
   );
 
+  // Live keyword search: nodes whose name matches the box are highlighted and
+  // everything else dims — a client-side "find in this graph" (no refetch).
+  const matchIds = useMemo(() => {
+    const q = focusInput.trim().toLowerCase();
+    if (!q) return null;
+    const ids = new Set<string>();
+    for (const n of visibleNodes) {
+      if (n.name.toLowerCase().includes(q) || n.kind.toLowerCase().includes(q)) {
+        ids.add(n.id);
+      }
+    }
+    return ids;
+  }, [focusInput, visibleNodes]);
+
   const hasApi = Boolean(settings.apiBaseUrl);
   const isEmpty = !loading && !error && (data?.nodes.length ?? 0) === 0;
 
@@ -214,11 +252,11 @@ export function GraphPage() {
         </div>
         <form onSubmit={submitFocus} className="flex items-center gap-2 max-w-[480px] w-full">
           <Input
-            placeholder="Focus on a node (e.g. checkout-service)…"
+            placeholder="Search nodes… (Enter = focus to neighbourhood)"
             value={focusInput}
             onChange={(e) => setFocusInput(e.target.value)}
             leading={<Search size={14} />}
-            aria-label="Focus node"
+            aria-label="Search nodes"
           />
           <div className="w-[110px] shrink-0">
             <Select
@@ -273,8 +311,99 @@ export function GraphPage() {
               Link concepts
             </Button>
           )}
+          {hasApi && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setReviewOpen(true)}
+              title="Review extracted entities — hide ones that aren't real"
+            >
+              <SlidersHorizontal size={13} />
+              Review
+            </Button>
+          )}
         </form>
       </div>
+
+      {/* Entity review modal — human-in-the-loop curation of NER entities. */}
+      {reviewOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6"
+          onClick={() => setReviewOpen(false)}
+        >
+          <div
+            className="w-[560px] max-h-[80vh] flex flex-col rounded-card border border-border bg-bg-elevated shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+              <div>
+                <h2 className="text-h3 font-semibold text-ink">Review entities</h2>
+                <p className="text-small text-ink-faint mt-0.5">
+                  Uncheck anything that isn't a real entity — it's hidden from the graph
+                  and remembered for next time. {rejected.size} hidden.
+                </p>
+              </div>
+              <button
+                onClick={() => setReviewOpen(false)}
+                className="text-ink-faint hover:text-ink"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {LEGEND_KINDS.map((kind) => {
+                const items = (data?.nodes ?? [])
+                  .filter((n) => n.kind === kind)
+                  .sort((a, b) => a.name.localeCompare(b.name));
+                if (!items.length) return null;
+                const c = GRAPH_KIND_COLORS[kind];
+                return (
+                  <div key={kind} className="mb-3">
+                    <div className="text-micro uppercase tracking-wide text-ink-faint mb-1">
+                      {c.label} ({items.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((n) => {
+                        const isRejected = rejected.has(entityKey(n.kind, n.name));
+                        return (
+                          <button
+                            key={n.id}
+                            onClick={() => toggleRejected(n.kind, n.name)}
+                            className={cn(
+                              "px-2 py-1 rounded-[6px] border text-small transition-colors duration-120",
+                              isRejected
+                                ? "border-border bg-bg-sunken text-ink-faint line-through opacity-60"
+                                : "border-border bg-bg text-ink-soft hover:border-accent",
+                            )}
+                            title={isRejected ? "Hidden — click to restore" : "Click to hide"}
+                          >
+                            {n.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-border">
+              <button
+                onClick={() => {
+                  setRejected(new Set());
+                  saveRejected(new Set());
+                }}
+                className="text-small text-ink-soft hover:text-ink"
+              >
+                Restore all
+              </button>
+              <Button variant="primary" size="sm" onClick={() => setReviewOpen(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 min-h-0 flex">
@@ -380,7 +509,7 @@ export function GraphPage() {
             >
               <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
               {/* Edges */}
-              {data!.edges.map((e) => {
+              {visibleEdges.map((e) => {
                 const a = layout.get(e.src);
                 const b = layout.get(e.dst);
                 if (!a || !b) return null;
@@ -403,18 +532,22 @@ export function GraphPage() {
                 );
               })}
               {/* Nodes */}
-              {data!.nodes.map((n) => {
+              {visibleNodes.map((n) => {
                 const p = layout.get(n.id);
                 if (!p) return null;
                 const c = kindColor(n.kind);
                 const r = nodeRadius(n);
-                const dimmed = selected && n.id !== selected.id && !neighborIds.has(n.id);
+                const matched = matchIds ? matchIds.has(n.id) : null;
+                const dimmed =
+                  (matchIds && !matched) ||
+                  (selected && n.id !== selected.id && !neighborIds.has(n.id));
+                const accent = selectedId === n.id || matched === true;
                 return (
                   <g
                     key={n.id}
                     transform={`translate(${p.x}, ${p.y})`}
                     className="cursor-pointer"
-                    opacity={dimmed ? 0.3 : 1}
+                    opacity={dimmed ? 0.18 : 1}
                     onClick={(ev) => {
                       ev.stopPropagation();
                       setSelectedId(n.id);
@@ -423,13 +556,14 @@ export function GraphPage() {
                     <circle
                       r={r}
                       fill={c.fill}
-                      stroke={selectedId === n.id ? "#F2541B" : c.stroke}
-                      strokeWidth={selectedId === n.id ? 2 : 1.25}
+                      stroke={accent ? "#F2541B" : c.stroke}
+                      strokeWidth={accent ? 2.5 : 1.25}
                     />
                     {/* Only label when zoomed in, or for selected/neighbour/large
                         nodes — keeps a big graph from becoming a wall of text. */}
                     {(view.k >= 0.85 ||
                       selectedId === n.id ||
+                      matched === true ||
                       (selected && neighborIds.has(n.id)) ||
                       r >= 16) && (
                       <text

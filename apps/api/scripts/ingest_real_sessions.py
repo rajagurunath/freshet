@@ -121,6 +121,8 @@ def to_session(parsed: dict) -> tuple[NormalizedSession, str, str]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=60, help="most recent N sessions to ingest")
+    ap.add_argument("--graph-only", action="store_true",
+                    help="only build the NER graph (skip embeddings) — fast, for per-session graph coverage")
     args = ap.parse_args()
 
     lancedb_uri = os.environ.get("LANCEDB_URI", "./data-real/lancedb")
@@ -144,6 +146,9 @@ def main() -> None:
     for path, kind in files:
         if ingested >= args.limit:
             break
+        # Skip internal agent/subagent transcripts — they're not the user's sessions.
+        if "/agent-" in path or os.path.basename(path).startswith("agent-"):
+            continue
         parsed = parse_claude(path) if kind == "claude" else parse_codex(path)
         if not parsed:
             continue
@@ -151,6 +156,15 @@ def main() -> None:
         if sess.id in seen:
             continue
         seen.add(sess.id)
+
+        if args.graph_only:
+            # Fast path: only the NER graph, so every session gets a per-session
+            # graph without paying for embeddings.
+            extract_ner_graph(sess, summary, graph, visibility="company")
+            ingested += 1
+            if ingested % 50 == 0:
+                print(f"  graph for {ingested} sessions…")
+            continue
 
         chunks = build_chunks(sess, summary=summary)
         texts = [c.text for c in chunks]
@@ -183,7 +197,8 @@ def main() -> None:
         if ingested % 10 == 0:
             print(f"  ingested {ingested} sessions…")
 
-    vectors.ensure_fts_index()
+    if not args.graph_only:
+        vectors.ensure_fts_index()
     print(f"\nDONE: {ingested} real sessions ingested · {len(graph.list_nodes())} graph nodes "
           f"· {len(graph.list_edges())} edges -> {lancedb_uri}, {graph_db}")
 
