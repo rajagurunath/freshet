@@ -120,8 +120,9 @@ export function computeForceLayout(
     springs.push([a, b, e.weight > 0 ? e.weight : 1]);
   }
 
-  // Ideal pairwise distance for the available area.
-  const k = Math.sqrt((width * height) / n) * 0.7;
+  // Ideal pairwise distance for the available area. Larger factor = more spread
+  // so dense graphs (many co-occurrence edges) don't collapse into one ball.
+  const k = Math.sqrt((width * height) / n) * 1.3;
   const dx = new Float64Array(n);
   const dy = new Float64Array(n);
 
@@ -152,24 +153,26 @@ export function computeForceLayout(
       }
     }
 
-    // Attraction along edges: spring force d²/k, scaled by weight.
+    // Attraction along edges: spring force d²/k. Dampened and weight-capped so a
+    // node with many co-occurrence edges isn't dragged into the center.
     for (const [a, b, w] of springs) {
       const ddx = xs[a] - xs[b];
       const ddy = ys[a] - ys[b];
       const d = Math.sqrt(ddx * ddx + ddy * ddy) || 0.01;
-      const force = (d * d) / k * Math.min(w, 4);
-      const fx = ddx / d * force;
-      const fy = ddy / d * force;
+      const force = ((d * d) / k) * Math.min(w, 2) * 0.45;
+      const fx = (ddx / d) * force;
+      const fy = (ddy / d) * force;
       dx[a] -= fx;
       dy[a] -= fy;
       dx[b] += fx;
       dy[b] += fy;
     }
 
-    // Gentle gravity toward the center keeps disconnected components on-canvas.
+    // Very gentle gravity — just enough to keep disconnected nodes on-canvas
+    // without pulling everything into a tight clump.
     for (let i = 0; i < n; i++) {
-      dx[i] += (cx - xs[i]) * 0.02;
-      dy[i] += (cy - ys[i]) * 0.02;
+      dx[i] += (cx - xs[i]) * 0.006;
+      dy[i] += (cy - ys[i]) * 0.006;
     }
 
     // Cooling: cap displacement by a shrinking temperature, then clamp bounds.

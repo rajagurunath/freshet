@@ -128,13 +128,43 @@ export function GraphPage() {
     }
   }, [settings.apiBaseUrl, settings.apiKey, toastInfo, toastError, load]);
 
+  // Lay out in a virtual canvas that grows with node count, so nodes have room
+  // to spread instead of overlapping in the small viewport. We then auto-fit it.
+  const layoutDims = useMemo(() => {
+    const nn = data?.nodes.length ?? 1;
+    const span = Math.ceil(Math.sqrt(nn));
+    return {
+      width: Math.max(size.width, span * 200),
+      height: Math.max(size.height, span * 150),
+    };
+  }, [data, size.width, size.height]);
+
   const layout = useMemo(() => {
     if (!data) return new Map<string, { x: number; y: number }>();
-    return computeForceLayout(data.nodes, data.edges, {
-      width: size.width,
-      height: size.height,
+    return computeForceLayout(data.nodes, data.edges, layoutDims);
+  }, [data, layoutDims]);
+
+  // Auto-fit the (possibly larger) layout into the viewport whenever it changes,
+  // so the whole graph is visible; the user can then wheel-zoom / drag to explore.
+  useEffect(() => {
+    if (layout.size === 0 || !size.width) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of layout.values()) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+    const w = maxX - minX || 1;
+    const h = maxY - minY || 1;
+    const pad = 80;
+    const k = Math.min((size.width - pad) / w, (size.height - pad) / h, 1.4);
+    setView({
+      k,
+      x: (size.width - w * k) / 2 - minX * k,
+      y: (size.height - h * k) / 2 - minY * k,
     });
-  }, [data, size.width, size.height]);
+  }, [layout, size.width, size.height]);
 
   const nodeById = useMemo(() => {
     const m = new Map<string, GraphNode>();
@@ -364,8 +394,8 @@ export function GraphPage() {
                       x2={b.x}
                       y2={b.y}
                       stroke={active ? "#F2541B" : "#D8D2C4"}
-                      strokeWidth={active ? 1.5 : 1}
-                      strokeOpacity={selected && !active ? 0.25 : 0.8}
+                      strokeWidth={active ? 1.5 : 0.75}
+                      strokeOpacity={active ? 0.9 : selected ? 0.06 : 0.18}
                     >
                       <title>{e.rel.replace(/_/g, " ")}</title>
                     </line>
@@ -396,15 +426,22 @@ export function GraphPage() {
                       stroke={selectedId === n.id ? "#F2541B" : c.stroke}
                       strokeWidth={selectedId === n.id ? 2 : 1.25}
                     />
-                    <text
-                      y={r + 13}
-                      textAnchor="middle"
-                      fontSize={11}
-                      fill="#6b6657"
-                      style={{ pointerEvents: "none", userSelect: "none" }}
-                    >
-                      {n.name.length > 24 ? `${n.name.slice(0, 23)}…` : n.name}
-                    </text>
+                    {/* Only label when zoomed in, or for selected/neighbour/large
+                        nodes — keeps a big graph from becoming a wall of text. */}
+                    {(view.k >= 0.85 ||
+                      selectedId === n.id ||
+                      (selected && neighborIds.has(n.id)) ||
+                      r >= 16) && (
+                      <text
+                        y={r + 13}
+                        textAnchor="middle"
+                        fontSize={11 / Math.max(view.k, 1)}
+                        fill="#6b6657"
+                        style={{ pointerEvents: "none", userSelect: "none" }}
+                      >
+                        {n.name.length > 24 ? `${n.name.slice(0, 23)}…` : n.name}
+                      </text>
+                    )}
                     <title>{`${c.label}: ${n.name}`}</title>
                   </g>
                 );
