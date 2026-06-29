@@ -161,30 +161,37 @@ export async function scanLocalSessions(
   return { sessions, updatedCache };
 }
 
+/** Max concurrent file reads — bounds IPC pressure while still parsing a large
+ * history (hundreds of files) in seconds instead of one-at-a-time. */
+const PARSE_CONCURRENCY = 24;
+
+/** Run `fn` over `items` with bounded concurrency, collecting non-null results. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R | null>,
+): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = items.slice(i, i + limit);
+    const results = await Promise.all(batch.map(fn));
+    for (const r of results) if (r != null) out.push(r);
+  }
+  return out;
+}
+
 /** Parse a list of {path, tool} entries into `out`, handling kilo grouping. */
 async function parseFiles(
   files: { path: string; tool: Tool }[],
   out: NormalizedSession[],
 ): Promise<void> {
-  // Group kilo files by taskId so we can pair api + ui history
+  // Group kilo files by taskId so we can pair api + ui history; collect the
+  // directly-parseable Claude/Codex files for parallel reading.
   const kiloGroup = new Map<string, { apiFile?: string; uiFile?: string }>();
+  const direct: { path: string; tool: Tool }[] = [];
 
   for (const { path, tool } of files) {
-    if (tool === "claude-code") {
-      try {
-        const text = await readText(path);
-        out.push(parseClaude(text, path));
-      } catch (err) {
-        console.warn("[context-hub] Failed to parse Claude file:", path, err);
-      }
-    } else if (tool === "codex") {
-      try {
-        const text = await readText(path);
-        out.push(parseCodex(text, path));
-      } catch (err) {
-        console.warn("[context-hub] Failed to parse Codex file:", path, err);
-      }
-    } else if (tool === "kilo-code") {
+    if (tool === "kilo-code") {
       const parts = path.replace(/\\/g, "/").split("/");
       const tasksIdx = parts.lastIndexOf("tasks");
       if (tasksIdx === -1 || tasksIdx + 1 >= parts.length) continue;
@@ -194,19 +201,35 @@ async function parseFiles(
       const fn = basename(path);
       if (fn === "api_conversation_history.json") entry.apiFile = path;
       else if (fn === "ui_messages.json") entry.uiFile = path;
+    } else {
+      direct.push({ path, tool });
     }
   }
 
-  // Parse kilo groups
-  for (const [taskId, entry] of kiloGroup) {
-    if (!entry.apiFile) continue;
+  // Claude/Codex: read + parse in bounded-concurrency batches.
+  const parsed = await mapLimit(direct, PARSE_CONCURRENCY, async ({ path, tool }) => {
     try {
-      const apiText = await readText(entry.apiFile);
+      const text = await readText(path);
+      return tool === "claude-code" ? parseClaude(text, path) : parseCodex(text, path);
+    } catch (err) {
+      console.warn("[context-hub] Failed to parse file:", path, err);
+      return null;
+    }
+  });
+  out.push(...parsed);
+
+  // Kilo groups: also read in parallel.
+  const kiloEntries = [...kiloGroup].filter(([, e]) => e.apiFile);
+  const kiloParsed = await mapLimit(kiloEntries, PARSE_CONCURRENCY, async ([taskId, entry]) => {
+    try {
+      const apiText = await readText(entry.apiFile!);
       const uiText = entry.uiFile ? await readText(entry.uiFile) : undefined;
-      out.push(parseKilo(apiText, entry.apiFile, taskId, uiText));
+      return parseKilo(apiText, entry.apiFile!, taskId, uiText);
     } catch (err) {
       console.warn("[context-hub] Failed to parse Kilo task:", taskId, err);
+      return null;
     }
-  }
+  });
+  out.push(...kiloParsed);
 }
 
