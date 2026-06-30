@@ -28,3 +28,11 @@ apps/desktop/src-tauri/gen/
 .vscode/
 *.log
 .gstack/
+
+# Local data dirs (session data, vector/graph DBs — never commit)
+apps/api/data-demo/
+apps/api/data-real/
+apps/api/data/
+*.db
+*.db-wal
+*.db-shm
