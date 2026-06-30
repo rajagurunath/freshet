@@ -19,11 +19,15 @@ export class ErrorBoundary extends React.Component<
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     // Surface it where it's findable even without devtools.
     console.error("[context-hub] render crash:", error, info?.componentStack);
+    const detail = `${error?.message}\n${error?.stack}\n${info?.componentStack ?? ""}`;
     try {
-      localStorage.setItem(
-        "ctxhub.lastError",
-        `${error?.message}\n${error?.stack}\n${info?.componentStack ?? ""}`,
-      );
+      localStorage.setItem("ctxhub.lastError", detail);
+    } catch {
+      /* ignore */
+    }
+    // Beacon to the API access log (readable for debugging).
+    try {
+      fetch("http://localhost:8787/healthz?clienterror=" + encodeURIComponent(detail.slice(0, 1500)));
     } catch {
       /* ignore */
     }

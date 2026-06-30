@@ -8,7 +8,17 @@ import "./styles/index.css";
 
 // Catch errors thrown before/while React mounts (e.g. corrupt persisted store
 // state) — these bypass the React ErrorBoundary and would otherwise white-screen.
+// Beacon the error to the API so it lands in a log we can read (debugging aid).
+function reportError(message: string) {
+  try {
+    fetch("http://localhost:8787/healthz?clienterror=" + encodeURIComponent(message.slice(0, 1500)));
+  } catch {
+    /* ignore */
+  }
+}
+
 function showFatal(message: string) {
+  reportError(message);
   const root = document.getElementById("root");
   if (!root || root.childElementCount > 0) return; // React already rendered
   root.innerHTML = `
