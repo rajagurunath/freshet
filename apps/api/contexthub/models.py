@@ -260,6 +260,136 @@ class GraphResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# AICP — AI Context Protocol (session exchange, §6 of the spec)
+# camelCase on the wire; snake_case in Python via alias generator.
+# ---------------------------------------------------------------------------
+
+from pydantic import ConfigDict
+from pydantic.alias_generators import to_camel
+
+
+class AICPModel(BaseModel):
+    """Base for all AICP wire models: serialize/parse in camelCase."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class NormalizedMessage(AICPModel):
+    """Wire form of :class:`Message` (camelCase). One transcript message."""
+
+    id: str
+    role: Literal["user", "assistant", "system", "tool"]
+    text: str
+    thinking: Optional[str] = None
+    tool_name: Optional[str] = None       # -> toolName
+    timestamp: Optional[str] = None
+    model: Optional[str] = None
+
+
+class SessionManifest(AICPModel):
+    """L0 manifest — lightweight, no message bodies (spec §6)."""
+
+    id: str
+    tool: str                              # claude-code | codex | kilo-code
+    title: str
+    project: Optional[str] = None
+    started_at: Optional[str] = None       # -> startedAt
+    ended_at: Optional[str] = None         # -> endedAt
+    message_count: int = 0                 # -> messageCount
+    tokens: Optional[TokenCounts] = None
+    has_summary: bool = False              # -> hasSummary
+    visibility: str = "private"            # company | team | private
+    source: str = "hub"                    # local | hub
+
+
+class SummaryResponse(AICPModel):
+    """session.summary (L1)."""
+
+    summary: str
+    generated_by: str                      # -> generatedBy
+    generated_at: Optional[str] = None     # -> generatedAt
+
+
+class RecentResponse(AICPModel):
+    """session.recent (L2)."""
+
+    messages: list[NormalizedMessage] = Field(default_factory=list)
+    cursor: Optional[str] = None           # opaque base64 of the last message index
+
+
+class GrepMatch(AICPModel):
+    message_id: str                        # -> messageId
+    offset: int
+    role: str
+    snippet: str
+
+
+class GrepResponse(AICPModel):
+    """session.grep (L3)."""
+
+    matches: list[GrepMatch] = Field(default_factory=list)
+
+
+class SearchHit(AICPModel):
+    session_id: str                        # -> sessionId
+    score: float
+    snippet: str
+    manifest: Optional[SessionManifest] = None
+
+
+class SearchResponse(AICPModel):
+    """session.search (L0/L3)."""
+
+    hits: list[SearchHit] = Field(default_factory=list)
+    answer: Optional[str] = None           # Freshet extension: the RAG answer
+
+
+# --- handoff envelope + Freshet extension keys ---
+
+class HandoffMore(AICPModel):
+    grep: str = "session.grep"
+    stream: str = "session.stream"
+
+
+class HandoffDecision(AICPModel):
+    decision: str
+    why: Optional[str] = None
+
+
+class HandoffWorkingSet(AICPModel):
+    repos: list[str] = Field(default_factory=list)
+    services: list[str] = Field(default_factory=list)
+    libraries: list[str] = Field(default_factory=list)
+
+
+class HandoffRelatedSession(AICPModel):
+    id: str
+    title: Optional[str] = None
+    why: Optional[str] = None
+
+
+class HandoffPacket(AICPModel):
+    """session.handoff (push). Spec envelope + Freshet superset keys."""
+
+    # --- AICP envelope (spec §6, exact) ---
+    protocol: Literal["aicp/0.1"] = "aicp/0.1"
+    session: SessionManifest
+    summary: str = ""
+    recent: list[NormalizedMessage] = Field(default_factory=list)
+    more: HandoffMore = Field(default_factory=HandoffMore)
+    issued_at: str                         # -> issuedAt   (ISO8601, now)
+    issued_by: str                         # -> issuedBy   ("freshet-local")
+    redacted: bool = True
+    # --- Freshet extension keys (ADDITIVE; a superset, not a replacement) ---
+    decisions: list[HandoffDecision] = Field(default_factory=list)
+    touched_files: list[str] = Field(default_factory=list)     # -> touchedFiles
+    working_set: HandoffWorkingSet = Field(default_factory=HandoffWorkingSet)  # -> workingSet
+    related_sessions: list[HandoffRelatedSession] = Field(default_factory=list)  # -> relatedSessions
+    open_threads: list[str] = Field(default_factory=list)      # -> openThreads
+    resume_hint: str = ""                  # -> resumeHint
+
+
+# ---------------------------------------------------------------------------
 # Rules (Task 14)
 # ---------------------------------------------------------------------------
 
