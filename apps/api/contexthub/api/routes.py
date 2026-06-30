@@ -918,6 +918,54 @@ def list_graph_sessions(caller: Caller = Depends(require_api_key)):
     return {"session_ids": store.session_ids_with_nodes()}
 
 
+@router.post("/v1/graph/build-all", tags=["graph"])
+def build_all_graphs(caller: Caller = Depends(require_api_key)):
+    """Kick off the offline graph build for every local session (idempotent).
+
+    Returns immediately with the current progress; the desktop polls
+    ``/v1/graph/build-progress`` to render the bottom progress bar.
+    """
+    from contexthub.graph.build import start_build_all
+
+    return start_build_all()
+
+
+@router.get("/v1/graph/build-progress", tags=["graph"])
+def graph_build_progress(caller: Caller = Depends(require_api_key)):
+    """Live progress of the offline graph build: {done, total, running}."""
+    from contexthub.graph.build import get_progress
+
+    return get_progress()
+
+
+@router.post("/v1/graph/build-session/{session_id}", tags=["graph"])
+def build_session_graph(session_id: str, caller: Caller = Depends(require_api_key)):
+    """Build the graph for a single session on demand (for the centered loader).
+
+    Reads the transcript from disk by its id and runs the fast NER pass.
+    """
+    from contexthub.graph.build import list_session_files, parse_claude, parse_codex, to_session
+    from contexthub.graph.ner import extract_ner_graph
+    from contexthub.graph.store import get_graph_store
+    import os as _os
+
+    target = None
+    for path, kind in list_session_files():
+        if _os.path.splitext(_os.path.basename(path))[0] == session_id:
+            target = (path, kind)
+            break
+    if not target:
+        return {"session_id": session_id, "built": False, "reason": "not_found"}
+
+    path, kind = target
+    parsed = parse_claude(path) if kind == "claude" else parse_codex(path)
+    if not parsed:
+        return {"session_id": session_id, "built": False, "reason": "unparseable"}
+    sess, summary = to_session(parsed)
+    res = extract_ner_graph(sess, summary, get_graph_store(), visibility="company", use_spacy=False)
+    return {"session_id": session_id, "built": True, **res}
+
+
 @router.get("/v1/graph/session/{session_id}", tags=["graph"])
 def get_graph_for_session(
     session_id: str,

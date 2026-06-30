@@ -33,6 +33,14 @@ export type HubSessionRecord = SessionSummary & {
 
 // ─── filter types ─────────────────────────────────────────────────────────────
 
+export interface GraphBuildProgress {
+  done: number;
+  total: number;
+  running: boolean;
+  started_at?: number;
+  finished_at?: number;
+}
+
 export interface SessionFilters {
   category?: Category;
   tool?: Tool;
@@ -286,6 +294,24 @@ export class ApiClient {
       "/v1/graph/sessions",
     );
     return raw.session_ids ?? [];
+  }
+
+  /** Start the offline build of graphs for all local sessions (idempotent). */
+  async buildAllGraphs(): Promise<GraphBuildProgress> {
+    return this.request<GraphBuildProgress>("POST", "/v1/graph/build-all");
+  }
+
+  /** Live progress of the offline graph build. */
+  async getGraphBuildProgress(): Promise<GraphBuildProgress> {
+    return this.request<GraphBuildProgress>("GET", "/v1/graph/build-progress");
+  }
+
+  /** Build the graph for a single session on demand. */
+  async buildSessionGraph(sessionId: string): Promise<{ built: boolean }> {
+    return this.request<{ built: boolean }>(
+      "POST",
+      `/v1/graph/build-session/${encodeURIComponent(sessionId)}`,
+    );
   }
 
   /** Fetch the subgraph extracted from a single session. */

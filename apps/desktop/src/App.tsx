@@ -15,6 +15,7 @@ import {
 import { cn } from "@/components/ui/cn";
 import { ToastProvider } from "@/components/ui/Toast";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { GraphBuildBar } from "@/components/GraphBuildBar";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SessionsPage } from "@/pages/SessionsPage";
 import { SessionDetailPage } from "@/pages/SessionDetailPage";
@@ -313,18 +314,22 @@ function AppShell() {
 
       {/* Main content */}
       <main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/sessions" element={<SessionsPage />} />
-          <Route path="/sessions/:id" element={<SessionDetailPage />} />
-          <Route path="/hub" element={<HubPage />} />
-          <Route path="/agent" element={<AgentPage />} />
-          <Route path="/graph" element={<GraphPage />} />
-          <Route path="/rules" element={<RulesPage />} />
-          <Route path="/assets" element={<AssetsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/sessions" element={<SessionsPage />} />
+            <Route path="/sessions/:id" element={<SessionDetailPage />} />
+            <Route path="/hub" element={<HubPage />} />
+            <Route path="/agent" element={<AgentPage />} />
+            <Route path="/graph" element={<GraphPage />} />
+            <Route path="/rules" element={<RulesPage />} />
+            <Route path="/assets" element={<AssetsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </div>
+        {/* Offline graph build progress — bottom of the app */}
+        <GraphBuildBar />
       </main>
     </div>
   );

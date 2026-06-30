@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Share2, ExternalLink } from "lucide-react";
+import { Share2, ExternalLink, Loader2 } from "lucide-react";
 import { useSettings } from "@/store/settings";
 import { makeApiClient } from "@/lib/api/client";
 import {
@@ -27,6 +27,7 @@ export function SessionGraph({ sessionId }: { sessionId: string }) {
   const navigate = useNavigate();
   const [data, setData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [building, setBuilding] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -36,19 +37,32 @@ export function SessionGraph({ sessionId }: { sessionId: string }) {
       return;
     }
     setLoading(true);
+    setBuilding(false);
     setError(false);
     const client = makeApiClient(settings.apiBaseUrl, settings.apiKey ?? "");
-    client
-      .getSessionGraph(sessionId)
-      .then((g) => {
+
+    (async () => {
+      try {
+        let g = await client.getSessionGraph(sessionId);
+        // Not built yet → build this one session on demand (fast: ~50ms), refetch.
+        if (!cancelled && g.nodes.length === 0) {
+          setBuilding(true);
+          try {
+            await client.buildSessionGraph(sessionId);
+            g = await client.getSessionGraph(sessionId);
+          } catch {
+            /* leave empty */
+          }
+          if (!cancelled) setBuilding(false);
+        }
         if (!cancelled) setData(g);
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setError(true);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -87,8 +101,13 @@ export function SessionGraph({ sessionId }: { sessionId: string }) {
         )}
       </div>
 
-      {loading ? (
-        <div className="h-[160px] rounded-card bg-bg-sunken animate-pulse" />
+      {loading || building ? (
+        <div className="h-[200px] rounded-card border border-border bg-bg flex flex-col items-center justify-center gap-3">
+          <Loader2 size={28} className="text-accent animate-spin" />
+          <span className="text-small text-ink-soft">
+            {building ? "Building this session's graph…" : "Loading graph…"}
+          </span>
+        </div>
       ) : isEmpty ? (
         <p className="text-small text-ink-faint italic">
           No graph extracted for this session yet.
