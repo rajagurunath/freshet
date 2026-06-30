@@ -168,8 +168,10 @@ export function SessionGraph({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {/* Hint shown only when this session has cross-session links. */}
-      {!isEmpty && data!.edges.some((e) => e.rel === "same_as") && (
+      {/* Hint shown only when this session has cross-session links. This is a
+          sibling of the loading/empty branch above, so it must guard `data`
+          itself — during the initial load data is null while loading is true. */}
+      {!isEmpty && data != null && data.edges.some((e) => e.rel === "same_as") && (
         <p className="flex items-center gap-1.5 text-micro text-ink-faint">
           <Share2 size={11} className="text-accent" />
           Dashed accent links connect this session to others naming the same concept.
