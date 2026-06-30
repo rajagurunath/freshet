@@ -13,7 +13,7 @@ interface AiConsentModalProps {
 }
 
 /**
- * One-time consent before Context Hub uses the user's coding agent (or a
+ * One-time consent before Freshet uses the user's coding agent (or a
  * configured model provider) to read and analyze a session's contents.
  */
 export function AiConsentModal({
@@ -28,7 +28,7 @@ export function AiConsentModal({
       open={open}
       onClose={onClose}
       title="Use AI to analyze this session?"
-      description="Context Hub needs your permission before sending session content to an AI model."
+      description="Freshet needs your permission before sending session content to an AI model."
       size="md"
     >
       <div className="space-y-4">
@@ -41,7 +41,7 @@ export function AiConsentModal({
               <p className="mt-1">
                 This runs <span className="font-medium text-ink">on your machine</span> using
                 your already-authenticated coding agent. No API key is needed and content is
-                not sent to Context Hub's servers to be summarized.
+                not sent to Freshet's servers to be summarized.
               </p>
             ) : (
               <p className="mt-1">

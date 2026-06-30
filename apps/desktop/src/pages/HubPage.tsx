@@ -127,7 +127,7 @@ export function HubPage() {
           <EmptyState
             icon={<Globe size={40} strokeWidth={1.25} />}
             headline="Connect a hub first"
-            body="Add your Context Hub API URL and key in Settings to see your team's shared sessions."
+            body="Add your Freshet API URL and key in Settings to see your team's shared sessions."
             cta={
               <button
                 className="text-small text-accent hover:text-accent-ink transition-colors duration-120"

@@ -1,4 +1,4 @@
-# Context Hub — landing page
+# Freshet — landing page
 
 A complete product landing page. Pure static site: plain HTML/CSS/JS, **no build
 step**, no frameworks, no animation libraries. The only external resources are

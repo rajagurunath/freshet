@@ -227,7 +227,7 @@ export function AssetsPage() {
             <EmptyState
               icon={<Package size={40} strokeWidth={1.25} />}
               headline="Local scanning needs the desktop app"
-              body="Run Context Hub as the Tauri desktop app to scan ~/.claude/skills, commands and agents."
+              body="Run Freshet as the Tauri desktop app to scan ~/.claude/skills, commands and agents."
             />
           ) : localLoading ? (
             <div className="px-6 py-6 space-y-3 max-w-[860px]">
@@ -303,7 +303,7 @@ export function AssetsPage() {
           <EmptyState
             icon={<Package size={40} strokeWidth={1.25} />}
             headline="Connect a hub first"
-            body="Add your Context Hub API URL and key in Settings to browse company assets."
+            body="Add your Freshet API URL and key in Settings to browse company assets."
             cta={
               <button
                 className="text-small text-accent hover:text-accent-ink transition-colors duration-120"

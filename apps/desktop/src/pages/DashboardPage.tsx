@@ -68,7 +68,7 @@ export function DashboardPage() {
           <EmptyState
             icon={<LayoutDashboard size={40} strokeWidth={1.25} />}
             headline="No sessions to analyze yet"
-            body="Once Context Hub finds your local AI coding sessions, your KPIs will appear here."
+            body="Once Freshet finds your local AI coding sessions, your KPIs will appear here."
           />
         </div>
       </div>

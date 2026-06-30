@@ -1,5 +1,5 @@
 /**
- * Typed HTTP client for the Context Hub central API.
+ * Typed HTTP client for the Freshet central API.
  *
  * The app speaks camelCase internally (see `../types`), but the API's documented
  * wire format is snake_case (see ARCHITECTURE.md). This client is the single

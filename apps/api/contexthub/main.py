@@ -1,4 +1,4 @@
-"""Context Hub API — application entry point.
+"""Freshet API — application entry point.
 
 Run locally:
     python -m contexthub.main
@@ -90,7 +90,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        logger.info("Context Hub API starting up")
+        logger.info("Freshet API starting up")
         logger.info("  embedding_provider : %s", settings.embedding_provider)
         logger.info("  lancedb_uri        : %s", settings.lancedb_uri)
         logger.info("  blob_dir           : %s", settings.blob_dir)
@@ -131,10 +131,10 @@ def create_app() -> FastAPI:
             await worker_task
         except asyncio.CancelledError:
             pass
-        logger.info("Context Hub API shutting down")
+        logger.info("Freshet API shutting down")
 
     app = FastAPI(
-        title="Context Hub API",
+        title="Freshet API",
         description=(
             "Central API for ingesting, searching, and querying "
             "AI coding-assistant sessions across the organisation."

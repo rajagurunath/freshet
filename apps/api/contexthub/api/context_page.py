@@ -271,7 +271,7 @@ def render_context_page(
     w("<head>")
     w(f"<meta charset='utf-8'>")
     w(f"<meta name='viewport' content='width=device-width, initial-scale=1'>")
-    w(f"<title>{_e(title)} — Context Hub</title>")
+    w(f"<title>{_e(title)} — Freshet</title>")
     w(_CSS)
     w("</head>")
     w("<body>")
@@ -279,7 +279,7 @@ def render_context_page(
 
     # --- Header ---
     w("<header>")
-    w("<div class='hub-label'>Context Hub · Agent context</div>")
+    w("<div class='hub-label'>Freshet · Agent context</div>")
     w(f"<h1>{_e(title)}</h1>")
     w("<div class='meta'>")
     if author:
@@ -351,7 +351,7 @@ def render_context_page(
             w(f"<span class='graph-neighbor'>{_e(kind)}: {_e(name)}</span>")
         w("</div>")
 
-    w("<footer>Shared via <strong>Context Hub</strong> — agent context page</footer>")
+    w("<footer>Shared via <strong>Freshet</strong> — agent context page</footer>")
     w("</div>")
     w("</body>")
     w("</html>")

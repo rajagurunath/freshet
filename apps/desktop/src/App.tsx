@@ -202,7 +202,7 @@ function AppShell() {
               />
             </svg>
           </div>
-          <span className="text-body font-semibold text-ink tracking-tight">Context Hub</span>
+          <span className="text-body font-semibold text-ink tracking-tight">Freshet</span>
         </div>
 
         {/* Navigation */}

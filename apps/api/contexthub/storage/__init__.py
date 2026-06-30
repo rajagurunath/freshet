@@ -1,1 +1,1 @@
-"""Storage backends for Context Hub."""
+"""Storage backends for Freshet."""

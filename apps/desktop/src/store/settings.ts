@@ -25,7 +25,7 @@ export interface SettingsState {
   /** claude-cli | codex-cli | anthropic | openai */
   llmProvider: string;
   llmModel: string;
-  /** Whether the user has consented to Context Hub using their coding agent. */
+  /** Whether the user has consented to Freshet using their coding agent. */
   aiConsent: boolean;
 
   // ── setters ─────────────────────────────────────────────────────────────

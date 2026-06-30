@@ -207,7 +207,7 @@ export function SettingsPage() {
               placeholder="https://hub.yourcompany.com"
               value={apiBaseUrl}
               onChange={(e) => setApiBaseUrlLocal(e.target.value)}
-              hint="The base URL of your Context Hub API server."
+              hint="The base URL of your Freshet API server."
             />
             <Input
               label="API key"
@@ -252,7 +252,7 @@ export function SettingsPage() {
             <div>
               <SectionHeading>AI Provider</SectionHeading>
               <p className="text-small text-ink-faint mt-1">
-                Choose which model Context Hub uses to summarize sessions and answer questions.
+                Choose which model Freshet uses to summarize sessions and answer questions.
                 By default it uses your own installed coding agent — no API key required.
               </p>
             </div>
@@ -317,7 +317,7 @@ export function SettingsPage() {
               <div className="flex-1">
                 <p className="text-small text-ink">
                   {settings.aiConsent
-                    ? "You've allowed Context Hub to use your AI provider."
+                    ? "You've allowed Freshet to use your AI provider."
                     : "You'll be asked for permission the first time you use AI."}
                 </p>
                 {settings.aiConsent && (

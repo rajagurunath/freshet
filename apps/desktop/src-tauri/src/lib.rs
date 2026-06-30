@@ -332,5 +332,5 @@ pub fn run() {
             start_watching,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Context Hub");
+        .expect("error while running Freshet");
 }

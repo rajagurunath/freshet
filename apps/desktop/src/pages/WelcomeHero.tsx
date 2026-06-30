@@ -52,7 +52,7 @@ export function WelcomeHero({ className }: WelcomeHeroProps) {
       </h1>
 
       <p className="mt-4 text-h3 text-ink-soft text-center max-w-[440px] font-normal leading-relaxed">
-        Context Hub captures, curates, and serves up the institutional knowledge locked inside your AI sessions.
+        Freshet captures, curates, and serves up the institutional knowledge locked inside your AI sessions.
       </p>
 
       {/* CTAs */}

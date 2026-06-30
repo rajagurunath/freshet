@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 _SNIPPET_LEN = 200  # characters per citation snippet
 
 _SYSTEM_PROMPT = """\
-You are the company-wide Context Hub agent. Your knowledge comes exclusively
+You are the company-wide Freshet agent. Your knowledge comes exclusively
 from the AI coding-assistant session excerpts provided below.
 
 Rules:

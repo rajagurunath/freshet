@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Context Hub",
+  "productName": "Freshet",
   "version": "0.1.0",
   "identifier": "com.contexthub.desktop",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Context Hub",
+        "title": "Freshet",
         "width": 1280,
         "height": 820,
         "minWidth": 920,

@@ -1,4 +1,4 @@
-/* Context Hub landing — progressive enhancement only.
+/* Freshet landing — progressive enhancement only.
    The page is fully readable and styled with JS disabled. This script:
    1. fires the hero load animation,
    2. toggles the nav background after 80px scroll,

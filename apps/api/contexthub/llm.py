@@ -1,6 +1,6 @@
 """Pluggable LLM client for summaries and RAG answers.
 
-Context Hub does not assume an API key. By default it shells out to the
+Freshet does not assume an API key. By default it shells out to the
 **user's already-installed coding agent** (the `claude` CLI), so a desktop
 install works with zero extra credentials. Teams that prefer hosted models
 can point it at any provider:

@@ -50,6 +50,7 @@ export function AgentPage() {
   const [loading, setLoading] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [toolFilter, setToolFilter] = useState("");
+  const [useGraph, setUseGraph] = useState(true);
   const [consentOpen, setConsentOpen] = useState(false);
   const pendingQuestion = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -100,6 +101,7 @@ export function AgentPage() {
         Object.keys(filters).length > 0 ? filters : undefined,
         provider,
         settings.llmModel,
+        useGraph,
       );
 
       const agentMsg: Message = {
@@ -177,6 +179,18 @@ export function AgentPage() {
             onChange={(e) => setToolFilter(e.target.value)}
             className="w-36 text-small"
           />
+          <label
+            className="flex items-center gap-1.5 text-small text-ink-faint cursor-pointer select-none whitespace-nowrap"
+            title="Augment retrieval by walking the cross-session knowledge graph (surfaces bridge/alias sessions plain search misses)"
+          >
+            <input
+              type="checkbox"
+              checked={useGraph}
+              onChange={(e) => setUseGraph(e.target.checked)}
+              className="accent-accent"
+            />
+            Use knowledge graph
+          </label>
         </div>
       </div>
 

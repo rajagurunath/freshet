@@ -138,7 +138,7 @@ export function RulesPage() {
           <EmptyState
             icon={<ListChecks size={40} strokeWidth={1.25} />}
             headline="Connect a hub first"
-            body="Add your Context Hub API URL and key in Settings — the hub mines rules from your pushed sessions."
+            body="Add your Freshet API URL and key in Settings — the hub mines rules from your pushed sessions."
             cta={
               <button
                 className="text-small text-accent hover:text-accent-ink transition-colors duration-120"
