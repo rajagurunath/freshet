@@ -32,11 +32,14 @@ from contexthub.models import (
     AssetPage,
     BatchSummarizeRequest,
     BatchSummarizeResponse,
+    GrepResponse,
+    HandoffPacket,
     IngestRequest,
     IngestResponse,
     Job,
     QueryRequest,
     QueryResponse,
+    RecentResponse,
     Rule,
     RulePage,
     SessionCatalogRow,
@@ -45,6 +48,7 @@ from contexthub.models import (
     StatsResponse,
     SummarizeRequest,
     SummarizeResponse,
+    SummaryResponse,
 )
 from contexthub.rag.agent import answer_query
 from contexthub.rag.summarize import summarize_session
@@ -979,6 +983,125 @@ def get_graph_for_session(
         session_id, caller_user_id=caller.user_id, caller_team=caller.team
     )
     return _build_graph_response(store, sub["nodes"], sub["edges"])
+
+
+# ---------------------------------------------------------------------------
+# AICP — AI Context Protocol REST binding (§6 of the spec)
+#
+# The hub emits camelCase directly for these routes (the MCP server passes hub
+# JSON to agents verbatim). session.list/search reuse GET /v1/sessions +
+# POST /v1/query; the routes below add summary/recent/grep/handoff/stream.
+# All logic lives in contexthub.handoff; these route bodies stay thin.
+# ---------------------------------------------------------------------------
+
+def _aicp_raise(err) -> "HTTPException":
+    """Map an AICPError to the stable HTTP error channel."""
+    return HTTPException(status_code=err.status, detail=err.to_detail())
+
+
+@router.get("/v1/session/{session_id}/summary", response_model=SummaryResponse, tags=["aicp"])
+def aicp_summary(
+    session_id: str,
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+):
+    """AICP session.summary (L1) — the structured gist, redacted."""
+    from contexthub import handoff
+
+    try:
+        handoff.require_consent(request.headers.get("x-aicp-agent"))
+        return handoff.session_summary(session_id, caller)
+    except handoff.AICPError as e:
+        raise _aicp_raise(e)
+
+
+@router.get("/v1/session/{session_id}/recent", response_model=RecentResponse, tags=["aicp"])
+def aicp_recent(
+    session_id: str,
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+    n: int = Query(20, ge=0, le=500),
+    before_cursor: Optional[str] = Query(None),
+):
+    """AICP session.recent (L2) — last n normalized messages + a cursor."""
+    from contexthub import handoff
+
+    try:
+        handoff.require_consent(request.headers.get("x-aicp-agent"))
+        return handoff.session_recent(session_id, caller, n=n, before_cursor=before_cursor)
+    except handoff.AICPError as e:
+        raise _aicp_raise(e)
+
+
+@router.get("/v1/session/{session_id}/grep", response_model=GrepResponse, tags=["aicp"])
+def aicp_grep(
+    session_id: str,
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+    q: str = Query("", description="Keyword to find in the session"),
+    limit: int = Query(20, ge=1, le=200),
+):
+    """AICP session.grep (L3) — keyword find-in-session."""
+    from contexthub import handoff
+
+    try:
+        handoff.require_consent(request.headers.get("x-aicp-agent"))
+        return handoff.session_grep(session_id, caller, q=q, limit=limit)
+    except handoff.AICPError as e:
+        raise _aicp_raise(e)
+
+
+@router.get("/v1/session/{session_id}/handoff", response_model=HandoffPacket, tags=["aicp"])
+def aicp_handoff(
+    session_id: str,
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+    levels: str = Query("summary,recent", description="Comma-separated levels"),
+    n: int = Query(20, ge=0, le=500),
+):
+    """AICP session.handoff (push) — the full HandoffPacket bundle.
+
+    Envelope { protocol, session, summary, recent, more, issuedAt, issuedBy,
+    redacted } plus Freshet extension keys (decisions, touchedFiles, workingSet,
+    relatedSessions, openThreads, resumeHint).
+    """
+    from contexthub import handoff
+
+    try:
+        handoff.require_consent(request.headers.get("x-aicp-agent"))
+        level_list = [s.strip() for s in levels.split(",") if s.strip()]
+        return handoff.build_handoff_packet(session_id, caller, levels=level_list, n=n)
+    except handoff.AICPError as e:
+        raise _aicp_raise(e)
+
+
+@router.get("/v1/session/{session_id}/stream", tags=["aicp"])
+def aicp_stream(
+    session_id: str,
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+    from_cursor: Optional[str] = Query(None),
+):
+    """AICP session.stream (L4) — SSE stub.
+
+    A real, working SSE stream over the resolved messages (one NormalizedMessage
+    per event, each carrying a cursor), terminated by ``{"done": true}``. Deep
+    resumability (mid-flight reconnect dedupe, backpressure) is a documented
+    fast-follow.
+    """
+    from fastapi.responses import StreamingResponse
+
+    from contexthub import handoff
+
+    try:
+        handoff.require_consent(request.headers.get("x-aicp-agent"))
+        # Resolve eagerly so cursor / not_found errors surface as HTTP status
+        # codes rather than mid-stream (the SSE body cannot carry them).
+        gen = list(handoff.iter_stream_messages(session_id, caller, from_cursor=from_cursor))
+    except handoff.AICPError as e:
+        raise _aicp_raise(e)
+
+    return StreamingResponse((chunk for chunk in gen), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------

@@ -100,6 +100,80 @@ export interface ProvidersResponse {
   providers: ProviderInfo[];
 }
 
+// ─── AICP handoff types (already camelCase on the wire) ───────────────────────
+
+/** One normalized transcript message (AICP camelCase wire twin of Message). */
+export interface NormalizedMessage {
+  id: string;
+  role: "user" | "assistant" | "system" | "tool";
+  text: string;
+  thinking?: string | null;
+  toolName?: string | null;
+  timestamp?: string | null;
+  model?: string | null;
+}
+
+/** AICP L0 SessionManifest — lightweight, no message bodies. */
+export interface SessionManifest {
+  id: string;
+  tool: string;
+  title: string;
+  project?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  messageCount: number;
+  tokens?: { input: number; output: number } | null;
+  hasSummary: boolean;
+  visibility: string;
+  source: string;
+}
+
+export interface HandoffMore {
+  grep: string;
+  stream: string;
+}
+
+export interface HandoffDecision {
+  decision: string;
+  why?: string | null;
+}
+
+export interface HandoffWorkingSet {
+  repos: string[];
+  services: string[];
+  libraries: string[];
+}
+
+export interface HandoffRelatedSession {
+  id: string;
+  title?: string | null;
+  why?: string | null;
+}
+
+/**
+ * The AICP HandoffPacket envelope (spec §6) plus Freshet's additive superset
+ * keys. The envelope keys (protocol, session, summary, recent, more, issuedAt,
+ * issuedBy, redacted) are exact; the rest are Freshet extensions.
+ */
+export interface HandoffPacket {
+  // AICP envelope (exact)
+  protocol: "aicp/0.1";
+  session: SessionManifest;
+  summary: string;
+  recent: NormalizedMessage[];
+  more: HandoffMore;
+  issuedAt: string;
+  issuedBy: string;
+  redacted: boolean;
+  // Freshet extension keys (additive superset)
+  decisions: HandoffDecision[];
+  touchedFiles: string[];
+  workingSet: HandoffWorkingSet;
+  relatedSessions: HandoffRelatedSession[];
+  openThreads: string[];
+  resumeHint: string;
+}
+
 // ─── case conversion ────────────────────────────────────────────────────────
 
 const toSnake = (s: string) => s.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
@@ -272,6 +346,27 @@ export class ApiClient {
       answer: raw.answer,
       citations: camelify<Citation[]>(raw.citations) ?? [],
     };
+  }
+
+  /**
+   * Pull the AICP HandoffPacket for a session — the live cross-agent handoff
+   * bundle (envelope + decisions, touched files, working set, recent turns,
+   * related sessions, resume hint). The AICP routes emit camelCase directly, so
+   * (unlike the snake-case endpoints) the response is NOT run through camelify.
+   * Resolves from disk first (live/unpushed sessions) then the hub catalog.
+   */
+  async getHandoff(
+    sessionId: string,
+    opts?: { levels?: string; n?: number },
+  ): Promise<HandoffPacket> {
+    const qs = this.buildQuery({
+      levels: opts?.levels ?? "summary,recent",
+      n: opts?.n ?? 20,
+    });
+    return this.request<HandoffPacket>(
+      "GET",
+      `/v1/session/${encodeURIComponent(sessionId)}/handoff${qs}`,
+    );
   }
 
   /** Fetch the knowledge graph (optionally focused on a node's neighborhood). */

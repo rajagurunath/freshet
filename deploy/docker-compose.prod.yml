@@ -1,0 +1,66 @@
+# Freshet central hub — production stack for a single EC2 host.
+#
+#   cp .env.example .env   # then edit it (API keys, domain, storage)
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# `api` is the FastAPI hub; `caddy` terminates TLS (automatic Let's Encrypt) and
+# reverse-proxies to it. Sessions are stored on a Docker volume (disk) by default;
+# set S3_BUCKET + AWS creds in .env to store raw blobs in S3 instead.
+services:
+  api:
+    # Pull the image built by .github/workflows/docker.yml, or `build:` locally.
+    image: ${API_IMAGE:-ghcr.io/rajagurunath/freshet-api:latest}
+    # build: ../apps/api        # uncomment to build on the host instead of pulling
+    restart: unless-stopped
+    environment:
+      # --- auth: MUST override the dev default in production ---
+      API_KEYS: ${API_KEYS:?set real comma-separated API keys, e.g. k1:alice:team-a}
+      ENVIRONMENT: production
+      ASSET_TOKEN_SECRET: ${ASSET_TOKEN_SECRET:?set a random secret}
+      SHARE_TOKEN_SECRET: ${SHARE_TOKEN_SECRET:?set a random secret}
+      # --- CORS: the desktop app origins that may call this hub ---
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:1420,tauri://localhost}
+      # --- storage: disk (volume) by default; S3 when S3_BUCKET is set ---
+      LANCEDB_URI: /data/lancedb
+      BLOB_DIR: /data/blobs
+      GRAPH_DB: /data/graph.db
+      JOBS_DB: /data/jobs.db
+      RULES_DB: /data/rules.db
+      ASSETS_DB: /data/assets.db
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      # --- LLM for summaries/RAG (optional; local/hash works with none) ---
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+    volumes:
+      - freshet_data:/data
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8787/healthz').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      FRESHET_DOMAIN: ${FRESHET_DOMAIN:?set your domain, e.g. hub.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  freshet_data:
+  caddy_data:
+  caddy_config:

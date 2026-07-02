@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "freshet": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "freshet_mcp"],
+      "env": {
+        "FRESHET_HUB_URL": "${FRESHET_HUB_URL:-http://localhost:8787}",
+        "FRESHET_API_KEY": "${FRESHET_API_KEY:-dev-key}",
+        "FRESHET_AGENT": "claude"
+      }
+    }
+  }
+}

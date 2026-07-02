@@ -18,6 +18,7 @@ import {
   Copy,
   Check,
   Link,
+  Send,
 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/Button";
@@ -39,6 +40,7 @@ import { useSettings } from "@/store/settings";
 import type { Category, Visibility, PushEnvelope, SessionMessage } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
 import { makeApiClient } from "@/lib/api/client";
+import type { HandoffPacket } from "@/lib/api/client";
 import { sessionStats, formatDuration } from "@/lib/aggregate";
 import type { NormalizedSession } from "@/lib/types";
 
@@ -286,6 +288,13 @@ export function SessionDetailPage() {
   } | null>(null);
   const [resumeCopied, setResumeCopied] = useState(false);
 
+  // ── AICP "Hand off" state ───────────────────────────────────────────────
+  const [handoffOpen, setHandoffOpen] = useState(false);
+  const [handoffLoading, setHandoffLoading] = useState(false);
+  const [handoffError, setHandoffError] = useState<string | null>(null);
+  const [handoffPacket, setHandoffPacket] = useState<HandoffPacket | null>(null);
+  const [handoffCopied, setHandoffCopied] = useState(false);
+
   // Branching writes a forked JSONL; supported for Claude Code sessions only.
   const branchDisabledReason =
     session && session.tool !== "claude-code"
@@ -325,6 +334,43 @@ export function SessionDetailPage() {
       await navigator.clipboard.writeText(branchResult.resumeCommand);
       setResumeCopied(true);
       setTimeout(() => setResumeCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  // The MCP tool call the receiving agent runs to pull this packet live.
+  const handoffResumeCommand = handoffPacket
+    ? `freshet.session_handoff("${handoffPacket.session.id}")`
+    : "";
+
+  const openHandoff = async () => {
+    if (!session) return;
+    setHandoffOpen(true);
+    setHandoffLoading(true);
+    setHandoffError(null);
+    setHandoffPacket(null);
+    try {
+      const client = makeApiClient(settings.apiBaseUrl ?? "", settings.apiKey ?? "");
+      const packet = await client.getHandoff(session.id);
+      setHandoffPacket(packet);
+    } catch (e) {
+      setHandoffError(
+        e instanceof Error
+          ? e.message
+          : "Could not build the handoff. Is the hub running?",
+      );
+    } finally {
+      setHandoffLoading(false);
+    }
+  };
+
+  const copyHandoffResume = async () => {
+    if (!handoffResumeCommand) return;
+    try {
+      await navigator.clipboard.writeText(handoffResumeCommand);
+      setHandoffCopied(true);
+      setTimeout(() => setHandoffCopied(false), 1500);
     } catch {
       /* clipboard unavailable */
     }
@@ -568,6 +614,195 @@ export function SessionDetailPage() {
         )}
       </Modal>
 
+      {/* AICP "Hand off" modal */}
+      <Modal
+        open={handoffOpen}
+        onClose={() => setHandoffOpen(false)}
+        title="Hand off to another agent"
+        description="An AICP handoff brief — the gist, decisions, files in play, and recent turns — so Codex or Claude can resume mid-task without replaying the transcript."
+        size="lg"
+      >
+        {handoffLoading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-small text-ink-faint">
+            <Spinner />
+            Building handoff brief…
+          </div>
+        ) : handoffError ? (
+          <div className="space-y-4">
+            <p className="text-small text-danger">{handoffError}</p>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setHandoffOpen(false)}>
+                Close
+              </Button>
+              <Button variant="primary" size="sm" onClick={openHandoff}>
+                <RotateCcw size={13} />
+                Retry
+              </Button>
+            </div>
+          </div>
+        ) : handoffPacket ? (
+          <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-1">
+            {/* Resume command — the headline action */}
+            <div className="space-y-1.5">
+              <span className="text-micro text-ink-faint uppercase tracking-wide">
+                Continue in Codex / Claude
+              </span>
+              <p className="text-small text-ink-soft">
+                In the other agent's MCP-connected session, run this to pull the live brief:
+              </p>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-[8px] bg-bg-sunken border border-border">
+                <code className="flex-1 text-small font-mono text-ink truncate">
+                  {handoffResumeCommand}
+                </code>
+                <button
+                  onClick={copyHandoffResume}
+                  className="text-ink-faint hover:text-ink transition-colors duration-120 shrink-0"
+                  aria-label="Copy resume command"
+                >
+                  {handoffCopied ? (
+                    <Check size={14} className="text-success" />
+                  ) : (
+                    <Copy size={14} />
+                  )}
+                </button>
+              </div>
+              {handoffPacket.resumeHint && (
+                <p className="text-small text-ink-soft italic">{handoffPacket.resumeHint}</p>
+              )}
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Summary */}
+            {handoffPacket.summary && (
+              <div className="space-y-1">
+                <span className="text-micro text-ink-faint uppercase tracking-wide">Summary</span>
+                <p className="text-small text-ink leading-relaxed whitespace-pre-wrap">
+                  {handoffPacket.summary}
+                </p>
+              </div>
+            )}
+
+            {/* Decisions */}
+            {handoffPacket.decisions.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-micro text-ink-faint uppercase tracking-wide">Decisions</span>
+                <ul className="space-y-1.5">
+                  {handoffPacket.decisions.map((d, i) => (
+                    <li key={i} className="text-small text-ink">
+                      <span className="font-medium">{d.decision}</span>
+                      {d.why && <span className="text-ink-faint"> — {d.why}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Working set */}
+            {(handoffPacket.workingSet.repos.length > 0 ||
+              handoffPacket.workingSet.services.length > 0 ||
+              handoffPacket.workingSet.libraries.length > 0) && (
+              <div className="space-y-1.5">
+                <span className="text-micro text-ink-faint uppercase tracking-wide">Working set</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    ...handoffPacket.workingSet.repos,
+                    ...handoffPacket.workingSet.services,
+                    ...handoffPacket.workingSet.libraries,
+                  ].map((w) => (
+                    <span
+                      key={w}
+                      className="px-2 py-0.5 rounded-full bg-[#f1f8f8] border border-[#bfe0df] text-micro font-mono text-[#15807d]"
+                    >
+                      {w}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Touched files */}
+            {handoffPacket.touchedFiles.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-micro text-ink-faint uppercase tracking-wide">Files touched</span>
+                <ul className="space-y-0.5">
+                  {handoffPacket.touchedFiles.slice(0, 20).map((f) => (
+                    <li key={f} className="text-small font-mono text-ink-soft truncate">
+                      {f}
+                    </li>
+                  ))}
+                  {handoffPacket.touchedFiles.length > 20 && (
+                    <li className="text-small text-ink-faint">
+                      +{handoffPacket.touchedFiles.length - 20} more…
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {/* Related sessions */}
+            {handoffPacket.relatedSessions.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-micro text-ink-faint uppercase tracking-wide">
+                  Related sessions
+                </span>
+                <ul className="space-y-1">
+                  {handoffPacket.relatedSessions.map((r) => (
+                    <li key={r.id} className="text-small">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHandoffOpen(false);
+                          navigate(`/sessions/${r.id}`);
+                        }}
+                        className="text-accent-ink hover:underline font-medium truncate"
+                      >
+                        {r.title ?? r.id}
+                      </button>
+                      {r.why && <span className="text-ink-faint"> — {r.why}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Recent turns */}
+            {handoffPacket.recent.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-micro text-ink-faint uppercase tracking-wide">Recent turns</span>
+                <div className="space-y-2">
+                  {handoffPacket.recent.slice(-6).map((m) => (
+                    <div key={m.id} className="space-y-0.5">
+                      <span className="text-micro text-ink-faint font-mono uppercase">{m.role}</span>
+                      <p className="text-small text-ink-soft whitespace-pre-wrap line-clamp-4">
+                        {m.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!handoffPacket.summary &&
+              handoffPacket.decisions.length === 0 &&
+              handoffPacket.recent.length === 0 && (
+                <p className="text-small text-ink-faint italic">
+                  This session has no summary, decisions, or recent turns yet.
+                </p>
+              )}
+
+            {/* Footer meta */}
+            <div className="flex items-center justify-between pt-1 text-micro text-ink-faint">
+              <span>
+                {handoffPacket.session.source === "local" ? "Live (on disk)" : "From hub"}
+                {handoffPacket.redacted ? " · redacted" : ""}
+              </span>
+              <span className="font-mono">{handoffPacket.protocol}</span>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
       {/* Left: Main content area with tabs */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden border-r border-border">
         {/* Sticky header */}
@@ -581,6 +816,16 @@ export function SessionDetailPage() {
             </button>
             <ToolChip tool={session.tool} />
             <h1 className="text-h3 font-semibold text-ink truncate">{session.title}</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto shrink-0"
+              onClick={openHandoff}
+              title="Build an AICP handoff brief so another agent (Codex / Claude) can pick up where this left off"
+            >
+              <Send size={13} />
+              Hand off
+            </Button>
           </div>
           {/* Context line */}
           <div className="flex items-center gap-3 text-small text-ink-faint flex-wrap mb-3">
