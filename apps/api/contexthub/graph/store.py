@@ -126,6 +126,14 @@ class GraphStore:
             for stmt in _CREATE_IDX:
                 conn.execute(stmt)
             _ensure_column(conn, "nodes", "generic", "INTEGER NOT NULL DEFAULT 0")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS session_extract (
+                    session_id TEXT PRIMARY KEY,
+                    llm_done   INTEGER NOT NULL DEFAULT 0
+                );
+                """
+            )
             conn.commit()
 
     # ------------------------------------------------------------------
@@ -369,6 +377,23 @@ class GraphStore:
                 )
             conn.commit()
         return len(ids)
+
+    def mark_llm_extracted(self, session_id: str) -> None:
+        """Record that the LLM concept pass ran for a session (build resume)."""
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO session_extract (session_id, llm_done) VALUES (?, 1)",
+                (session_id,),
+            )
+            conn.commit()
+
+    def llm_extracted_session_ids(self) -> set[str]:
+        """Session ids whose LLM concept pass already ran."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT session_id FROM session_extract WHERE llm_done = 1"
+            ).fetchall()
+        return {r["session_id"] for r in rows}
 
     def node_ids_for_session(self, session_id: str) -> list[str]:
         """Return the ids of every node that carries the given session provenance.
