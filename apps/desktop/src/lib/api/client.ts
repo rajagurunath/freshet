@@ -421,6 +421,42 @@ export class ApiClient {
     };
   }
 
+  /** Edit a graph node. Renaming onto an existing (kind,name) hard-merges. */
+  async updateGraphNode(
+    id: string,
+    patch: { name?: string; kind?: string; summary?: string },
+  ): Promise<{ id: string; merged: boolean; node?: unknown }> {
+    return this.request("PATCH", `/v1/graph/nodes/${encodeURIComponent(id)}`, patch);
+  }
+
+  /** Delete a node; it will not be re-created by future extraction. */
+  async deleteGraphNode(id: string): Promise<void> {
+    await this.request("DELETE", `/v1/graph/nodes/${encodeURIComponent(id)}`);
+  }
+
+  /** Manually add a node. */
+  async createGraphNode(node: {
+    kind: string;
+    name: string;
+    summary?: string;
+  }): Promise<{ id: string }> {
+    return this.request("POST", "/v1/graph/nodes", node);
+  }
+
+  /** Manually link two existing nodes. */
+  async createGraphEdge(edge: {
+    src: string;
+    dst: string;
+    rel: string;
+  }): Promise<{ id: string }> {
+    return this.request("POST", "/v1/graph/edges", edge);
+  }
+
+  /** Delete an edge; it will not be re-created by future extraction. */
+  async deleteGraphEdge(id: string): Promise<void> {
+    await this.request("DELETE", `/v1/graph/edges/${encodeURIComponent(id)}`);
+  }
+
   /** List extracted rules (optionally filtered by status/author). */
   async listRules(opts?: {
     status?: RuleStatus;

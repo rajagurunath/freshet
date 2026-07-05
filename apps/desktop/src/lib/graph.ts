@@ -19,6 +19,7 @@ export interface GraphNode {
   name: string;
   summary?: string | null;
   visibility?: string | null;
+  generic?: boolean;
   sessionIds: string[];
 }
 
