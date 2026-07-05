@@ -38,6 +38,7 @@ session is not hidden by a later private mention.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sqlite3
@@ -134,7 +135,68 @@ class GraphStore:
                 );
                 """
             )
+            _ensure_column(conn, "nodes", "human_edited", "INTEGER NOT NULL DEFAULT 0")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS curation (
+                    id           TEXT PRIMARY KEY,
+                    action       TEXT NOT NULL,  -- alias|tombstone_node|tombstone_edge|edit|add
+                    kind         TEXT,
+                    name         TEXT,
+                    canonical_id TEXT,
+                    payload      TEXT,
+                    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_curation_lookup ON curation(action, kind, name);"
+            )
             conn.commit()
+
+    # ------------------------------------------------------------------
+    # Curation memory (human edits beat machine re-extraction)
+    # ------------------------------------------------------------------
+
+    def _curation_insert(
+        self,
+        conn: sqlite3.Connection,
+        action: str,
+        kind: Optional[str] = None,
+        name: Optional[str] = None,
+        canonical_id: Optional[str] = None,
+        payload: Optional[dict] = None,
+    ) -> None:
+        conn.execute(
+            "INSERT INTO curation (id, action, kind, name, canonical_id, payload) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), action, kind, name, canonical_id,
+             json.dumps(payload) if payload else None),
+        )
+
+    def _node_tombstoned(self, conn: sqlite3.Connection, kind: str, name: str) -> bool:
+        return conn.execute(
+            "SELECT 1 FROM curation WHERE action = 'tombstone_node' AND kind = ? AND name = ? LIMIT 1",
+            (kind, name),
+        ).fetchone() is not None
+
+    def _edge_tombstoned(self, conn: sqlite3.Connection, src: str, dst: str, rel: str) -> bool:
+        return conn.execute(
+            "SELECT 1 FROM curation WHERE action = 'tombstone_edge' AND name = ? LIMIT 1",
+            (f"{src}|{dst}|{rel}",),
+        ).fetchone() is not None
+
+    def _alias_target(self, conn: sqlite3.Connection, kind: str, name: str) -> Optional[str]:
+        row = conn.execute(
+            "SELECT canonical_id FROM curation WHERE action = 'alias' AND kind = ? AND name = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (kind, name),
+        ).fetchone()
+        if row is None:
+            return None
+        # The canonical node may itself have been merged away or deleted since.
+        ok = conn.execute("SELECT 1 FROM nodes WHERE id = ?", (row["canonical_id"],)).fetchone()
+        return row["canonical_id"] if ok else None
 
     # ------------------------------------------------------------------
     # Upserts
@@ -162,8 +224,20 @@ class GraphStore:
             raise ValueError("node kind and name are required")
 
         with self._connect() as conn:
+            if self._node_tombstoned(conn, kind, norm):
+                raise ValueError(f"node ({kind}, {norm}) was removed by the user")
+            target = self._alias_target(conn, kind, norm)
+            if target:
+                # The user renamed/merged this name — remap to the canonical node.
+                if session_id:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO node_sessions (node_id, session_id) VALUES (?, ?)",
+                        (target, session_id),
+                    )
+                conn.commit()
+                return target
             cur = conn.execute(
-                "SELECT id, visibility, summary FROM nodes WHERE kind = ? AND name = ?",
+                "SELECT id, visibility, summary, human_edited FROM nodes WHERE kind = ? AND name = ?",
                 (kind, norm),
             )
             row = cur.fetchone()
@@ -178,25 +252,27 @@ class GraphStore:
                 )
             else:
                 node_id = row["id"]
-                # Broaden visibility if the incoming one is broader.
-                cur_vis = row["visibility"] or "company"
-                if _VIS_RANK.get(visibility, 2) > _VIS_RANK.get(cur_vis, 2):
-                    new_vis = visibility
-                    new_author = author
-                    new_team = team
-                else:
-                    new_vis = cur_vis
-                    new_author = None  # keep existing
-                    new_team = None
-                new_summary = summary or row["summary"]
-                if new_author is not None or new_team is not None or new_vis != cur_vis:
-                    conn.execute(
-                        "UPDATE nodes SET visibility = ?, author = ?, team = ?, summary = ? WHERE id = ?",
-                        (new_vis, author if new_vis == visibility else None,
-                         team if new_vis == visibility else None, new_summary, node_id),
-                    )
-                elif new_summary != row["summary"]:
-                    conn.execute("UPDATE nodes SET summary = ? WHERE id = ?", (new_summary, node_id))
+                if not row["human_edited"]:
+                    # Broaden visibility if the incoming one is broader. Human-
+                    # edited nodes keep their fields (machine never overwrites).
+                    cur_vis = row["visibility"] or "company"
+                    if _VIS_RANK.get(visibility, 2) > _VIS_RANK.get(cur_vis, 2):
+                        new_vis = visibility
+                        new_author = author
+                        new_team = team
+                    else:
+                        new_vis = cur_vis
+                        new_author = None  # keep existing
+                        new_team = None
+                    new_summary = summary or row["summary"]
+                    if new_author is not None or new_team is not None or new_vis != cur_vis:
+                        conn.execute(
+                            "UPDATE nodes SET visibility = ?, author = ?, team = ?, summary = ? WHERE id = ?",
+                            (new_vis, author if new_vis == visibility else None,
+                             team if new_vis == visibility else None, new_summary, node_id),
+                        )
+                    elif new_summary != row["summary"]:
+                        conn.execute("UPDATE nodes SET summary = ? WHERE id = ?", (new_summary, node_id))
 
             # Record provenance
             if session_id:
@@ -224,6 +300,8 @@ class GraphStore:
         if not src or not dst or not rel:
             raise ValueError("edge src, dst and rel are required")
         with self._connect() as conn:
+            if self._edge_tombstoned(conn, src, dst, rel):
+                raise ValueError("edge was removed by the user")
             cur = conn.execute(
                 "SELECT id, weight FROM edges WHERE src = ? AND dst = ? AND rel = ?",
                 (src, dst, rel),
@@ -589,6 +667,186 @@ class GraphStore:
                         "rel": e["rel"], "weight": e["weight"], "session_id": e["session_id"],
                     })
         return {"nodes": nodes, "edges": edges}
+
+
+    # ------------------------------------------------------------------
+    # Human curation operations
+    # ------------------------------------------------------------------
+
+    def _merge_into(self, conn: sqlite3.Connection, loser_id: str, survivor_id: str) -> None:
+        """Move edges + provenance from loser to survivor, then drop the loser.
+
+        Runs inside the caller's transaction/connection so rename-with-merge is
+        atomic: a failure rolls the whole thing back.
+        """
+        conn.execute(
+            "INSERT OR IGNORE INTO node_sessions (node_id, session_id) "
+            "SELECT ?, session_id FROM node_sessions WHERE node_id = ?",
+            (survivor_id, loser_id),
+        )
+        conn.execute("DELETE FROM node_sessions WHERE node_id = ?", (loser_id,))
+        for e in conn.execute(
+            "SELECT * FROM edges WHERE src = ? OR dst = ?", (loser_id, loser_id)
+        ).fetchall():
+            new_src = survivor_id if e["src"] == loser_id else e["src"]
+            new_dst = survivor_id if e["dst"] == loser_id else e["dst"]
+            if new_src == new_dst:
+                conn.execute("DELETE FROM edges WHERE id = ?", (e["id"],))
+                continue
+            dup = conn.execute(
+                "SELECT id FROM edges WHERE src = ? AND dst = ? AND rel = ?",
+                (new_src, new_dst, e["rel"]),
+            ).fetchone()
+            if dup:
+                conn.execute(
+                    "UPDATE edges SET weight = weight + ? WHERE id = ?",
+                    (e["weight"], dup["id"]),
+                )
+                conn.execute("DELETE FROM edges WHERE id = ?", (e["id"],))
+            else:
+                conn.execute(
+                    "UPDATE edges SET src = ?, dst = ? WHERE id = ?",
+                    (new_src, new_dst, e["id"]),
+                )
+        conn.execute("DELETE FROM nodes WHERE id = ?", (loser_id,))
+
+    def rename_node(self, node_id: str, new_name: str) -> dict[str, Any]:
+        """Rename a node. Renaming onto an existing (kind, name) hard-merges.
+
+        Either way the old name becomes an alias, so future machine extraction
+        of it lands on the surviving node. Returns {"id": survivor, "merged": bool}.
+        """
+        norm = normalize_name(new_name)
+        if not norm:
+            raise ValueError("new name is required")
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)).fetchone()
+            if row is None:
+                raise KeyError(node_id)
+            kind, old_name = row["kind"], row["name"]
+            if norm == old_name:
+                return {"id": node_id, "merged": False}
+            existing = conn.execute(
+                "SELECT id FROM nodes WHERE kind = ? AND name = ?", (kind, norm)
+            ).fetchone()
+            if existing and existing["id"] != node_id:
+                survivor = existing["id"]
+                self._merge_into(conn, loser_id=node_id, survivor_id=survivor)
+                self._curation_insert(conn, "alias", kind=kind, name=old_name, canonical_id=survivor)
+                conn.execute("UPDATE nodes SET human_edited = 1 WHERE id = ?", (survivor,))
+                conn.commit()
+                return {"id": survivor, "merged": True}
+            conn.execute(
+                "UPDATE nodes SET name = ?, human_edited = 1 WHERE id = ?", (norm, node_id)
+            )
+            self._curation_insert(conn, "alias", kind=kind, name=old_name, canonical_id=node_id)
+            conn.commit()
+            return {"id": node_id, "merged": False}
+
+    def update_node(
+        self,
+        node_id: str,
+        kind: Optional[str] = None,
+        summary: Optional[str] = None,
+    ) -> None:
+        """Human edit of kind/summary. Marks the node human_edited (protected)."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)).fetchone()
+            if row is None:
+                raise KeyError(node_id)
+            new_kind = (kind or row["kind"]).strip().lower()
+            if new_kind != row["kind"]:
+                dup = conn.execute(
+                    "SELECT 1 FROM nodes WHERE kind = ? AND name = ? AND id != ?",
+                    (new_kind, row["name"], node_id),
+                ).fetchone()
+                if dup:
+                    raise ValueError(
+                        f"a {new_kind} named '{row['name']}' already exists — rename/merge instead"
+                    )
+            new_summary = summary if summary is not None else row["summary"]
+            conn.execute(
+                "UPDATE nodes SET kind = ?, summary = ?, human_edited = 1 WHERE id = ?",
+                (new_kind, new_summary, node_id),
+            )
+            self._curation_insert(
+                conn, "edit", kind=new_kind, name=row["name"], canonical_id=node_id,
+                payload={"from_kind": row["kind"]},
+            )
+            conn.commit()
+
+    def delete_node(self, node_id: str) -> None:
+        """Delete a node and tombstone its (kind, name) against re-extraction."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)).fetchone()
+            if row is None:
+                raise KeyError(node_id)
+            self._curation_insert(conn, "tombstone_node", kind=row["kind"], name=row["name"])
+            conn.execute("DELETE FROM edges WHERE src = ? OR dst = ?", (node_id, node_id))
+            conn.execute("DELETE FROM node_sessions WHERE node_id = ?", (node_id,))
+            conn.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
+            conn.commit()
+
+    def delete_edge(self, edge_id: str) -> None:
+        """Delete an edge and tombstone (src, dst, rel) against re-extraction."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM edges WHERE id = ?", (edge_id,)).fetchone()
+            if row is None:
+                raise KeyError(edge_id)
+            self._curation_insert(
+                conn, "tombstone_edge", name=f"{row['src']}|{row['dst']}|{row['rel']}"
+            )
+            conn.execute("DELETE FROM edges WHERE id = ?", (edge_id,))
+            conn.commit()
+
+    def create_node(
+        self,
+        kind: str,
+        name: str,
+        summary: Optional[str] = None,
+        visibility: str = "company",
+    ) -> dict[str, Any]:
+        """Manually add a node (source=human → human_edited, protected)."""
+        kind = (kind or "").strip().lower()
+        norm = normalize_name(name)
+        if not kind or not norm:
+            raise ValueError("node kind and name are required")
+        with self._connect() as conn:
+            if self._node_tombstoned(conn, kind, norm):
+                raise ValueError(
+                    f"({kind}, {norm}) was previously removed — restore is not supported yet"
+                )
+            existing = conn.execute(
+                "SELECT id FROM nodes WHERE kind = ? AND name = ?", (kind, norm)
+            ).fetchone()
+            if existing:
+                nid = existing["id"]
+                conn.execute(
+                    "UPDATE nodes SET summary = COALESCE(?, summary), human_edited = 1 WHERE id = ?",
+                    (summary, nid),
+                )
+            else:
+                nid = str(uuid.uuid4())
+                conn.execute(
+                    "INSERT INTO nodes (id, kind, name, summary, visibility, human_edited) "
+                    "VALUES (?, ?, ?, ?, ?, 1)",
+                    (nid, kind, norm, summary, visibility),
+                )
+            self._curation_insert(conn, "add", kind=kind, name=norm, canonical_id=nid)
+            conn.commit()
+        return {"id": nid, "kind": kind, "name": norm, "summary": summary}
+
+    def create_edge(self, src: str, dst: str, rel: str) -> str:
+        """Manually add an edge between two existing nodes."""
+        with self._connect() as conn:
+            for nid in (src, dst):
+                if conn.execute("SELECT 1 FROM nodes WHERE id = ?", (nid,)).fetchone() is None:
+                    raise KeyError(nid)
+        edge_id = self.upsert_edge(src=src, dst=dst, rel=rel)
+        with self._connect() as conn:
+            self._curation_insert(conn, "add", name=f"{src}|{dst}|{rel}", canonical_id=edge_id)
+            conn.commit()
+        return edge_id
 
 
 # ---------------------------------------------------------------------------
