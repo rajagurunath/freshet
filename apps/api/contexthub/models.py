@@ -260,6 +260,30 @@ class GraphResponse(BaseModel):
     edges: list[GraphEdge]
 
 
+class GraphNodePatch(BaseModel):
+    """PATCH /v1/graph/nodes/{id} — any subset of fields."""
+
+    name: Optional[str] = None
+    kind: Optional[str] = None
+    summary: Optional[str] = None
+
+
+class GraphNodeCreate(BaseModel):
+    """POST /v1/graph/nodes — manual (human) node."""
+
+    kind: str
+    name: str
+    summary: Optional[str] = None
+
+
+class GraphEdgeCreate(BaseModel):
+    """POST /v1/graph/edges — manual (human) edge between existing nodes."""
+
+    src: str
+    dst: str
+    rel: str
+
+
 # ---------------------------------------------------------------------------
 # AICP — AI Context Protocol (session exchange, §6 of the spec)
 # camelCase on the wire; snake_case in Python via alias generator.
