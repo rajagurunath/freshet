@@ -238,6 +238,7 @@ class GraphNode(BaseModel):
     name: str
     summary: Optional[str] = None
     visibility: Optional[str] = None
+    generic: bool = False
     session_ids: list[str] = Field(default_factory=list)
 
 

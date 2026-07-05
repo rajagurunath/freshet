@@ -99,6 +99,21 @@ class Settings(BaseSettings):
     # Include granular, mostly session-local kinds (file/function/config/error).
     ner_granular: bool = False
 
+    # ---------------------------------------------------------------------------
+    # GraphRAG extraction overhaul
+    # ---------------------------------------------------------------------------
+    # A node appearing in more than this fraction of all sessions is a generic
+    # hub: hidden by default in the viz, never a retrieval seed/expansion hop.
+    graph_generic_fraction: float = 0.25
+    # Corpus floor (distinct sessions) before any node may be flagged generic.
+    graph_generic_min_sessions: int = 20
+    # Tiered LLM concept extraction in the offline graph build: NER runs on
+    # everything; the LLM (feature/decision/problem concepts) only on the
+    # worthiest fraction of sessions, capped per run. Resumable via graph.db.
+    graph_llm_enabled: bool = True
+    graph_llm_fraction: float = 0.33
+    graph_llm_max_sessions: int = 300
+
     # SQLite path for the asset hub (Task 15)
     assets_db: str = "./data/assets.db"
 

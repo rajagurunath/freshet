@@ -96,6 +96,12 @@ def normalize_name(name: str) -> str:
     return (name or "").strip().lower()
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, col: str, decl: str) -> None:
+    cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if col not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+
+
 class GraphStore:
     """Thin SQLite wrapper around the nodes/edges tables."""
 
@@ -119,6 +125,7 @@ class GraphStore:
             conn.execute(_CREATE_NODE_SESSIONS)
             for stmt in _CREATE_IDX:
                 conn.execute(stmt)
+            _ensure_column(conn, "nodes", "generic", "INTEGER NOT NULL DEFAULT 0")
             conn.commit()
 
     # ------------------------------------------------------------------
@@ -265,6 +272,7 @@ class GraphStore:
             "name": row["name"],
             "summary": row["summary"],
             "visibility": row["visibility"],
+            "generic": bool(row["generic"]) if "generic" in row.keys() else False,
         }
 
     def list_nodes(
@@ -329,6 +337,38 @@ class GraphStore:
                 "SELECT DISTINCT session_id FROM node_sessions"
             ).fetchall()
         return [r["session_id"] for r in rows if r["session_id"]]
+
+    def recompute_generic_flags(self, fraction: float = 0.25, min_total: int = 20) -> int:
+        """Flag nodes appearing in more than ``fraction`` of all sessions as generic.
+
+        Generic hubs (a ubiquitous tool like "github") drown the viz and the
+        retrieval walk. Below ``min_total`` distinct sessions the corpus is too
+        small to judge, so all flags are cleared and nothing is marked.
+        Returns the number of nodes flagged.
+        """
+        with self._connect() as conn:
+            total = conn.execute(
+                "SELECT COUNT(DISTINCT session_id) FROM node_sessions"
+            ).fetchone()[0]
+            conn.execute("UPDATE nodes SET generic = 0")
+            if total < min_total:
+                conn.commit()
+                return 0
+            cutoff = max(int(total * fraction), 3)
+            rows = conn.execute(
+                "SELECT node_id, COUNT(DISTINCT session_id) AS c "
+                "FROM node_sessions GROUP BY node_id HAVING c > ?",
+                (cutoff,),
+            ).fetchall()
+            ids = [r["node_id"] for r in rows]
+            for start in range(0, len(ids), 500):
+                chunk = ids[start : start + 500]
+                conn.execute(
+                    f"UPDATE nodes SET generic = 1 WHERE id IN ({','.join('?' * len(chunk))})",
+                    chunk,
+                )
+            conn.commit()
+        return len(ids)
 
     def node_ids_for_session(self, session_id: str) -> list[str]:
         """Return the ids of every node that carries the given session provenance.

@@ -108,6 +108,25 @@ class TestGraphStore:
         matches = self.store.find_nodes_by_terms(["payment"])
         assert any(n["name"] == "payment gateway" for n in matches)
 
+    def test_recompute_generic_flags(self):
+        # 30 sessions all mention "github"; "checkout" appears in 2.
+        for i in range(30):
+            self.store.upsert_node(kind="tool", name="github", session_id=f"s{i}")
+        self.store.upsert_node(kind="feature", name="checkout", session_id="s1")
+        self.store.upsert_node(kind="feature", name="checkout", session_id="s2")
+
+        flagged = self.store.recompute_generic_flags(fraction=0.25, min_total=20)
+        assert flagged == 1
+        nodes = {n["name"]: n for n in self.store.list_nodes()}
+        assert nodes["github"]["generic"] is True
+        assert nodes["checkout"]["generic"] is False
+
+    def test_generic_flags_noop_on_tiny_corpus(self):
+        self.store.upsert_node(kind="tool", name="github", session_id="s1")
+        self.store.upsert_node(kind="tool", name="github", session_id="s2")
+        assert self.store.recompute_generic_flags(fraction=0.25, min_total=20) == 0
+        assert self.store.list_nodes()[0]["generic"] is False
+
     def test_cross_session_shared_feature_links_sessions(self):
         """A feature touched by two repos' sessions becomes one shared node."""
         f1 = self.store.upsert_node(kind="feature", name="checkout", session_id="s_api", visibility="company")

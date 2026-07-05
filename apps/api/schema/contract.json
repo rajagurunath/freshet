@@ -303,6 +303,11 @@
     "GraphNode": {
       "description": "A knowledge-graph node (deduped by (kind, name)).",
       "properties": {
+        "generic": {
+          "default": false,
+          "title": "Generic",
+          "type": "boolean"
+        },
         "id": {
           "title": "Id",
           "type": "string"

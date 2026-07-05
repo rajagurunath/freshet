@@ -739,6 +739,7 @@ def _build_graph_response(store, nodes: list[dict], edges: list[dict]) -> "Graph
             name=n["name"],
             summary=n.get("summary"),
             visibility=n.get("visibility"),
+            generic=bool(n.get("generic", False)),
             session_ids=store.sessions_for_node(n["id"]),
         )
         for n in nodes
