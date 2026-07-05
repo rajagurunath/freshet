@@ -70,3 +70,41 @@ def test_graph_search_empty_when_no_seeds():
 
         store = GraphStore(os.path.join(tmp, "graph.db"))
         assert graph_search("nothing here", store, terms=["zzz"], limit=10) == []
+
+
+# ---------------------------------------------------------------------------
+# Generic-hub exclusion (GraphRAG overhaul)
+# ---------------------------------------------------------------------------
+
+def test_generic_nodes_do_not_seed_the_walk(tmp_path):
+    from contexthub.graph.retrieve import graph_search
+    from contexthub.graph.store import GraphStore
+
+    store = GraphStore(str(tmp_path / "g.db"))
+    for i in range(30):
+        store.upsert_node(kind="tool", name="python", session_id=f"s{i}")
+    store.upsert_node(kind="feature", name="checkout", session_id="s1")
+    store.recompute_generic_flags(fraction=0.25, min_total=20)
+
+    # "python" is the only term match but it is generic → no seeds → no results.
+    assert graph_search("python performance tips", store) == []
+    # a non-generic concept still seeds normally
+    assert "s1" in graph_search("checkout flow", store)
+
+
+def test_generic_seed_sessions_do_not_flood_via_hub(tmp_path):
+    from contexthub.graph.retrieve import graph_search
+    from contexthub.graph.store import GraphStore
+
+    store = GraphStore(str(tmp_path / "g.db"))
+    for i in range(30):
+        store.upsert_node(kind="tool", name="python", session_id=f"s{i}")
+    a = store.upsert_node(kind="feature", name="checkout", session_id="seed-sess")
+    hub = store.upsert_node(kind="tool", name="python", session_id="seed-sess")
+    store.upsert_edge(src=a, dst=hub, rel="uses", session_id="seed-sess")
+    store.recompute_generic_flags(fraction=0.25, min_total=20)
+
+    ranked = graph_search("unrelated words", store, seed_session_ids=["seed-sess"])
+    # seed-sess surfaces via its non-generic entity; the 30 hub-only sessions
+    # must not — the generic hub is neither seeded, expanded, nor projected.
+    assert ranked == ["seed-sess"]
