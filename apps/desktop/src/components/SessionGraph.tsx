@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Share2, ExternalLink, Loader2 } from "lucide-react";
 import { useSettings } from "@/store/settings";
 import { makeApiClient } from "@/lib/api/client";
+import { GraphNodePanel } from "@/components/GraphNodePanel";
 import {
   computeForceLayout,
   kindColor,
   nodeRadius,
   type GraphData,
+  type GraphNode,
 } from "@/lib/graph";
 
 const W = 600;
@@ -29,6 +31,20 @@ export function SessionGraph({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const refetch = useCallback(async () => {
+    if (!settings.apiBaseUrl) return;
+    const client = makeApiClient(settings.apiBaseUrl, settings.apiKey ?? "");
+    try {
+      const g = await client.getSessionGraph(sessionId);
+      setData(g);
+      // A rename/merge/delete may have removed the selected node.
+      setSelectedId((cur) => (cur && !g.nodes.some((n) => n.id === cur) ? null : cur));
+    } catch {
+      /* keep current view */
+    }
+  }, [sessionId, settings.apiBaseUrl, settings.apiKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,8 +165,18 @@ export function SessionGraph({ sessionId }: { sessionId: string }) {
               const c = kindColor(n.kind);
               const r = nodeRadius(n);
               return (
-                <g key={n.id} transform={`translate(${p.x}, ${p.y})`}>
-                  <circle r={r} fill={c.fill} stroke={c.stroke} strokeWidth={1.25} />
+                <g
+                  key={n.id}
+                  transform={`translate(${p.x}, ${p.y})`}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedId(n.id)}
+                >
+                  <circle
+                    r={r}
+                    fill={c.fill}
+                    stroke={selectedId === n.id ? "#F2541B" : c.stroke}
+                    strokeWidth={selectedId === n.id ? 2.5 : 1.25}
+                  />
                   <text
                     y={r + 11}
                     textAnchor="middle"
@@ -165,6 +191,23 @@ export function SessionGraph({ sessionId }: { sessionId: string }) {
               );
             })}
           </svg>
+        </div>
+      )}
+
+      {/* Node inspector/editor for the clicked node (same panel as GraphPage). */}
+      {selectedId && data && nodeById.get(selectedId) && (
+        <div className="flex justify-end">
+          <GraphNodePanel
+            node={nodeById.get(selectedId) as GraphNode}
+            edges={data.edges.filter((e) => e.src === selectedId || e.dst === selectedId)}
+            nodeById={nodeById}
+            allNodes={data.nodes}
+            localSessionIds={new Set([sessionId])}
+            client={makeApiClient(settings.apiBaseUrl ?? "", settings.apiKey ?? "")}
+            onClose={() => setSelectedId(null)}
+            onSelect={(id) => setSelectedId(id)}
+            onChanged={() => void refetch()}
+          />
         </div>
       )}
 
