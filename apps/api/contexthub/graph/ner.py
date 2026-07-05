@@ -83,6 +83,56 @@ _RE_CONST = re.compile(r"\b([A-Z][A-Z0-9]*_[A-Z0-9_]+)\b")
 # error type: SomethingError / SomethingException / ERR_FOO
 _RE_ERROR = re.compile(r"\b((?:[A-Z][a-zA-Z0-9]*)?(?:Error|Exception)|ERR_[A-Z0-9_]+)\b")
 
+# URLs, markdown link targets, and bare paths are where slug garbage comes from
+# ("/get-started-with-caas-api" is a docs anchor, not a service).
+_RE_URL = re.compile(r"(?:https?://|www\.)\S+|\]\([^)]*\)", re.IGNORECASE)
+
+# GitHub/GitLab path prefixes that are site routes, not repositories.
+_REPO_ROUTE_BLOCKLIST = {
+    "login", "orgs", "settings", "search", "topics", "features", "blog",
+    "about", "pulls", "issues", "notifications", "marketplace", "sponsors",
+    "apps", "repos", "collections", "trending", "explore", "site", "contact",
+}
+
+
+def _strip_urls(text: str) -> str:
+    """Blank out URLs / markdown link targets so slug fragments can't match."""
+    return _RE_URL.sub(" ", text)
+
+
+def _service_candidates(text: str) -> list[str]:
+    """High-precision service names: not path segments, not header prefixes,
+    and (unless code-quoted) mentioned more than once.
+
+    A hyphenated token ending in api/server/gateway/… matched exactly once in
+    plain prose is overwhelmingly a slug or a hypothetical, not a service the
+    session actually touched (verified on the real corpus: turn-your-api,
+    contracts-and-api, x-api). Requiring a second mention or backtick context
+    keeps the real ones.
+    """
+    stripped = _strip_urls(text)
+    raw: list[str] = []
+    for m in _RE_SERVICE.finditer(stripped):
+        start, end = m.start(1), m.end(1)
+        before = stripped[start - 1] if start > 0 else " "
+        after = stripped[end] if end < len(stripped) else " "
+        if before == "/" or after in "/-":
+            # path segment ("/reference/turn-your-api") or a longer hyphenated
+            # token we only prefix-matched ("x-api-key")
+            continue
+        raw.append(m.group(1))
+
+    counts: dict[str, int] = {}
+    for name in raw:
+        counts[name.lower()] = counts.get(name.lower(), 0) + 1
+
+    low = text.lower()
+    kept: list[str] = []
+    for name in dict.fromkeys(n.lower() for n in raw):
+        if counts[name] >= 2 or f"`{name}" in low:
+            kept.append(name)
+    return kept
+
 
 _LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+", re.IGNORECASE)
 
@@ -132,14 +182,16 @@ def extract_code_entities(text: str, granular: bool = False) -> list[Entity]:
     text = text or ""
     out: dict[tuple[str, str], Entity] = {}
 
-    for m in _RE_SERVICE.finditer(text):
-        _add(out, "service", m.group(1))
+    for name in _service_candidates(text):
+        _add(out, "service", name)
 
     # repos: keep only plausible org/name (reject if it matched a file path)
     for m in _RE_REPO.finditer(text):
         cand = m.group(1)
         if "." in cand.split("/")[-1]:  # trailing segment has an extension → file
             continue
+        if cand.split("/")[0].lower() in _REPO_ROUTE_BLOCKLIST:
+            continue  # github.com/login/device, /orgs/…, /settings/… are routes
         _add(out, "repo", cand)
 
     low = text.lower()
