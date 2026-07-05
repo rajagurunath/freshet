@@ -22,7 +22,10 @@ def _names(ents: list[Entity], kind: str) -> set[str]:
 
 
 def test_service_extraction():
-    ents = extract_code_entities("Built the payments-api and the auth-gateway worker.")
+    ents = extract_code_entities(
+        "Built the payments-api and the `auth-gateway` worker. "
+        "The payments-api now retries on 502."
+    )
     services = _names(ents, "service")
     assert "payments-api" in services
     assert "auth-gateway" in services
@@ -89,6 +92,51 @@ def test_leading_article_stripped():
     assert _norm("An OAuth flow") == "oauth flow"
 
 
+# ---------------------------------------------------------------------------
+# Precision regressions — literal garbage observed in the real data-real graph
+# ---------------------------------------------------------------------------
+
+class TestServicePrecision:
+    def test_service_ignores_url_slugs(self):
+        text = (
+            "See https://docs.io.net/get-started-with-caas-api for setup, "
+            "then read /reference/turn-your-api and "
+            "[the guide](https://docs.io.net/contracts-and-api)."
+        )
+        names = _names(extract_code_entities(text), "service")
+        assert "get-started-with-caas-api" not in names
+        assert "turn-your-api" not in names
+        assert "contracts-and-api" not in names
+
+    def test_service_requires_repetition_or_code_context(self):
+        # once, prose only → dropped
+        once = "Maybe we should split out a billing-service later."
+        assert not _names(extract_code_entities(once), "service")
+        # once, in backticks → kept
+        code = "Deploy `auth-gateway` before the migration."
+        assert "auth-gateway" in _names(extract_code_entities(code), "service")
+        # twice in prose → kept
+        twice = "The payments-api timed out. Restarting payments-api fixed it."
+        assert "payments-api" in _names(extract_code_entities(twice), "service")
+
+    def test_service_rejects_header_prefixes(self):
+        text = "Send the x-api-key header. The x-api-key value rotates daily."
+        assert not _names(extract_code_entities(text), "service")
+
+
+class TestRepoPrecision:
+    def test_repo_blocklists_non_repo_github_routes(self):
+        text = (
+            "Log in at https://github.com/login/device then star "
+            "https://github.com/rajagurunath/context-hub — also see "
+            "https://github.com/orgs/acme/repositories."
+        )
+        names = _names(extract_code_entities(text), "repo")
+        assert "login/device" not in names
+        assert "orgs/acme" not in names
+        assert "rajagurunath/context-hub" in names
+
+
 @pytest.mark.skipif(not spacy_available(), reason="spaCy optional extra not installed")
 def test_spacy_person_entities():
     from contexthub.graph.ner import extract_spacy_entities
@@ -99,8 +147,9 @@ def test_spacy_person_entities():
 
 
 def test_extract_ner_graph_builds_backbone():
-    """The NER pass upserts structural entities + co-occurrence edges into a graph,
-    and excludes the noisy spaCy ORG/PRODUCT kinds from the shared graph feed."""
+    """The NER pass upserts structural entities into a graph, and excludes the
+    noisy spaCy ORG/PRODUCT kinds from the shared graph feed. Edges are no
+    longer written per session (corpus-level PPMI replaces the star)."""
     import os, tempfile
     from contexthub.graph.store import GraphStore
     from contexthub.graph.ner import extract_ner_graph
@@ -120,7 +169,22 @@ def test_extract_ner_graph_builds_backbone():
         names = {n["name"]: n["kind"] for n in store.list_nodes()}
         assert names.get("payments-api") == "service"
         assert "stripe" in names and "redis" in names
-        # Co-occurrence edges connect the session's entities.
-        assert any(e["rel"] == "co_occurs" for e in store.list_edges())
         # All node kinds are from the high-precision allowlist.
         assert set(names.values()) <= {"service", "repo", "tool", "person"}
+
+
+def test_extract_ner_graph_writes_no_star_edges(tmp_path):
+    from contexthub.graph.ner import extract_ner_graph
+    from contexthub.graph.store import GraphStore
+    from contexthub.models import Message, NormalizedSession
+
+    store = GraphStore(str(tmp_path / "g.db"))
+    sess = NormalizedSession(
+        id="s1", tool="claude-code", title="t",
+        messages=[Message(id="m1", role="user",
+                          text="We wired `payments-api` to redis. payments-api works.")],
+    )
+    res = extract_ner_graph(sess, None, store)
+    assert res["nodes_upserted"] >= 2
+    assert res["edges_upserted"] == 0
+    assert store.list_edges() == []

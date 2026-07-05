@@ -73,6 +73,7 @@ export interface GraphEdge {
 
 /** A knowledge-graph node (deduped by (kind, name)). */
 export interface GraphNode {
+  generic?: boolean;
   id: string;
   kind: string;
   name: string;

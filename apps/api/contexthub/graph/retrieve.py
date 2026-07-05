@@ -82,16 +82,26 @@ def graph_search(
                 term_list, caller_user_id=caller_user_id,
                 caller_team=caller_team, limit=30,
             ):
+                if n.get("generic"):
+                    continue  # a ubiquitous entity says nothing about the query
                 seeds[n["id"]] = max(seeds.get(n["id"], 0.0), 1.0)
         except Exception:
             pass
 
+    sess_seed_ids: list[str] = []
     for sid in seed_session_ids or []:
         try:
-            for nid in store.node_ids_for_session(sid):
-                seeds[nid] = max(seeds.get(nid, 0.0), 1.0)
+            sess_seed_ids.extend(store.node_ids_for_session(sid))
         except Exception:
             continue
+    if sess_seed_ids:
+        try:
+            for n in store.get_nodes(sess_seed_ids):
+                if not n.get("generic"):
+                    seeds[n["id"]] = max(seeds.get(n["id"], 0.0), 1.0)
+        except Exception:
+            for nid in sess_seed_ids:
+                seeds[nid] = max(seeds.get(nid, 0.0), 1.0)
 
     for nid in extra_seed_node_ids or []:
         seeds[nid] = max(seeds.get(nid, 0.0), 1.0)
@@ -104,6 +114,10 @@ def graph_search(
     frontier: dict[str, float] = dict(seeds)
     for hop in range(max_hops + 1):
         next_frontier: dict[str, float] = {}
+        try:
+            frontier_rows = {r["id"]: r for r in store.get_nodes(list(frontier))}
+        except Exception:
+            frontier_rows = {}
         for nid, w in frontier.items():
             if w <= node_score.get(nid, 0.0):
                 # Already reached this node via an equal/stronger path.
@@ -112,6 +126,9 @@ def graph_search(
             node_score[nid] = max(node_score.get(nid, 0.0), w)
             if hop >= max_hops:
                 continue
+            row = frontier_rows.get(nid)
+            if row is not None and row.get("generic"):
+                continue  # score generic nodes, never expand through them
             # Hub guard: a node that belongs to very many sessions is generic;
             # scoring it is fine but expanding *through* it floods the walk.
             try:
@@ -140,8 +157,18 @@ def graph_search(
         frontier = next_frontier
 
     # --- 3. project nodes onto sessions -------------------------------------
+    # Generic hubs are excluded here too: projecting a ubiquitous entity onto
+    # its (many) sessions would rank the whole corpus.
+    try:
+        generic_ids = {
+            r["id"] for r in store.get_nodes(list(node_score)) if r.get("generic")
+        }
+    except Exception:
+        generic_ids = set()
     sess_score: dict[str, float] = {}
     for nid, w in node_score.items():
+        if nid in generic_ids:
+            continue
         try:
             for sid in store.sessions_for_node(nid):
                 sess_score[sid] = sess_score.get(sid, 0.0) + w

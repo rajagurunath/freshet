@@ -32,6 +32,9 @@ from contexthub.models import (
     AssetPage,
     BatchSummarizeRequest,
     BatchSummarizeResponse,
+    GraphEdgeCreate,
+    GraphNodeCreate,
+    GraphNodePatch,
     GrepResponse,
     HandoffPacket,
     IngestRequest,
@@ -739,6 +742,7 @@ def _build_graph_response(store, nodes: list[dict], edges: list[dict]) -> "Graph
             name=n["name"],
             summary=n.get("summary"),
             visibility=n.get("visibility"),
+            generic=bool(n.get("generic", False)),
             session_ids=store.sessions_for_node(n["id"]),
         )
         for n in nodes
@@ -940,6 +944,99 @@ def graph_build_progress(caller: Caller = Depends(require_api_key)):
     from contexthub.graph.build import get_progress
 
     return get_progress()
+
+
+# ---------------------------------------------------------------------------
+# Graph curation (human edits beat machine extraction)
+# ---------------------------------------------------------------------------
+
+@router.patch("/v1/graph/nodes/{node_id}", tags=["graph"])
+def patch_graph_node(
+    node_id: str,
+    body: GraphNodePatch,
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+):
+    """Edit a node. Renaming onto an existing (kind, name) hard-merges into it;
+    the old name becomes an alias so future extraction remaps automatically."""
+    from contexthub.graph.store import get_graph_store
+
+    store = get_graph_store()
+    result_id, merged = node_id, False
+    try:
+        if body.name is not None:
+            res = store.rename_node(node_id, body.name)
+            result_id, merged = res["id"], res["merged"]
+        if body.kind is not None or body.summary is not None:
+            store.update_node(result_id, kind=body.kind, summary=body.summary)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found.")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    # The graph changed shape: re-evaluate cross-session same_as links for the
+    # sessions this node touches (adaptation — retrieval reads live, resolution
+    # re-runs off the request path).
+    try:
+        job_store = request.app.state.job_store
+        for sid in store.sessions_for_node(result_id)[:3]:
+            job_store.enqueue(kind="entity_resolve", payload={"session_id": sid})
+    except Exception:
+        logger.exception("patch_graph_node: failed to enqueue entity_resolve")
+
+    nodes = store.get_nodes([result_id])
+    return {"id": result_id, "merged": merged, "node": nodes[0] if nodes else None}
+
+
+@router.delete("/v1/graph/nodes/{node_id}", tags=["graph"])
+def delete_graph_node(node_id: str, caller: Caller = Depends(require_api_key)):
+    """Delete a node; its (kind, name) is tombstoned against re-extraction."""
+    from contexthub.graph.store import get_graph_store
+
+    try:
+        get_graph_store().delete_node(node_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found.")
+    return {"deleted": True}
+
+
+@router.post("/v1/graph/nodes", tags=["graph"], status_code=201)
+def create_graph_node(body: GraphNodeCreate, caller: Caller = Depends(require_api_key)):
+    """Manually add a node (marked human-edited, protected from extraction)."""
+    from contexthub.graph.store import get_graph_store
+
+    try:
+        return get_graph_store().create_node(
+            kind=body.kind, name=body.name, summary=body.summary
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.post("/v1/graph/edges", tags=["graph"], status_code=201)
+def create_graph_edge(body: GraphEdgeCreate, caller: Caller = Depends(require_api_key)):
+    """Manually add an edge between two existing nodes."""
+    from contexthub.graph.store import get_graph_store
+
+    try:
+        edge_id = get_graph_store().create_edge(src=body.src, dst=body.dst, rel=body.rel)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Node {exc} not found.")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"id": edge_id}
+
+
+@router.delete("/v1/graph/edges/{edge_id}", tags=["graph"])
+def delete_graph_edge(edge_id: str, caller: Caller = Depends(require_api_key)):
+    """Delete an edge; (src, dst, rel) is tombstoned against re-extraction."""
+    from contexthub.graph.store import get_graph_store
+
+    try:
+        get_graph_store().delete_edge(edge_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Edge '{edge_id}' not found.")
+    return {"deleted": True}
 
 
 @router.post("/v1/graph/build-session/{session_id}", tags=["graph"])

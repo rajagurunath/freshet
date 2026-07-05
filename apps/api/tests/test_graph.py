@@ -108,6 +108,25 @@ class TestGraphStore:
         matches = self.store.find_nodes_by_terms(["payment"])
         assert any(n["name"] == "payment gateway" for n in matches)
 
+    def test_recompute_generic_flags(self):
+        # 30 sessions all mention "github"; "checkout" appears in 2.
+        for i in range(30):
+            self.store.upsert_node(kind="tool", name="github", session_id=f"s{i}")
+        self.store.upsert_node(kind="feature", name="checkout", session_id="s1")
+        self.store.upsert_node(kind="feature", name="checkout", session_id="s2")
+
+        flagged = self.store.recompute_generic_flags(fraction=0.25, min_total=20)
+        assert flagged == 1
+        nodes = {n["name"]: n for n in self.store.list_nodes()}
+        assert nodes["github"]["generic"] is True
+        assert nodes["checkout"]["generic"] is False
+
+    def test_generic_flags_noop_on_tiny_corpus(self):
+        self.store.upsert_node(kind="tool", name="github", session_id="s1")
+        self.store.upsert_node(kind="tool", name="github", session_id="s2")
+        assert self.store.recompute_generic_flags(fraction=0.25, min_total=20) == 0
+        assert self.store.list_nodes()[0]["generic"] is False
+
     def test_cross_session_shared_feature_links_sessions(self):
         """A feature touched by two repos' sessions becomes one shared node."""
         f1 = self.store.upsert_node(kind="feature", name="checkout", session_id="s_api", visibility="company")
@@ -505,3 +524,38 @@ def test_resolve_backfill_targets_extracted_sessions(client: TestClient):
     # The extracted session is a resolution target; the pending one is skipped.
     assert data["enqueued"] >= 1
     assert data["skipped"] >= 1
+
+
+def test_extract_accepts_problem_kind_and_coerces_unknown_rels(tmp_path):
+    import json as _json
+
+    from contexthub.graph.extract import extract_graph
+    from contexthub.graph.store import GraphStore
+    from contexthub.models import NormalizedSession
+
+    class StubLLM:
+        def available(self):
+            return True
+
+        def complete(self, system, user, max_tokens=1024):
+            return _json.dumps({
+                "nodes": [
+                    {"kind": "problem", "name": "session id mismatch",
+                     "summary": "ids diverged between stores"},
+                    {"kind": "feature", "name": "checkout", "summary": "checkout flow"},
+                ],
+                "edges": [
+                    {"src": "checkout", "dst": "session id mismatch",
+                     "rel": "was blocked by"},
+                ],
+            })
+
+    store = GraphStore(str(tmp_path / "g.db"))
+    sess = NormalizedSession(id="s1", tool="claude-code", title="t")
+    res = extract_graph(sess, "summary text", store, llm=StubLLM())
+    assert res["nodes_upserted"] == 2
+    kinds = {n["kind"] for n in store.list_nodes()}
+    assert "problem" in kinds  # not bucketed into "feature"
+    edges = store.list_edges()
+    assert len(edges) == 1
+    assert edges[0]["rel"] == "related_to"  # unknown verb coerced, not dropped

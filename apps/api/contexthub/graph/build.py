@@ -115,6 +115,41 @@ def to_session(parsed: dict) -> tuple[NormalizedSession, str]:
     return sess, summary
 
 
+def session_worthiness(parsed: dict) -> float:
+    """0..1 score of how much cross-session signal a transcript likely holds.
+
+    Components: conversation depth (message count), how much the *user* wrote
+    (prompt volume ≈ intent density), and recency (mtime). Weights are coarse
+    on purpose — this ranks sessions for the LLM budget, nothing more.
+    """
+    msgs = parsed.get("messages") or []
+    n = len(msgs)
+    user_chars = sum(len(t) for r, t in msgs if r == "user")
+    try:
+        age_days = max(0.0, (time.time() - os.path.getmtime(parsed["path"])) / 86400.0)
+    except OSError:
+        age_days = 365.0
+    recency = max(0.0, 1.0 - age_days / 180.0)
+    return 0.4 * min(n / 20.0, 1.0) + 0.4 * min(user_chars / 4000.0, 1.0) + 0.2 * recency
+
+
+def llm_input_for(parsed: dict) -> str:
+    """Concept-extraction input: title + the ask + the outcome.
+
+    Replaces the old 'first 300 chars of the first user message' — the final
+    assistant message is where decisions and root causes get stated.
+    """
+    msgs = parsed.get("messages") or []
+    first_user = next((t for r, t in msgs if r == "user"), "")
+    last_assistant = next((t for r, t in reversed(msgs) if r == "assistant"), "")
+    title = (first_user.strip().splitlines()[0] if first_user else parsed.get("tool", ""))[:120]
+    return (
+        f"Title: {title}\n\n"
+        f"User request:\n{first_user[:2500]}\n\n"
+        f"Final outcome:\n{last_assistant[:2500]}"
+    )
+
+
 def list_session_files() -> list[tuple[str, str]]:
     """Return (path, tool) for every local transcript, newest first, minus agents."""
     claude = glob.glob(f"{HOME}/.claude/projects/**/*.jsonl", recursive=True)
@@ -174,6 +209,72 @@ def _worker(limit: Optional[int]) -> None:
         finally:
             with _lock:
                 _progress["done"] += 1
+
+    # Phase 2 — tiered LLM concept extraction on the worthiest sessions.
+    # NER (above) gave every session its structural backbone; this pass adds
+    # the feature/decision/problem concepts that drive cross-session linking.
+    try:
+        from contexthub.config import get_settings
+
+        settings = get_settings()
+        llm_enabled = bool(getattr(settings, "graph_llm_enabled", True))
+    except Exception:
+        settings, llm_enabled = None, False
+
+    if llm_enabled:
+        from contexthub.graph.extract import extract_graph
+
+        try:
+            done_llm = store.llm_extracted_session_ids()
+        except Exception:
+            done_llm = set()
+        scored: list[tuple[float, dict]] = []
+        for path, kind in files:
+            sid = os.path.splitext(os.path.basename(path))[0]
+            if sid in done_llm:
+                continue
+            parsed = parse_claude(path) if kind == "claude" else parse_codex(path)
+            if parsed:
+                scored.append((session_worthiness(parsed), parsed))
+        scored.sort(key=lambda t: t[0], reverse=True)
+
+        frac = float(getattr(settings, "graph_llm_fraction", 0.33))
+        cap = int(getattr(settings, "graph_llm_max_sessions", 300))
+        take = min(max(int(len(scored) * frac), 1 if scored else 0), cap)
+        worthy = [p for _, p in scored[:take]]
+
+        with _lock:
+            _progress["total"] += len(worthy)
+        for parsed in worthy:
+            try:
+                sess, _ = to_session(parsed)
+                extract_graph(
+                    session=sess, summary=llm_input_for(parsed),
+                    store=store, visibility="company",
+                )
+                # Mark only after a non-raising pass so an LLM crash retries
+                # on the next build run.
+                store.mark_llm_extracted(sess.id)
+            except Exception:
+                pass
+            finally:
+                with _lock:
+                    _progress["done"] += 1
+
+    # Corpus-level post-passes: statistically meaningful co-occurrence edges and
+    # generic-hub flags (both idempotent, both cheap relative to the build).
+    try:
+        from contexthub.config import get_settings
+        from contexthub.graph.correlate import refresh_cooccur_edges
+
+        settings = get_settings()
+        refresh_cooccur_edges(store)
+        store.recompute_generic_flags(
+            fraction=getattr(settings, "graph_generic_fraction", 0.25),
+            min_total=getattr(settings, "graph_generic_min_sessions", 20),
+        )
+    except Exception:
+        pass
 
     with _lock:
         _progress["running"] = False

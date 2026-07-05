@@ -227,7 +227,7 @@ class BatchSummarizeResponse(BaseModel):
 # Knowledge graph (Task 13)
 # ---------------------------------------------------------------------------
 
-GraphNodeKind = Literal["repo", "service", "feature", "person", "decision", "tool", "pr"]
+GraphNodeKind = Literal["repo", "service", "feature", "person", "decision", "tool", "pr", "problem"]
 
 
 class GraphNode(BaseModel):
@@ -238,6 +238,7 @@ class GraphNode(BaseModel):
     name: str
     summary: Optional[str] = None
     visibility: Optional[str] = None
+    generic: bool = False
     session_ids: list[str] = Field(default_factory=list)
 
 
@@ -257,6 +258,30 @@ class GraphResponse(BaseModel):
 
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+
+
+class GraphNodePatch(BaseModel):
+    """PATCH /v1/graph/nodes/{id} — any subset of fields."""
+
+    name: Optional[str] = None
+    kind: Optional[str] = None
+    summary: Optional[str] = None
+
+
+class GraphNodeCreate(BaseModel):
+    """POST /v1/graph/nodes — manual (human) node."""
+
+    kind: str
+    name: str
+    summary: Optional[str] = None
+
+
+class GraphEdgeCreate(BaseModel):
+    """POST /v1/graph/edges — manual (human) edge between existing nodes."""
+
+    src: str
+    dst: str
+    rel: str
 
 
 # ---------------------------------------------------------------------------

@@ -186,3 +186,33 @@ def ppmi_entity_pairs(
 
     pairs.sort(key=lambda p: p.ppmi, reverse=True)
     return pairs
+
+
+def refresh_cooccur_edges(
+    store: Any,
+    min_cooccur: int = 2,
+    max_pairs: int = 500,
+) -> int:
+    """Rebuild ``co_occurs`` edges from corpus-level PPMI.
+
+    Replaces the old per-session star topology (hub = first-matched entity,
+    semantically void) with edges only between statistically associated pairs.
+    Idempotent: deletes all existing ``co_occurs`` edges first. PPMI itself
+    down-weights ubiquitous entities, so generic hubs rarely earn an edge.
+    Returns the number of edges written.
+    """
+    pairs = ppmi_entity_pairs(store, min_cooccur=min_cooccur)
+    nodes = store.list_nodes(limit=100_000)
+    by_key = {f"{n['kind']}:{n['name']}": n["id"] for n in nodes}
+    store.delete_edges_by_rel("co_occurs")
+    written = 0
+    for p in pairs[:max_pairs]:
+        a, b = by_key.get(p.a), by_key.get(p.b)
+        if not a or not b:
+            continue
+        try:
+            store.upsert_edge(src=a, dst=b, rel="co_occurs", weight=round(p.ppmi, 4))
+            written += 1
+        except ValueError:
+            continue
+    return written

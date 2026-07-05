@@ -94,3 +94,38 @@ describe("listHubSessions", () => {
     expect(sessions[0].id).toBe("s1");
   });
 });
+
+describe("graph curation", () => {
+  it("PATCHes /v1/graph/nodes/{id} with the edit body", async () => {
+    const fn = mockFetchOnce({ id: "n1", merged: false, node: null });
+    const client = makeApiClient("http://hub", "k");
+    const res = await client.updateGraphNode("n1", { name: "checkout" });
+    expect(res).toEqual({ id: "n1", merged: false, node: null });
+    const [url, init] = fn.mock.calls[0];
+    expect(url).toBe("http://hub/v1/graph/nodes/n1");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ name: "checkout" });
+  });
+
+  it("DELETEs nodes and edges", async () => {
+    let fn = mockFetchOnce({ deleted: true });
+    const client = makeApiClient("http://hub", "k");
+    await client.deleteGraphNode("n1");
+    expect(fn.mock.calls[0][0]).toBe("http://hub/v1/graph/nodes/n1");
+    expect(fn.mock.calls[0][1].method).toBe("DELETE");
+    fn = mockFetchOnce({ deleted: true });
+    await client.deleteGraphEdge("e1");
+    expect(fn.mock.calls[0][0]).toBe("http://hub/v1/graph/edges/e1");
+  });
+
+  it("POSTs new nodes and edges", async () => {
+    let fn = mockFetchOnce({ id: "n9" });
+    const client = makeApiClient("http://hub", "k");
+    await client.createGraphNode({ kind: "decision", name: "sqlite over kuzudb" });
+    expect(fn.mock.calls[0][0]).toBe("http://hub/v1/graph/nodes");
+    expect(fn.mock.calls[0][1].method).toBe("POST");
+    fn = mockFetchOnce({ id: "e9" });
+    await client.createGraphEdge({ src: "a", dst: "b", rel: "uses" });
+    expect(fn.mock.calls[0][0]).toBe("http://hub/v1/graph/edges");
+  });
+});

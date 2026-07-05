@@ -70,3 +70,45 @@ def test_ppmi_respects_min_cooccur_floor():
         # Floor 1 → the single co-occurrence surfaces with positive PPMI.
         pairs = ppmi_entity_pairs(store, min_cooccur=1)
         assert any({p.a, p.b} == {"tool:a", "tool:b"} for p in pairs)
+
+
+# ---------------------------------------------------------------------------
+# PPMI co-occurrence edges replace the per-session star (GraphRAG overhaul)
+# ---------------------------------------------------------------------------
+
+def test_refresh_cooccur_edges_replaces_star_with_ppmi(tmp_path):
+    from contexthub.graph.correlate import refresh_cooccur_edges
+    from contexthub.graph.store import GraphStore
+
+    store = GraphStore(str(tmp_path / "g.db"))
+    # redis+celery always together (3/6 sessions); postgres everywhere (6/6).
+    for i in range(3):
+        store.upsert_node(kind="tool", name="redis", session_id=f"pair{i}")
+        store.upsert_node(kind="tool", name="celery", session_id=f"pair{i}")
+    for i in range(6):
+        sid = f"pair{i}" if i < 3 else f"solo{i}"
+        store.upsert_node(kind="tool", name="postgres", session_id=sid)
+    # a stale star edge that must be replaced
+    nodes = {n["name"]: n["id"] for n in store.list_nodes()}
+    store.upsert_edge(src=nodes["postgres"], dst=nodes["redis"], rel="co_occurs")
+
+    written = refresh_cooccur_edges(store, min_cooccur=2)
+    assert written >= 1
+    edges = store.list_edges()
+    cooc = [e for e in edges if e["rel"] == "co_occurs"]
+    pairs = {frozenset((e["src"], e["dst"])) for e in cooc}
+    # redis↔celery survives (high PPMI); the stale postgres↔redis star is gone
+    assert frozenset((nodes["redis"], nodes["celery"])) in pairs
+    assert frozenset((nodes["postgres"], nodes["redis"])) not in pairs
+
+
+def test_delete_edges_by_rel(tmp_path):
+    from contexthub.graph.store import GraphStore
+
+    store = GraphStore(str(tmp_path / "g.db"))
+    a = store.upsert_node(kind="tool", name="a", session_id="s1")
+    b = store.upsert_node(kind="tool", name="b", session_id="s1")
+    store.upsert_edge(src=a, dst=b, rel="co_occurs")
+    store.upsert_edge(src=a, dst=b, rel="uses")
+    assert store.delete_edges_by_rel("co_occurs") == 1
+    assert [e["rel"] for e in store.list_edges()] == ["uses"]
