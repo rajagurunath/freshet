@@ -175,6 +175,21 @@ def _worker(limit: Optional[int]) -> None:
             with _lock:
                 _progress["done"] += 1
 
+    # Corpus-level post-passes: statistically meaningful co-occurrence edges and
+    # generic-hub flags (both idempotent, both cheap relative to the build).
+    try:
+        from contexthub.config import get_settings
+        from contexthub.graph.correlate import refresh_cooccur_edges
+
+        settings = get_settings()
+        refresh_cooccur_edges(store)
+        store.recompute_generic_flags(
+            fraction=getattr(settings, "graph_generic_fraction", 0.25),
+            min_total=getattr(settings, "graph_generic_min_sessions", 20),
+        )
+    except Exception:
+        pass
+
     with _lock:
         _progress["running"] = False
         _progress["finished_at"] = time.time()

@@ -147,8 +147,9 @@ def test_spacy_person_entities():
 
 
 def test_extract_ner_graph_builds_backbone():
-    """The NER pass upserts structural entities + co-occurrence edges into a graph,
-    and excludes the noisy spaCy ORG/PRODUCT kinds from the shared graph feed."""
+    """The NER pass upserts structural entities into a graph, and excludes the
+    noisy spaCy ORG/PRODUCT kinds from the shared graph feed. Edges are no
+    longer written per session (corpus-level PPMI replaces the star)."""
     import os, tempfile
     from contexthub.graph.store import GraphStore
     from contexthub.graph.ner import extract_ner_graph
@@ -168,7 +169,22 @@ def test_extract_ner_graph_builds_backbone():
         names = {n["name"]: n["kind"] for n in store.list_nodes()}
         assert names.get("payments-api") == "service"
         assert "stripe" in names and "redis" in names
-        # Co-occurrence edges connect the session's entities.
-        assert any(e["rel"] == "co_occurs" for e in store.list_edges())
         # All node kinds are from the high-precision allowlist.
         assert set(names.values()) <= {"service", "repo", "tool", "person"}
+
+
+def test_extract_ner_graph_writes_no_star_edges(tmp_path):
+    from contexthub.graph.ner import extract_ner_graph
+    from contexthub.graph.store import GraphStore
+    from contexthub.models import Message, NormalizedSession
+
+    store = GraphStore(str(tmp_path / "g.db"))
+    sess = NormalizedSession(
+        id="s1", tool="claude-code", title="t",
+        messages=[Message(id="m1", role="user",
+                          text="We wired `payments-api` to redis. payments-api works.")],
+    )
+    res = extract_ner_graph(sess, None, store)
+    assert res["nodes_upserted"] >= 2
+    assert res["edges_upserted"] == 0
+    assert store.list_edges() == []

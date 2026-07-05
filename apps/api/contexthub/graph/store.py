@@ -441,6 +441,16 @@ class GraphStore:
             ).fetchall()
         return [(r["src"], r["dst"]) for r in rows]
 
+    def delete_edges_by_rel(self, rel: str) -> int:
+        """Delete every edge with the given relation. Returns rows deleted."""
+        rel = (rel or "").strip().lower()
+        if not rel:
+            return 0
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM edges WHERE LOWER(rel) = ?", (rel,))
+            conn.commit()
+            return cur.rowcount
+
     def find_nodes_by_terms(
         self,
         terms: list[str],

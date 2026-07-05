@@ -343,10 +343,11 @@ def extract_ner_graph(
 ) -> dict:
     """Deterministically extract entities for a session and upsert the backbone.
 
-    Runs the NER core over summary + transcript, upserts each entity as a node
-    with session provenance, and links co-occurring entities with a ``co_occurs``
-    edge — the structural backbone the graph retrieval arm expands over. Cheap,
-    offline, best-effort (never raises), and complementary to the LLM extractor.
+    Runs the NER core over summary + transcript and upserts each entity as a
+    node with session provenance — the structural backbone the graph retrieval
+    arm expands over. Cheap, offline, best-effort (never raises), and
+    complementary to the LLM extractor. Co-occurrence edges are corpus-level
+    (PPMI, see ``correlate.refresh_cooccur_edges``), not per-session stars.
     """
     try:
         text = _session_text(session, summary)
@@ -370,18 +371,10 @@ def extract_ner_graph(
             except Exception:
                 continue
 
-        # Connect entities with a STAR to the first node rather than all-pairs:
-        # O(n) edge writes instead of O(n²) — far faster to build at scale and a
-        # much less cluttered graph, while keeping every entity connected.
-        edges = 0
-        if node_ids:
-            hub = node_ids[0]
-            for nid in node_ids[1:]:
-                try:
-                    store.upsert_edge(src=hub, dst=nid, rel="co_occurs", session_id=session.id)
-                    edges += 1
-                except Exception:
-                    continue
-        return {"nodes_upserted": len(node_ids), "edges_upserted": edges}
+        # Edges are NOT written per session: the old star topology (hub = first
+        # matched entity) was semantically void. Corpus-level PPMI pairs are
+        # rebuilt by contexthub.graph.correlate.refresh_cooccur_edges after a
+        # build/backfill pass instead.
+        return {"nodes_upserted": len(node_ids), "edges_upserted": 0}
     except Exception:
         return {"nodes_upserted": 0, "edges_upserted": 0}
