@@ -28,7 +28,7 @@ const DEPTH_OPTIONS = [
   { value: "3", label: "3 hops" },
 ];
 
-const LEGEND_KINDS = ["repo", "service", "feature", "person", "decision", "tool", "pr"];
+const LEGEND_KINDS = ["repo", "service", "feature", "problem", "person", "decision", "tool", "pr"];
 
 export function GraphPage() {
   const navigate = useNavigate();
@@ -60,9 +60,24 @@ export function GraphPage() {
     });
   }, []);
 
-  const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+  // Pan/zoom is applied imperatively to the <g> transform (ref + rAF), NOT via
+  // React state: a state update per wheel/mousemove re-renders every node and
+  // edge each frame, which is what made zooming lag on real-sized graphs.
+  const gRef = useRef<SVGGElement>(null);
+  const viewRef = useRef({ x: 0, y: 0, k: 1 });
+  const rafRef = useRef(0);
   const panRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const [panning, setPanning] = useState(false);
+
+  const applyView = useCallback(() => {
+    rafRef.current = 0;
+    const v = viewRef.current;
+    gRef.current?.setAttribute("transform", `translate(${v.x}, ${v.y}) scale(${v.k})`);
+  }, []);
+  const scheduleView = useCallback(() => {
+    if (!rafRef.current) rafRef.current = requestAnimationFrame(applyView);
+  }, [applyView]);
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
   // Measure the canvas so the layout fills the available space.
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -189,12 +204,13 @@ export function GraphPage() {
     const h = maxY - minY || 1;
     const pad = 80;
     const k = Math.min((size.width - pad) / w, (size.height - pad) / h, 1.4);
-    setView({
+    viewRef.current = {
       k,
       x: (size.width - w * k) / 2 - minX * k,
       y: (size.height - h * k) / 2 - minY * k,
-    });
-  }, [layout, size.width, size.height]);
+    };
+    applyView();
+  }, [layout, size.width, size.height, applyView]);
 
   const nodeById = useMemo(() => {
     const m = new Map<string, GraphNode>();
@@ -484,24 +500,34 @@ export function GraphPage() {
                 const rect = ev.currentTarget.getBoundingClientRect();
                 const mx = ev.clientX - rect.left;
                 const my = ev.clientY - rect.top;
-                setView((v) => {
-                  const factor = Math.exp(-ev.deltaY * 0.0015);
-                  const k = Math.min(4, Math.max(0.2, v.k * factor));
-                  // keep the point under the cursor fixed while zooming
-                  const x = mx - ((mx - v.x) * k) / v.k;
-                  const y = my - ((my - v.y) * k) / v.k;
-                  return { x, y, k };
-                });
+                const v = viewRef.current;
+                const factor = Math.exp(-ev.deltaY * 0.0015);
+                const k = Math.min(4, Math.max(0.2, v.k * factor));
+                // keep the point under the cursor fixed while zooming
+                viewRef.current = {
+                  k,
+                  x: mx - ((mx - v.x) * k) / v.k,
+                  y: my - ((my - v.y) * k) / v.k,
+                };
+                scheduleView();
               }}
               onMouseDown={(ev) => {
-                panRef.current = { x: ev.clientX, y: ev.clientY, vx: view.x, vy: view.y };
+                panRef.current = {
+                  x: ev.clientX, y: ev.clientY,
+                  vx: viewRef.current.x, vy: viewRef.current.y,
+                };
                 setPanning(true);
               }}
               onMouseMove={(ev) => {
                 if (!panRef.current) return;
                 const dx = ev.clientX - panRef.current.x;
                 const dy = ev.clientY - panRef.current.y;
-                setView((v) => ({ ...v, x: panRef.current!.vx + dx, y: panRef.current!.vy + dy }));
+                viewRef.current = {
+                  ...viewRef.current,
+                  x: panRef.current.vx + dx,
+                  y: panRef.current.vy + dy,
+                };
+                scheduleView();
               }}
               onMouseUp={() => {
                 panRef.current = null;
@@ -511,9 +537,15 @@ export function GraphPage() {
                 panRef.current = null;
                 setPanning(false);
               }}
-              onDoubleClick={() => setView({ x: 0, y: 0, k: 1 })}
+              onDoubleClick={() => {
+                viewRef.current = { x: 0, y: 0, k: 1 };
+                applyView();
+              }}
             >
-              <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
+              <g
+                ref={gRef}
+                transform={`translate(${viewRef.current.x}, ${viewRef.current.y}) scale(${viewRef.current.k})`}
+              >
               {/* Edges */}
               {visibleEdges.map((e) => {
                 const a = layout.get(e.src);
@@ -528,9 +560,9 @@ export function GraphPage() {
                       y1={a.y}
                       x2={b.x}
                       y2={b.y}
-                      stroke={active ? "#F2541B" : "#D8D2C4"}
-                      strokeWidth={active ? 1.5 : 0.75}
-                      strokeOpacity={active ? 0.9 : selected ? 0.06 : 0.18}
+                      stroke={active ? "#F2541B" : "#b3ab98"}
+                      strokeWidth={active ? 2 : 1.2}
+                      strokeOpacity={active ? 0.95 : selected ? 0.08 : 0.4}
                     >
                       <title>{e.rel.replace(/_/g, " ")}</title>
                     </line>
@@ -563,25 +595,19 @@ export function GraphPage() {
                       r={r}
                       fill={c.fill}
                       stroke={accent ? "#F2541B" : c.stroke}
-                      strokeWidth={accent ? 2.5 : 1.25}
+                      strokeWidth={accent ? 3 : 2}
                     />
-                    {/* Only label when zoomed in, or for selected/neighbour/large
-                        nodes — keeps a big graph from becoming a wall of text. */}
-                    {(view.k >= 0.85 ||
-                      selectedId === n.id ||
-                      matched === true ||
-                      (selected && neighborIds.has(n.id)) ||
-                      r >= 16) && (
-                      <text
-                        y={r + 13}
-                        textAnchor="middle"
-                        fontSize={11 / Math.max(view.k, 1)}
-                        fill="#6b6657"
-                        style={{ pointerEvents: "none", userSelect: "none" }}
-                      >
-                        {n.name.length > 24 ? `${n.name.slice(0, 23)}…` : n.name}
-                      </text>
-                    )}
+                    {/* Labels are always on and scale with the zoom transform —
+                        no per-frame recompute, so pan/zoom stays smooth. */}
+                    <text
+                      y={r + 13}
+                      textAnchor="middle"
+                      fontSize={11}
+                      fill="#55503f"
+                      style={{ pointerEvents: "none", userSelect: "none" }}
+                    >
+                      {n.name.length > 24 ? `${n.name.slice(0, 23)}…` : n.name}
+                    </text>
                     <title>{`${c.label}: ${n.name}`}</title>
                   </g>
                 );

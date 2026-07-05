@@ -175,7 +175,7 @@ export function SessionGraph({ sessionId }: { sessionId: string }) {
                     r={r}
                     fill={c.fill}
                     stroke={selectedId === n.id ? "#F2541B" : c.stroke}
-                    strokeWidth={selectedId === n.id ? 2.5 : 1.25}
+                    strokeWidth={selectedId === n.id ? 3 : 2}
                   />
                   <text
                     y={r + 11}

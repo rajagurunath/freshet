@@ -60,15 +60,18 @@ export interface KindColor {
   label: string;
 }
 
+// Bold, saturated FILLS — at overview zoom the fill is all that reads (strokes
+// scale away), so the fill carries the kind color instead of a pastel wash.
 export const GRAPH_KIND_COLORS: Record<string, KindColor> = {
-  repo: { fill: "#eef0f4", stroke: "#c8cdd8", ink: "#3a4460", label: "Repo" },
-  service: { fill: "#e6f4f4", stroke: "#a8d4d4", ink: "#1a6b6b", label: "Service" },
-  feature: { fill: "#fdeee6", stroke: "#f2b59a", ink: "#b13d12", label: "Feature" },
-  person: { fill: "#e8f5ef", stroke: "#b6dac7", ink: "#2e7d52", label: "Person" },
-  decision: { fill: "#fef9e7", stroke: "#f0d080", ink: "#8a6d1a", label: "Decision" },
-  tool: { fill: "#f0ecf7", stroke: "#cfc3e3", ink: "#5b4287", label: "Tool" },
-  pr: { fill: "#e9f1f8", stroke: "#b9d2e8", ink: "#2b5e8c", label: "PR" },
-  default: { fill: "#f1efe9", stroke: "#d8d4c8", ink: "#6b6657", label: "Node" },
+  repo: { fill: "#7d8fc4", stroke: "#4a5a8c", ink: "#2d3a5e", label: "Repo" },
+  service: { fill: "#3fa9a9", stroke: "#237878", ink: "#155e5e", label: "Service" },
+  feature: { fill: "#f08246", stroke: "#c85a20", ink: "#9c3510", label: "Feature" },
+  person: { fill: "#5cb88a", stroke: "#37855c", ink: "#276b47", label: "Person" },
+  decision: { fill: "#e8c33e", stroke: "#b3921d", ink: "#7a5f12", label: "Decision" },
+  tool: { fill: "#a887d6", stroke: "#7a58ab", ink: "#4d3579", label: "Tool" },
+  pr: { fill: "#6ba3d0", stroke: "#40719b", ink: "#245179", label: "PR" },
+  problem: { fill: "#e06666", stroke: "#b03a3a", ink: "#8f2626", label: "Problem" },
+  default: { fill: "#b0a88f", stroke: "#847d67", ink: "#5a5546", label: "Node" },
 };
 
 export function kindColor(kind: string): KindColor {
