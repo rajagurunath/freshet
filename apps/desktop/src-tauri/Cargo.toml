@@ -1,6 +1,6 @@
 [package]
 name = "context-hub"
-version = "0.1.0"
+version = "0.2.0"
 description = "Context Hub desktop — browse, summarize, and push your AI coding sessions"
 authors = ["Context Hub"]
 edition = "2021"

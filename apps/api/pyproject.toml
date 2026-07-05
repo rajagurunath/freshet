@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "contexthub"
-version = "0.1.0"
+version = "0.2.0"
 description = "Context Hub central API — ingest, store, and RAG-search AI coding sessions"
 requires-python = ">=3.11"
 dependencies = [
