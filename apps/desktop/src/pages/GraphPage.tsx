@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Share2, Search, RefreshCw, X, ExternalLink, Cpu, Link2, SlidersHorizontal } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import { Share2, Search, RefreshCw, X, Cpu, Link2, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
@@ -21,6 +20,7 @@ import {
   type GraphNode,
 } from "@/lib/graph";
 import { loadRejected, saveRejected, entityKey } from "@/lib/entityReview";
+import { GraphNodePanel } from "@/components/GraphNodePanel";
 
 const DEPTH_OPTIONS = [
   { value: "1", label: "1 hop" },
@@ -48,6 +48,7 @@ export function GraphPage() {
 
   // Pan/zoom viewport for the graph (translate x/y + scale k).
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [showGeneric, setShowGeneric] = useState(false);
   const [rejected, setRejected] = useState<Set<string>>(() => loadRejected());
   const toggleRejected = useCallback((kind: string, name: string) => {
     setRejected((prev) => {
@@ -142,9 +143,14 @@ export function GraphPage() {
   }, [settings.apiBaseUrl, settings.apiKey, toastInfo, toastError, load]);
 
   // Drop user-rejected entities (and their edges) from everything below.
+  // Generic hubs (github/python/…) are hidden by default — they connect
+  // everything to everything and drown the layout.
   const visibleNodes = useMemo(
-    () => (data?.nodes ?? []).filter((n) => !rejected.has(entityKey(n.kind, n.name))),
-    [data, rejected],
+    () =>
+      (data?.nodes ?? []).filter(
+        (n) => !rejected.has(entityKey(n.kind, n.name)) && (showGeneric || !n.generic),
+      ),
+    [data, rejected, showGeneric],
   );
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes]);
   const visibleEdges = useMemo(
@@ -599,111 +605,32 @@ export function GraphPage() {
                   </span>
                 );
               })}
+              <label className="flex items-center gap-1.5 text-micro text-ink-faint cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showGeneric}
+                  onChange={(e) => setShowGeneric(e.target.checked)}
+                />
+                Show common ({(data?.nodes ?? []).filter((n) => n.generic).length})
+              </label>
             </div>
           )}
         </div>
 
-        {/* Side panel */}
+        {/* Side panel — inspect + edit (rename/merge/delete/link) */}
         {selected && (
-          <aside className="w-[320px] shrink-0 border-l border-border bg-bg-elevated overflow-y-auto">
-            <div className="flex items-start justify-between gap-2 px-4 py-4 border-b border-border">
-              <div className="min-w-0">
-                <Badge
-                  className="mb-1.5"
-                  color="default"
-                >
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: kindColor(selected.kind).ink }}
-                  />
-                  {kindColor(selected.kind).label}
-                </Badge>
-                <h2 className="text-h3 font-semibold text-ink break-words">{selected.name}</h2>
-              </div>
-              <button
-                onClick={() => setSelectedId(null)}
-                aria-label="Close panel"
-                className="p-1 rounded-[6px] text-ink-faint hover:text-ink hover:bg-bg-sunken transition-colors duration-120 shrink-0"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <div className="px-4 py-4 space-y-5">
-              {selected.summary && (
-                <p className="text-small text-ink-soft leading-relaxed">{selected.summary}</p>
-              )}
-
-              {/* Relations */}
-              {selectedEdges.length > 0 && (
-                <div>
-                  <h3 className="text-micro font-semibold uppercase tracking-wide text-ink-faint mb-2">
-                    Relations
-                  </h3>
-                  <ul className="space-y-1.5">
-                    {selectedEdges.map((e) => {
-                      const otherId = e.src === selected.id ? e.dst : e.src;
-                      const other = nodeById.get(otherId);
-                      if (!other) return null;
-                      return (
-                        <li key={e.id}>
-                          <button
-                            onClick={() => setSelectedId(other.id)}
-                            className="w-full flex items-center gap-2 text-left text-small text-ink-soft hover:text-ink transition-colors duration-120"
-                          >
-                            <span
-                              className="w-2 h-2 rounded-full shrink-0 border"
-                              style={{
-                                backgroundColor: kindColor(other.kind).fill,
-                                borderColor: kindColor(other.kind).stroke,
-                              }}
-                            />
-                            <span className="truncate">{other.name}</span>
-                            <span className="ml-auto text-micro text-ink-faint shrink-0">
-                              {e.rel.replace(/_/g, " ")}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-
-              {/* Linked sessions */}
-              <div>
-                <h3 className="text-micro font-semibold uppercase tracking-wide text-ink-faint mb-2">
-                  Linked sessions ({selected.sessionIds.length})
-                </h3>
-                {selected.sessionIds.length === 0 ? (
-                  <p className="text-small text-ink-faint">No session provenance recorded.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {selected.sessionIds.map((sid) => {
-                      const isLocal = localSessionIds.has(sid);
-                      return (
-                        <li key={sid}>
-                          {isLocal ? (
-                            <button
-                              onClick={() => navigate(`/sessions/${sid}`)}
-                              className="flex items-center gap-1.5 text-small font-mono text-accent hover:text-accent-ink transition-colors duration-120 max-w-full"
-                            >
-                              <span className="truncate">{sid}</span>
-                              <ExternalLink size={11} className="shrink-0" />
-                            </button>
-                          ) : (
-                            <span className="block text-small font-mono text-ink-faint truncate">
-                              {sid}
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </aside>
+          <GraphNodePanel
+            node={selected}
+            edges={selectedEdges}
+            nodeById={nodeById}
+            allNodes={data?.nodes ?? []}
+            localSessionIds={localSessionIds}
+            client={makeApiClient(settings.apiBaseUrl ?? "", settings.apiKey ?? "")}
+            onClose={() => setSelectedId(null)}
+            onSelect={(id) => setSelectedId(id)}
+            onChanged={() => void load()}
+            onOpenSession={(sid) => navigate(`/sessions/${sid}`)}
+          />
         )}
       </div>
     </div>
