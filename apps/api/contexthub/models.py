@@ -227,7 +227,7 @@ class BatchSummarizeResponse(BaseModel):
 # Knowledge graph (Task 13)
 # ---------------------------------------------------------------------------
 
-GraphNodeKind = Literal["repo", "service", "feature", "person", "decision", "tool", "pr"]
+GraphNodeKind = Literal["repo", "service", "feature", "person", "decision", "tool", "pr", "problem"]
 
 
 class GraphNode(BaseModel):

@@ -524,3 +524,38 @@ def test_resolve_backfill_targets_extracted_sessions(client: TestClient):
     # The extracted session is a resolution target; the pending one is skipped.
     assert data["enqueued"] >= 1
     assert data["skipped"] >= 1
+
+
+def test_extract_accepts_problem_kind_and_coerces_unknown_rels(tmp_path):
+    import json as _json
+
+    from contexthub.graph.extract import extract_graph
+    from contexthub.graph.store import GraphStore
+    from contexthub.models import NormalizedSession
+
+    class StubLLM:
+        def available(self):
+            return True
+
+        def complete(self, system, user, max_tokens=1024):
+            return _json.dumps({
+                "nodes": [
+                    {"kind": "problem", "name": "session id mismatch",
+                     "summary": "ids diverged between stores"},
+                    {"kind": "feature", "name": "checkout", "summary": "checkout flow"},
+                ],
+                "edges": [
+                    {"src": "checkout", "dst": "session id mismatch",
+                     "rel": "was blocked by"},
+                ],
+            })
+
+    store = GraphStore(str(tmp_path / "g.db"))
+    sess = NormalizedSession(id="s1", tool="claude-code", title="t")
+    res = extract_graph(sess, "summary text", store, llm=StubLLM())
+    assert res["nodes_upserted"] == 2
+    kinds = {n["kind"] for n in store.list_nodes()}
+    assert "problem" in kinds  # not bucketed into "feature"
+    edges = store.list_edges()
+    assert len(edges) == 1
+    assert edges[0]["rel"] == "related_to"  # unknown verb coerced, not dropped

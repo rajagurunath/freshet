@@ -29,28 +29,42 @@ from contexthub.models import NormalizedSession
 
 logger = logging.getLogger(__name__)
 
-# Allowed node kinds (per plan): repo|service|feature|person|decision|tool|pr.
-ALLOWED_KINDS = {"repo", "service", "feature", "person", "decision", "tool", "pr"}
+# Allowed node kinds: structural (repo|service|tool|pr|person) + the concept
+# kinds that drive cross-session linking (feature|decision|problem).
+ALLOWED_KINDS = {"repo", "service", "feature", "person", "decision", "tool", "pr", "problem"}
+
+# Controlled relation vocabulary — the UI and retrieval rely on these being
+# stable. Unknown verbs from the LLM coerce to "related_to" instead of being
+# dropped (the link is still signal even when the label is fuzzy).
+ALLOWED_RELS = {"worked_on", "decided", "fixed", "uses", "depends_on", "related_to"}
 
 _TRANSCRIPT_FALLBACK_CHARS = 6_000
 
 _SYSTEM_PROMPT = """\
-You extract a small knowledge graph from a software session summary.
+You extract a small knowledge graph from a coding-session summary or excerpt.
 
 Return ONLY a JSON object with this exact shape (no prose, no markdown fence):
 {
-  "nodes": [{"kind": "<one of: repo|service|feature|person|decision|tool|pr>",
+  "nodes": [{"kind": "<one of: repo|service|feature|person|decision|tool|pr|problem>",
              "name": "<short canonical name>",
              "summary": "<one short phrase>"}],
   "edges": [{"src": "<a node name above>", "dst": "<a node name above>",
-             "rel": "<short verb, e.g. implements, depends_on, worked_on, decided>"}]
+             "rel": "<one of: worked_on|decided|fixed|uses|depends_on|related_to>"}]
 }
 
+Focus on the CONCEPTS a developer would search for later:
+- feature: the capability being built or changed (e.g. "checkout", "graph search")
+- problem: the bug or issue being investigated (e.g. "session id mismatch")
+- decision: a choice that was made (e.g. "sqlite over kuzudb")
+Also include the concrete repo/service/tool entities the session actually touched.
+
 Rules:
-- Only include entities that clearly appear in the input.
+- Only include entities that clearly appear in the input. Skip generic terms
+  ("code", "the api", "a bug", "the user").
 - Use the canonical short name (e.g. "checkout", not "the checkout feature").
+- rel MUST be one of: worked_on, decided, fixed, uses, depends_on, related_to.
 - Edge src/dst MUST be names that appear in the nodes list.
-- Keep it small: at most ~12 nodes and ~12 edges.
+- Keep it small: at most ~10 nodes and ~10 edges.
 - If nothing graph-worthy is present, return {"nodes": [], "edges": []}.
 """
 
@@ -208,7 +222,9 @@ def extract_graph(
             continue
         src_name = str(e.get("src", "")).strip().lower()
         dst_name = str(e.get("dst", "")).strip().lower()
-        rel = str(e.get("rel", "")).strip()
+        rel = str(e.get("rel", "")).strip().lower().replace(" ", "_")
+        if rel and rel not in ALLOWED_RELS:
+            rel = "related_to"
         src_id = name_to_id.get(src_name)
         dst_id = name_to_id.get(dst_name)
         if not src_id or not dst_id or not rel:
