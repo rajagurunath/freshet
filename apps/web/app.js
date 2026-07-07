@@ -249,6 +249,66 @@
     }
   })();
 
+  /* ---- 5b. Review queue demo card ---- */
+  (function reviewDemo() {
+    var demo = document.getElementById('review-demo');
+    if (!demo) return;
+    var status = document.getElementById('rq-status');
+    var count = document.getElementById('rq-count');
+    var step1 = demo.querySelector('.rq-approval[data-step="1"] .rq-approval__state');
+    var step2 = demo.querySelector('.rq-approval[data-step="2"] .rq-approval__state');
+
+    function setStatus(text) {
+      status.innerHTML = '<span class="rq-status__dot" aria-hidden="true"></span>' + text;
+    }
+
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+      demo.classList.add('rq-s1', 'rq-s2', 'rq-merged');
+      step1.textContent = 'approved';
+      step2.textContent = 'approved';
+      count.textContent = '2 of 2 approvals';
+      setStatus('Merged');
+      return;
+    }
+
+    var seq = null;
+    var rio = new IntersectionObserver(function (entries, obs) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        obs.unobserve(entry.target);
+        runCycle();
+      });
+    }, { threshold: 0.5 });
+    rio.observe(demo);
+
+    function reset() {
+      demo.classList.remove('rq-s1', 'rq-s2', 'rq-merged');
+      step1.textContent = 'reviewing…';
+      step2.textContent = 'reviewing…';
+      count.textContent = '0 of 2 approvals';
+      setStatus('Pending review');
+    }
+
+    function runCycle() {
+      reset();
+      seq = window.setTimeout(function () {
+        demo.classList.add('rq-s1');
+        step1.textContent = 'approved';
+        count.textContent = '1 of 2 approvals';
+        seq = window.setTimeout(function () {
+          demo.classList.add('rq-s2');
+          step2.textContent = 'approved';
+          count.textContent = '2 of 2 approvals';
+          seq = window.setTimeout(function () {
+            demo.classList.add('rq-merged');
+            setStatus('Merged');
+            seq = window.setTimeout(runCycle, 3500); // hold, then loop
+          }, 1000);
+        }, 1200);
+      }, 800);
+    }
+  })();
+
   /* ---- 6. Lightweight tilt on feature cards ---- */
   (function tilt() {
     if (reduceMotion || isTouch) return;

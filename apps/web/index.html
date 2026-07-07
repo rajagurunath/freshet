@@ -35,6 +35,7 @@
     </a>
     <nav class="nav__links" aria-label="Primary">
       <a class="ghost" href="#how">How it works</a>
+      <a class="ghost" href="#review">Review</a>
       <a class="ghost" href="#product">Product</a>
       <a class="ghost" href="#protocol">Protocol</a>
       <a class="ghost" href="#workflows">Workflows</a>
@@ -63,9 +64,9 @@
         <h1 class="reveal-load d1">One memory for every AI session<br>your team&nbsp;runs.</h1>
         <p class="hero__sub reveal-load d2">
           Freshet captures every Claude Code, Codex, and Kilo Code session on
-          your machine. You curate, redact, and push the good ones — and they
-          become a company-wide memory that's <em>searchable, graphed, and
-          shareable</em>.
+          your machine. You curate, redact, and push the good ones — teammates
+          review the merge, and they become a company-wide memory that's
+          <em>searchable, graphed, and shareable</em>.
         </p>
         <div class="hero__cta reveal-load d3">
           <a class="btn btn-primary btn-lg" href="#download">
@@ -147,7 +148,7 @@
     </div>
     <div class="capstrip__item">
       <span class="capstrip__k">Push</span>
-      <span class="capstrip__v">Human-reviewed &amp; redacted</span>
+      <span class="capstrip__v">Merged by peer review, like a&nbsp;PR</span>
     </div>
     <div class="capstrip__item">
       <span class="capstrip__k">Exchange</span>
@@ -195,9 +196,23 @@
   <div class="wrap">
     <div class="section-head sr">
       <p class="eyebrow">How it works</p>
-      <h2>Capture, curate, share — in three steps.</h2>
+      <h2>Capture, curate, review, ask — in four steps.</h2>
+      <p>Or watch the one-minute version: every session your team runs becomes a local RAG, and the ones that matter merge — reviewed — into one company brain.</p>
     </div>
-    <div class="steps sr-stagger">
+
+    <div class="how-video sr">
+      <div class="how-video__frame">
+        <video class="how-video__player" controls preload="metadata" playsinline poster="assets/explainer-poster.jpg"
+               aria-label="Freshet explainer video: how AI sessions become a local RAG and, through peer review, a company brain.">
+          <source src="assets/freshet-explainer.mp4" type="video/mp4" />
+          Your browser doesn't support embedded video —
+          <a href="assets/freshet-explainer.mp4">download the explainer</a> instead.
+        </video>
+      </div>
+      <p class="how-video__cap"><span class="how-video__dot" aria-hidden="true"></span>67 seconds · sessions → local RAG → reviewed merge → company brain</p>
+    </div>
+
+    <div class="steps steps--four sr-stagger">
       <div class="step">
         <div class="step__no">1</div>
         <h3 class="step__title">Capture automatically</h3>
@@ -210,9 +225,75 @@
       </div>
       <div class="step">
         <div class="step__no">3</div>
-        <h3 class="step__title">Your whole team benefits</h3>
-        <p class="step__body">Pushed sessions feed a <em>RAG agent, a knowledge graph, a skills library, and PR context</em> — answers grounded in how your team actually works.</p>
+        <h3 class="step__title">Teammates review</h3>
+        <p class="step__body">Pushed sessions wait in a <em>review queue, like a pull request</em>. One or more approvals merge them into the shared index; a reject keeps them out. Authors can't approve their own.</p>
       </div>
+      <div class="step">
+        <div class="step__no">4</div>
+        <h3 class="step__title">Ask the company brain</h3>
+        <p class="step__body">Merged sessions feed a <em>RAG agent, a knowledge graph, a skills library, and PR context</em> — cited answers grounded in how your team actually works.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5b. REVIEW QUEUE ============ -->
+<section class="section" id="review">
+  <div class="wrap review__grid">
+    <div class="review__copy sr">
+      <p class="eyebrow">The review queue</p>
+      <h2>Nothing enters the company brain <span class="accent-word">unreviewed</span>.</h2>
+      <p>A shared memory is only as good as what's allowed in. So pushed sessions don't go straight into the index — like a pull request, each one waits for human sign-off before it merges.</p>
+      <ul class="review__points">
+        <li>
+          <span class="review__point-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v6M18 15V9a6 6 0 0 0-6-6"/></svg></span>
+          <div><strong>Approvals to merge — you set the bar.</strong> One reviewer or several: only then is the session chunked, embedded, and woven into the knowledge graph.</div>
+        </li>
+        <li>
+          <span class="review__point-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 7.6 8 9 4.6-1.4 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>
+          <div><strong>No self-approval.</strong> The author's vote doesn't count on their own session — a second set of eyes checks the redaction and the signal.</div>
+        </li>
+        <li>
+          <span class="review__point-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg></span>
+          <div><strong>A reject keeps it out.</strong> Rejected sessions never enter the index or the graph — the shared brain stays high-signal.</div>
+        </li>
+      </ul>
+    </div>
+
+    <div class="review__demo sr" id="review-demo">
+      <div class="rq-card" role="img" aria-label="A pushed session in the review queue: two teammates approve it and its status changes from pending to merged.">
+        <div class="rq-card__head">
+          <span class="tool-chip chip-claude">Claude Code</span>
+          <span class="rq-status" id="rq-status"><span class="rq-status__dot" aria-hidden="true"></span>Pending review</span>
+        </div>
+        <div class="rq-card__title">Pricing decision — discovery thread</div>
+        <div class="rq-card__meta">pushed by <strong>dana</strong> · summary + transcript · 2 secrets redacted</div>
+
+        <div class="rq-approvals">
+          <div class="rq-approval" data-step="1">
+            <span class="rq-avatar rq-avatar--m" aria-hidden="true">M</span>
+            <span class="rq-approval__name">Maya</span>
+            <span class="rq-approval__state">reviewing…</span>
+            <span class="rq-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>
+          </div>
+          <div class="rq-approval" data-step="2">
+            <span class="rq-avatar rq-avatar--p" aria-hidden="true">P</span>
+            <span class="rq-approval__name">Priya</span>
+            <span class="rq-approval__state">reviewing…</span>
+            <span class="rq-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>
+          </div>
+        </div>
+
+        <div class="rq-bar" aria-hidden="true"><span class="rq-bar__fill"></span></div>
+        <div class="rq-foot">
+          <span class="rq-count" id="rq-count">0 of 2 approvals</span>
+          <span class="rq-merge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v6M18 15V9a6 6 0 0 0-6-6"/></svg>
+            Merged into the brain
+          </span>
+        </div>
+      </div>
+      <p class="rq-caption">The queue lives in the desktop app and the hub API — <code>GET /v1/reviews</code>, vote, merge.</p>
     </div>
   </div>
 </section>
@@ -513,11 +594,72 @@
             </div>
           </div>
 
+          <!-- STATE: REVIEW QUEUE -->
+          <div class="mock-state" id="state-review" role="img" aria-label="Review Queue view: pushed sessions waiting for teammate approval before merging into the company brain.">
+            <div class="rqm-body">
+              <div class="kg-head">
+                <h3>Review Queue</h3>
+                <p>Pushed sessions wait here for teammate sign-off — approvals merge them into the company brain.</p>
+              </div>
+              <div class="rqm-list">
+                <div class="rqm-row">
+                  <div class="rqm-row__main">
+                    <div class="rqm-row__top">
+                      <span class="tool-chip chip-claude">Claude Code</span>
+                      <span class="badge badge--pending">Pending · 1 of 2</span>
+                    </div>
+                    <div class="rqm-row__title">Pricing decision — discovery thread</div>
+                    <div class="rqm-row__meta">dana · 32 min ago · 2 secrets redacted</div>
+                  </div>
+                  <div class="rqm-row__actions">
+                    <span class="rqm-btn rqm-btn--approve">Approve</span>
+                    <span class="rqm-btn">Reject</span>
+                  </div>
+                </div>
+                <div class="rqm-row">
+                  <div class="rqm-row__main">
+                    <div class="rqm-row__top">
+                      <span class="tool-chip chip-codex">Codex</span>
+                      <span class="badge badge--pending">Pending · 0 of 2</span>
+                    </div>
+                    <div class="rqm-row__title">Postgres v4 migration — rollback plan</div>
+                    <div class="rqm-row__meta">arjun · 2 h ago · summary only</div>
+                  </div>
+                  <div class="rqm-row__actions">
+                    <span class="rqm-btn rqm-btn--approve">Approve</span>
+                    <span class="rqm-btn">Reject</span>
+                  </div>
+                </div>
+                <div class="rqm-row rqm-row--done">
+                  <div class="rqm-row__main">
+                    <div class="rqm-row__top">
+                      <span class="tool-chip chip-kilo">Kilo Code</span>
+                      <span class="badge badge--merged">Merged</span>
+                    </div>
+                    <div class="rqm-row__title">Rate limiting rollout — token bucket sizing</div>
+                    <div class="rqm-row__meta">maya · yesterday · in the brain, cited 3×</div>
+                  </div>
+                </div>
+                <div class="rqm-row rqm-row--done">
+                  <div class="rqm-row__main">
+                    <div class="rqm-row__top">
+                      <span class="tool-chip chip-claude">Claude Code</span>
+                      <span class="badge badge--rejected">Rejected</span>
+                    </div>
+                    <div class="rqm-row__title">Scratch debugging — flaky local env</div>
+                    <div class="rqm-row__meta">dana · yesterday · never indexed</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
       <div class="mock-tabs" role="tablist" aria-label="Switch product view">
         <button class="mock-tab active" data-state="state-sessions" role="tab" aria-selected="true">Sessions</button>
+        <button class="mock-tab" data-state="state-review" role="tab" aria-selected="false">Review Queue</button>
         <button class="mock-tab" data-state="state-graph" role="tab" aria-selected="false">Knowledge Graph</button>
         <button class="mock-tab" data-state="state-skills" role="tab" aria-selected="false">Skills Hub</button>
       </div>
@@ -836,6 +978,7 @@ VS&nbsp;Code globalStorage/<span class="po">kilocode…</span>      <span class=
         <h4>Product</h4>
         <a href="#product">Product</a>
         <a href="#how">How it works</a>
+        <a href="#review">Review queue</a>
         <a href="#features">Capabilities</a>
         <a href="#workflows">Workflows</a>
         <a href="#download">Download</a>

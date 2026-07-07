@@ -423,7 +423,26 @@ code { font-family: var(--mono); }
 /* ============================================================
    5. HOW IT WORKS (steps)
    ============================================================ */
+.how-video { max-width: 920px; margin: 0 auto 56px; }
+.how-video__frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  overflow: hidden;
+  box-shadow: 0 24px 56px -36px rgba(40, 28, 14, 0.4);
+}
+.how-video__player { display: block; width: 100%; aspect-ratio: 16 / 9; background: #1C1B18; }
+.how-video__cap {
+  font-family: var(--mono); font-size: 12px; color: var(--ink-faint);
+  text-align: center; margin-top: 12px;
+}
+.how-video__dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); margin-right: 8px;
+}
+
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+.steps--four { grid-template-columns: repeat(4, 1fr); }
 .step__no {
   font-size: 54px;
   font-weight: 700;
@@ -439,6 +458,113 @@ code { font-family: var(--mono); }
 .step__title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 10px; }
 .step__body { color: var(--ink-soft); font-size: 14.5px; line-height: 1.55; max-width: 320px; }
 .step__body em { font-style: normal; color: var(--ink); font-weight: 550; }
+
+/* ============================================================
+   5b. REVIEW QUEUE (light section)
+   ============================================================ */
+.review__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 64px;
+  align-items: center;
+}
+.review__points { margin-top: 6px; }
+.review__points li { display: flex; gap: 14px; margin-top: 22px; }
+.review__points li strong { color: var(--ink); font-weight: 600; }
+.review__points li div { font-size: 14.5px; color: var(--ink-soft); line-height: 1.5; }
+.review__point-ico {
+  width: 34px; height: 34px; flex: none;
+  border-radius: 8px;
+  background: var(--accent-wash); color: var(--accent-ink);
+  display: grid; place-items: center;
+}
+.review__point-ico svg { width: 18px; height: 18px; }
+
+/* Animated review card */
+.rq-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: 0 24px 56px -36px rgba(40, 28, 14, 0.35);
+  transition: border-color 400ms ease-out, box-shadow 400ms ease-out;
+}
+/* .tool-chip is styled for the dark product mock by default; on this
+   light card we need a legible light-context variant. */
+.rq-card .tool-chip { background: var(--accent-wash); color: var(--accent-ink); }
+
+.rq-card__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.rq-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid currentColor; color: var(--warn);
+  transition: color 400ms ease-out;
+}
+.rq-status__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.rq-card__title { font-size: 16.5px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 6px; }
+.rq-card__meta { font-size: 13px; color: var(--ink-faint); margin-bottom: 18px; }
+.rq-card__meta strong { color: var(--ink-soft); font-weight: 600; }
+
+.rq-approvals { display: flex; flex-direction: column; }
+.rq-approval {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; margin-top: 10px;
+  border: 1px solid var(--border); border-radius: 10px;
+  transition: border-color 400ms ease-out, background 400ms ease-out;
+}
+.rq-avatar {
+  width: 26px; height: 26px; flex: none; border-radius: 50%;
+  background: var(--bg-sunken); color: var(--ink-soft);
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  display: grid; place-items: center;
+}
+.rq-approval__name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.rq-approval__state { margin-left: auto; font-size: 12.5px; color: var(--ink-faint); transition: color 250ms ease-out; }
+.rq-check {
+  width: 18px; height: 18px; flex: none; border-radius: 50%;
+  background: var(--success); color: #fff;
+  display: grid; place-items: center;
+  transform: scale(0.4); opacity: 0;
+  transition: transform 350ms ease-out, opacity 350ms ease-out;
+}
+.rq-check svg { width: 12px; height: 12px; }
+
+#review-demo.rq-s1 .rq-approval[data-step="1"],
+#review-demo.rq-s2 .rq-approval[data-step="2"] {
+  border-color: rgba(46, 125, 82, 0.35);
+  background: rgba(46, 125, 82, 0.06);
+}
+#review-demo.rq-s1 .rq-approval[data-step="1"] .rq-check,
+#review-demo.rq-s2 .rq-approval[data-step="2"] .rq-check {
+  transform: scale(1); opacity: 1;
+}
+
+.rq-bar { height: 4px; margin-top: 16px; background: var(--bg-sunken); border-radius: 999px; overflow: hidden; }
+.rq-bar__fill { display: block; width: 0%; height: 100%; background: var(--grad-accent); border-radius: inherit; transition: width 600ms ease; }
+#review-demo.rq-s1 .rq-bar__fill { width: 50%; }
+#review-demo.rq-s2 .rq-bar__fill,
+#review-demo.rq-merged .rq-bar__fill { width: 100%; }
+
+.rq-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+.rq-count { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+.rq-merge {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--success);
+  opacity: 0; transform: translateY(4px);
+  transition: opacity 450ms ease-out, transform 450ms ease-out;
+}
+.rq-merge svg { width: 16px; height: 16px; }
+#review-demo.rq-merged .rq-merge { opacity: 1; transform: translateY(0); }
+
+#review-demo.rq-merged .rq-status { color: var(--success); }
+#review-demo.rq-merged .rq-card {
+  border-color: rgba(46, 125, 82, 0.4);
+  box-shadow: 0 0 0 3px rgba(46, 125, 82, 0.09), 0 24px 56px -36px rgba(40, 28, 14, 0.35);
+}
+
+.rq-caption { margin-top: 14px; font-size: 12.5px; color: var(--ink-faint); text-align: center; }
+.rq-caption code { font-family: var(--mono); font-size: 11.5px; color: var(--accent-ink); }
 
 /* ============================================================
    6. PRODUCT MOCK (centerpiece)
@@ -607,6 +733,32 @@ code { font-family: var(--mono); }
 .kg-head { margin-bottom: 20px; }
 .kg-head h3 { color: var(--app-text); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
 .kg-head p { color: var(--app-text-faint); font-size: 12.5px; margin-top: 4px; }
+
+/* Alternate state: Review Queue */
+.rqm-body { padding: 28px 0 0; height: 560px; overflow: auto; }
+.rqm-body .kg-head { padding: 0 28px; }
+.rqm-list { display: flex; flex-direction: column; gap: 10px; padding: 0 28px 28px; }
+.rqm-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: var(--app-card); border: 1px solid var(--app-border);
+  border-radius: 10px; padding: 14px 16px;
+}
+.rqm-row--done { opacity: 0.72; }
+.rqm-row__main { min-width: 0; flex: 1; }
+.rqm-row__top { display: flex; align-items: center; gap: 8px; }
+.rqm-row__title { font-size: 14px; font-weight: 600; color: var(--app-text); margin-top: 6px; }
+.rqm-row__meta { font-size: 12px; color: var(--app-text-faint); margin-top: 3px; }
+.rqm-row__actions { display: flex; gap: 8px; flex: none; }
+.rqm-btn {
+  font-family: var(--mono); font-size: 11.5px;
+  padding: 5px 12px; border-radius: 7px;
+  border: 1px solid var(--app-border); color: var(--app-text-soft);
+  transition: border-color 150ms ease-out, color 150ms ease-out;
+}
+.rqm-btn--approve { color: #62C081; border-color: rgba(98, 192, 129, 0.35); }
+.badge--pending { color: #E0A33C; }
+.badge--merged { color: #62C081; }
+.badge--rejected { color: var(--app-text-faint); }
 
 /* ============================================================
    7. FEATURE GRID
@@ -842,6 +994,10 @@ code { font-family: var(--mono); }
   .proto-foot { grid-template-columns: 1fr; }
   .footer__grid { grid-template-columns: 1fr 1fr; gap: 32px; }
 }
+@media (max-width: 960px) {
+  .steps--four { grid-template-columns: repeat(2, 1fr); gap: 28px; }
+  .review__grid { grid-template-columns: 1fr; gap: 40px; }
+}
 @media (max-width: 768px) {
   .section { padding-block: 64px; }
   .nav__links a.ghost { display: none; }
@@ -854,6 +1010,9 @@ code { font-family: var(--mono); }
   .privacy-card { padding: 32px 24px 0; }
   .priv-snippet { margin: 0 -24px; padding: 18px 24px; }
   .skills-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .steps--four { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .wrap { padding-inline: 18px; }
