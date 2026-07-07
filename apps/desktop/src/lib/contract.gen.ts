@@ -102,6 +102,7 @@ export interface IngestResponse {
   chunksIndexed: number;
   createdAt?: string;
   jobId?: string;
+  reviewStatus?: "pending" | "approved" | "rejected";
   sessionId: string;
   skipped?: boolean;
   summaryUsed: boolean;
@@ -174,6 +175,65 @@ export interface QueryRequest {
 export interface QueryResponse {
   answer: string;
   citations: Array<Citation>;
+}
+
+/** A review request for a pushed session awaiting integration. */
+export interface Review {
+  approvalsRequired?: number;
+  approveCount?: number;
+  authorId: string;
+  authorName?: string;
+  category: string;
+  createdAt: string;
+  decidedAt?: string;
+  myVote?: "approve" | "reject";
+  rejectCount?: number;
+  sessionId: string;
+  status?: "pending" | "approved" | "rejected";
+  summary?: string;
+  title: string;
+  updatedAt?: string;
+  visibility: string;
+  votes?: Array<ReviewVote>;
+}
+
+/** Full review detail: request + votes + transcript preview from the blob. */
+export interface ReviewDetail {
+  messages?: Array<Message>;
+  preview?: string;
+  review: Review;
+}
+
+/** Paginated list of review requests. */
+export interface ReviewPage {
+  items: Array<Review>;
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+/** GET /v1/reviews/stats — counts for the desktop badge. */
+export interface ReviewStats {
+  approved?: number;
+  pending?: number;
+  rejected?: number;
+}
+
+/** A single reviewer vote on a pending session. */
+export interface ReviewVote {
+  comment?: string;
+  createdAt: string;
+  id: string;
+  reviewerId: string;
+  reviewerName?: string;
+  sessionId: string;
+  verdict: "approve" | "reject";
+}
+
+/** POST /v1/reviews/{session_id}/vote body. */
+export interface ReviewVoteRequest {
+  comment?: string;
+  verdict: "approve" | "reject";
 }
 
 /** A single extracted rule/preference. */

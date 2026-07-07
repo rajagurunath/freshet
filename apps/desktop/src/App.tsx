@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   TerminalSquare,
   Globe,
+  GitPullRequest,
   MessageCircle,
   Share2,
   ListChecks,
@@ -20,6 +22,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { SessionsPage } from "@/pages/SessionsPage";
 import { SessionDetailPage } from "@/pages/SessionDetailPage";
 import { HubPage } from "@/pages/HubPage";
+import { ReviewsPage } from "@/pages/ReviewsPage";
 import { AgentPage } from "@/pages/AgentPage";
 import { GraphPage } from "@/pages/GraphPage";
 import { RulesPage } from "@/pages/RulesPage";
@@ -36,6 +39,7 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/sessions", label: "My Sessions", icon: TerminalSquare },
   { to: "/hub", label: "Company Hub", icon: Globe },
+  { to: "/reviews", label: "Review Queue", icon: GitPullRequest },
   { to: "/agent", label: "Ask the Agent", icon: MessageCircle },
   { to: "/graph", label: "Knowledge Graph", icon: Share2 },
   { to: "/rules", label: "Rules", icon: ListChecks },
@@ -57,6 +61,19 @@ function AppShell() {
   } = useApp();
   const settings = useSettings();
   const [health, setHealth] = useState<HealthState>("unknown");
+
+  // Pending review count for the sidebar badge
+  const { data: reviewStats } = useQuery({
+    queryKey: ["review-stats"],
+    queryFn: () => {
+      const client = makeApiClient(settings.apiBaseUrl ?? "", settings.apiKey ?? "");
+      return client.reviewStats();
+    },
+    enabled: Boolean(settings.apiBaseUrl),
+    refetchInterval: 30_000,
+    retry: false,
+  });
+  const pendingReviews = reviewStats?.pending ?? 0;
 
   // Load local sessions on mount
   useEffect(() => {
@@ -222,6 +239,11 @@ function AppShell() {
             >
               <Icon size={16} strokeWidth={1.75} />
               {label}
+              {to === "/reviews" && pendingReviews > 0 && (
+                <span className="ml-auto text-micro font-medium px-1.5 py-0.5 rounded-full bg-accent-wash text-accent-ink">
+                  {pendingReviews}
+                </span>
+              )}
             </NavLink>
           ))}
 
@@ -321,6 +343,7 @@ function AppShell() {
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/sessions/:id" element={<SessionDetailPage />} />
             <Route path="/hub" element={<HubPage />} />
+            <Route path="/reviews" element={<ReviewsPage />} />
             <Route path="/agent" element={<AgentPage />} />
             <Route path="/graph" element={<GraphPage />} />
             <Route path="/rules" element={<RulesPage />} />

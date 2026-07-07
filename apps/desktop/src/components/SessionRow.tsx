@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, DollarSign, MessageSquare, Scissors, Zap } from "lucide-react";
+import { CheckCircle2, Clock, DollarSign, MessageSquare, Scissors, XCircle, Zap } from "lucide-react";
 import { cn } from "./ui/cn";
 import { ToolChip } from "./ToolChip";
 import { relativeTime, formatTokens } from "@/lib/format";
@@ -9,11 +9,12 @@ import type { NormalizedSession } from "@/lib/types";
 interface SessionRowProps {
   session: NormalizedSession;
   pushed?: boolean;
+  reviewStatus?: "pending" | "rejected";
   onClick?: () => void;
   className?: string;
 }
 
-export function SessionRow({ session, pushed = false, onClick, className }: SessionRowProps) {
+export function SessionRow({ session, pushed = false, reviewStatus, onClick, className }: SessionRowProps) {
   const totalTokens =
     session.tokens ? session.tokens.input + session.tokens.output : undefined;
 
@@ -46,12 +47,28 @@ export function SessionRow({ session, pushed = false, onClick, className }: Sess
               compacted
             </span>
           )}
-          {pushed && (
+          {reviewStatus === "pending" ? (
+            <span
+              className="flex items-center gap-1 text-micro text-warn font-medium px-1.5 py-0.5 rounded-full bg-[#fef9e7] border border-[#f0d080]"
+              title="Held in the review queue — awaiting approval before it joins the company brain"
+            >
+              <Clock size={11} />
+              In review
+            </span>
+          ) : reviewStatus === "rejected" ? (
+            <span
+              className="flex items-center gap-1 text-micro text-danger font-medium px-1.5 py-0.5 rounded-full bg-[#fdecea] border border-[#f5c5bd]"
+              title="Rejected in review — this session was not indexed"
+            >
+              <XCircle size={11} />
+              Rejected
+            </span>
+          ) : pushed ? (
             <span className="flex items-center gap-1 text-micro text-success font-medium">
               <CheckCircle2 size={12} />
               Pushed
             </span>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-3 text-small text-ink-faint">
           {session.project && (

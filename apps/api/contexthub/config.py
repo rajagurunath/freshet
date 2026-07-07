@@ -78,6 +78,18 @@ class Settings(BaseSettings):
     rules_db: str = "./data/rules.db"
 
     # ---------------------------------------------------------------------------
+    # Review workflow (PR-merge-style approval before integration)
+    # ---------------------------------------------------------------------------
+    # When True, non-private pushed sessions are held in a pending review queue:
+    # the raw blob is stored but nothing is indexed (RAG/graph) until enough
+    # reviewers approve. Opt-in so existing flows are unchanged by default.
+    review_required: bool = False
+    # How many distinct approve votes a session needs before integration.
+    review_approvals_required: int = 1
+    # SQLite path for the review store
+    reviews_db: str = "./data/reviews.db"
+
+    # ---------------------------------------------------------------------------
     # Cross-session entity resolution (Slice 1)
     # ---------------------------------------------------------------------------
     # Combined (n-gram + embedding) score at/above which two same-kind nodes are

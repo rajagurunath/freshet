@@ -48,10 +48,12 @@ const DATE_RANGE_OPTIONS = [
 function VirtualSessionList({
   sessions: filteredSessions,
   pushedSet,
+  reviewStatusMap,
   onSelect,
 }: {
   sessions: ReturnType<typeof filterSessions>;
   pushedSet: Set<string>;
+  reviewStatusMap: Map<string, "pending" | "rejected">;
   onSelect: (id: string) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -81,6 +83,7 @@ function VirtualSessionList({
               <SessionRow
                 session={session}
                 pushed={pushedSet.has(session.id)}
+                reviewStatus={reviewStatusMap.get(session.id)}
                 onClick={() => onSelect(session.id)}
               />
             </div>
@@ -112,6 +115,33 @@ export function SessionsPage() {
       })
       .catch(() => {
         /* hub unreachable — leave the filter empty */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.apiBaseUrl, settings.apiKey]);
+
+  // Review status for pushed sessions still awaiting (or rejected in) review.
+  const [reviewStatusMap, setReviewStatusMap] = useState<Map<string, "pending" | "rejected">>(
+    new Map(),
+  );
+  useEffect(() => {
+    if (!settings.apiBaseUrl) return;
+    let cancelled = false;
+    const client = makeApiClient(settings.apiBaseUrl, settings.apiKey ?? "");
+    Promise.all([
+      client.listReviews({ status: "pending", limit: 500 }),
+      client.listReviews({ status: "rejected", limit: 500 }),
+    ])
+      .then(([pending, rejected]) => {
+        if (cancelled) return;
+        const map = new Map<string, "pending" | "rejected">();
+        for (const r of rejected.items) map.set(r.sessionId, "rejected");
+        for (const r of pending.items) map.set(r.sessionId, "pending");
+        setReviewStatusMap(map);
+      })
+      .catch(() => {
+        /* hub unreachable or reviews disabled — leave the map empty */
       });
     return () => {
       cancelled = true;
@@ -283,6 +313,7 @@ export function SessionsPage() {
           <VirtualSessionList
             sessions={filtered}
             pushedSet={pushedSet}
+            reviewStatusMap={reviewStatusMap}
             onSelect={(id) => navigate(`/sessions/${id}`)}
           />
         ) : (
@@ -292,6 +323,7 @@ export function SessionsPage() {
                 key={session.id}
                 session={session}
                 pushed={pushedSet.has(session.id)}
+                reviewStatus={reviewStatusMap.get(session.id)}
                 onClick={() => navigate(`/sessions/${session.id}`)}
               />
             ))}

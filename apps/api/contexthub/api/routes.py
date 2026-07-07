@@ -43,6 +43,12 @@ from contexthub.models import (
     QueryRequest,
     QueryResponse,
     RecentResponse,
+    Review,
+    ReviewDetail,
+    ReviewPage,
+    ReviewStats,
+    ReviewVote,
+    ReviewVoteRequest,
     Rule,
     RulePage,
     SessionCatalogRow,
@@ -138,6 +144,122 @@ def _row_to_catalog(r: dict) -> SessionCatalogRow:
     )
 
 
+def _integrate_session(
+    body: IngestRequest,
+    effective_summary: Optional[str],
+    content_hash: str,
+    created_at: str,
+    updated_at: str,
+    blob_uri: str,
+    job_store,
+    enqueue_summarize: bool = False,
+) -> tuple[int, Optional[str]]:
+    """Index a session into the company brain: chunk, embed, upsert, enqueue jobs.
+
+    Shared by the push endpoint (immediate integration) and the review vote
+    endpoint (deferred integration once a pending session is approved).
+    Returns (chunks_indexed, summarize_job_id).
+    """
+    session = body.session
+    vectors = get_vector_store(embedding_dim=get_embedder().dim)
+
+    # Build chunks
+    chunks = build_chunks(session, summary=effective_summary)
+
+    # Embed
+    embedder = get_embedder()
+    texts = [c.text for c in chunks]
+    vectors_list = embedder.embed_texts(texts) if texts else []
+
+    # Atomic upsert into LanceDB
+    tokens_input = session.tokens.input if session.tokens else 0
+    tokens_output = session.tokens.output if session.tokens else 0
+    tokens_total = tokens_input + tokens_output
+
+    author_team = body.author.team or ""
+
+    chunk_rows = [
+        {
+            "id": chunk.id,
+            "session_id": session.id,
+            "tool": session.tool,
+            "category": body.category,
+            "author": body.author.id,
+            "team": author_team,
+            "project": session.project or "",
+            "visibility": body.visibility,
+            "text": chunk.text,
+            "vector": vec,
+            "created_at": created_at,
+        }
+        for chunk, vec in zip(chunks, vectors_list)
+    ]
+    vectors.upsert_chunks(chunk_rows)
+
+    # Refresh FTS index so new chunks are immediately searchable via keyword/hybrid modes.
+    # This is intentionally done after each ingest (rather than per-query) to keep search
+    # requests fast.  For high-throughput batch ingests, callers can call ensure_fts_index
+    # directly after the batch rather than relying on per-ingest refresh.
+    try:
+        vectors.ensure_fts_index()
+    except Exception:
+        logger.warning("FTS index refresh failed after ingest of session %s — keyword search may be stale", session.id)
+
+    # Serialize links from the session for link-based filtering (Task 16).
+    links_json = json.dumps(
+        [lnk.model_dump(mode="json") for lnk in session.links]
+    )
+
+    catalog_row = {
+        "id": session.id,
+        "tool": session.tool,
+        "title": session.title,
+        "category": body.category,
+        "author": body.author.id,
+        "team": author_team,
+        "project": session.project or "",
+        "visibility": body.visibility,
+        "message_count": session.message_count,
+        "models": list(session.models),
+        "preview": session.preview,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "blob_uri": blob_uri,
+        "summary": effective_summary or "",
+        "content_hash": content_hash,
+        "tokens_input": tokens_input,
+        "tokens_output": tokens_output,
+        "tokens_total": tokens_total,
+        "links_json": links_json,
+    }
+    vectors.upsert_session(catalog_row)
+
+    # Enqueue background summarization if requested
+    enqueued_job_id: Optional[str] = None
+    if enqueue_summarize and job_store is not None:
+        try:
+            enqueued_job_id = job_store.enqueue(
+                kind="summarize_session",
+                payload={"session_json": body.session.model_dump_json()},
+            )
+            logger.info("Enqueued summarize_session job %s for session %s", enqueued_job_id, session.id)
+        except Exception:
+            logger.exception("Failed to enqueue summarize_session job for session %s", session.id)
+
+    # Enqueue knowledge-graph extraction off the request path (Task 13).
+    if job_store is not None:
+        try:
+            graph_job_id = job_store.enqueue(
+                kind="graph_extract",
+                payload={"session_id": session.id},
+            )
+            logger.info("Enqueued graph_extract job %s for session %s", graph_job_id, session.id)
+        except Exception:
+            logger.exception("Failed to enqueue graph_extract job for session %s", session.id)
+
+    return len(chunks), enqueued_job_id
+
+
 # ---------------------------------------------------------------------------
 # Ingest
 # ---------------------------------------------------------------------------
@@ -212,106 +334,53 @@ def ingest_session(
         raw_json=raw_json,
     )
 
-    # 3. Build chunks
-    chunks = build_chunks(session, summary=effective_summary)
+    # Review gate: non-private sessions are held pending until approved.
+    # The raw blob is stored (above) but nothing is indexed and no jobs run —
+    # the deferred integration happens in the vote endpoint on approval.
+    if settings.review_required and body.visibility != "private":
+        from contexthub.reviews.store import get_review_store
 
-    # 4. Embed
-    embedder = get_embedder()
-    texts = [c.text for c in chunks]
-    vectors_list = embedder.embed_texts(texts) if texts else []
+        get_review_store().create_request(
+            session_id=session.id,
+            author_id=body.author.id,
+            author_name=body.author.name,
+            title=session.title,
+            category=body.category,
+            visibility=body.visibility,
+            summary=effective_summary,
+            approvals_required=settings.review_approvals_required,
+        )
+        logger.info("Session %s held for review (pending)", session.id)
+        return IngestResponse(
+            session_id=session.id,
+            blob_uri=blob_uri,
+            chunks_indexed=0,
+            summary_used=bool(effective_summary),
+            skipped=False,
+            created_at=original_created_at,
+            updated_at=now,
+            job_id=None,
+            review_status="pending",
+        )
 
-    # 5. Atomic upsert into LanceDB
-    tokens_input = session.tokens.input if session.tokens else 0
-    tokens_output = session.tokens.output if session.tokens else 0
-    tokens_total = tokens_input + tokens_output
-
-    author_team = body.author.team or ""
-
-    chunk_rows = [
-        {
-            "id": chunk.id,
-            "session_id": session.id,
-            "tool": session.tool,
-            "category": body.category,
-            "author": body.author.id,
-            "team": author_team,
-            "project": session.project or "",
-            "visibility": body.visibility,
-            "text": chunk.text,
-            "vector": vec,
-            "created_at": original_created_at,
-        }
-        for chunk, vec in zip(chunks, vectors_list)
-    ]
-    vectors.upsert_chunks(chunk_rows)
-
-    # Refresh FTS index so new chunks are immediately searchable via keyword/hybrid modes.
-    # This is intentionally done after each ingest (rather than per-query) to keep search
-    # requests fast.  For high-throughput batch ingests, callers can call ensure_fts_index
-    # directly after the batch rather than relying on per-ingest refresh.
-    try:
-        vectors.ensure_fts_index()
-    except Exception:
-        logger.warning("FTS index refresh failed after ingest of session %s — keyword search may be stale", session.id)
-
-    # Serialize links from the session for link-based filtering (Task 16).
-    links_json = json.dumps(
-        [lnk.model_dump(mode="json") for lnk in session.links]
+    # 3-5. Chunk + embed + upsert, then enqueue summarize/graph jobs.
+    job_store = getattr(request.app.state, "job_store", None)
+    chunks_indexed, enqueued_job_id = _integrate_session(
+        body=body,
+        effective_summary=effective_summary,
+        content_hash=content_hash,
+        created_at=original_created_at,
+        updated_at=now,
+        blob_uri=blob_uri,
+        job_store=job_store,
+        enqueue_summarize=summarize,
     )
 
-    catalog_row = {
-        "id": session.id,
-        "tool": session.tool,
-        "title": session.title,
-        "category": body.category,
-        "author": body.author.id,
-        "team": author_team,
-        "project": session.project or "",
-        "visibility": body.visibility,
-        "message_count": session.message_count,
-        "models": list(session.models),
-        "preview": session.preview,
-        "created_at": original_created_at,
-        "updated_at": now,
-        "blob_uri": blob_uri,
-        "summary": effective_summary or "",
-        "content_hash": content_hash,
-        "tokens_input": tokens_input,
-        "tokens_output": tokens_output,
-        "tokens_total": tokens_total,
-        "links_json": links_json,
-    }
-    vectors.upsert_session(catalog_row)
-
-    # Enqueue background summarization if requested
-    enqueued_job_id: Optional[str] = None
-    job_store = getattr(request.app.state, "job_store", None)
-    if summarize:
-        try:
-            enqueued_job_id = job_store.enqueue(
-                kind="summarize_session",
-                payload={"session_json": body.session.model_dump_json()},
-            )
-            logger.info("Enqueued summarize_session job %s for session %s", enqueued_job_id, session.id)
-        except Exception:
-            logger.exception("Failed to enqueue summarize_session job for session %s", session.id)
-
-    # Enqueue knowledge-graph extraction off the request path (Task 13).
-    if job_store is not None:
-        try:
-            graph_job_id = job_store.enqueue(
-                kind="graph_extract",
-                payload={"session_id": session.id},
-            )
-            logger.info("Enqueued graph_extract job %s for session %s", graph_job_id, session.id)
-        except Exception:
-            logger.exception("Failed to enqueue graph_extract job for session %s", session.id)
-
-    logger.info("Ingested session %s — %d chunks", session.id, len(chunks))
+    logger.info("Ingested session %s — %d chunks", session.id, chunks_indexed)
     return IngestResponse(
         session_id=session.id,
         blob_uri=blob_uri,
-        chunks_indexed=len(chunks),
+        chunks_indexed=chunks_indexed,
         summary_used=bool(effective_summary),
         skipped=False,
         created_at=original_created_at,
@@ -1390,6 +1459,222 @@ def mine_rules(
         n_sessions,
     )
     return {"job_id": job_id, "kind": "rules_extract", "author": effective_author}
+
+
+# ---------------------------------------------------------------------------
+# Reviews (PR-merge-style session approval)
+# ---------------------------------------------------------------------------
+
+_REVIEW_STATUSES = ("pending", "approved", "rejected")
+
+
+def _row_to_review(row: dict, votes: list[dict], caller_user_id: Optional[str]) -> Review:
+    """Convert a ReviewStore request row + its votes to a Review model."""
+    my_vote: Optional[str] = None
+    for v in votes:
+        if caller_user_id is not None and v["reviewer_id"] == caller_user_id:
+            my_vote = v["verdict"]
+    return Review(
+        session_id=row["session_id"],
+        author_id=row["author_id"],
+        author_name=row.get("author_name"),
+        title=row["title"],
+        category=row["category"],
+        visibility=row["visibility"],
+        summary=row.get("summary") or None,
+        status=row["status"],
+        approvals_required=int(row.get("approvals_required") or 1),
+        approve_count=sum(1 for v in votes if v["verdict"] == "approve"),
+        reject_count=sum(1 for v in votes if v["verdict"] == "reject"),
+        my_vote=my_vote,
+        votes=[
+            ReviewVote(
+                id=v["id"],
+                session_id=v["session_id"],
+                reviewer_id=v["reviewer_id"],
+                reviewer_name=v.get("reviewer_name"),
+                verdict=v["verdict"],
+                comment=v.get("comment"),
+                created_at=v["created_at"],
+            )
+            for v in votes
+        ],
+        created_at=row["created_at"],
+        updated_at=row.get("updated_at"),
+        decided_at=row.get("decided_at"),
+    )
+
+
+def _integrate_approved_session(session_id: str, review_row: dict, job_store) -> None:
+    """Run the deferred integration for a session whose review was approved.
+
+    Reconstructs the push envelope from the blob store and indexes it via the
+    same code path the push endpoint uses (chunk + embed + upsert + jobs).
+    """
+    blob = get_blob_store()
+    raw = blob.get_session(author_id=review_row["author_id"], session_id=session_id)
+    if not raw:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Raw blob for session '{session_id}' not found — cannot integrate.",
+        )
+    body = IngestRequest.model_validate_json(raw)
+
+    effective_summary = body.summary or review_row.get("summary") or None
+    content_hash = _compute_content_hash(body, effective_summary)
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Re-put returns the canonical blob URI without a second store round-trip API.
+    blob_uri = blob.put_session(
+        author_id=body.author.id, session_id=session_id, raw_json=raw
+    )
+
+    _integrate_session(
+        body=body,
+        effective_summary=effective_summary,
+        content_hash=content_hash,
+        created_at=review_row.get("created_at") or now,
+        updated_at=now,
+        blob_uri=blob_uri,
+        job_store=job_store,
+        enqueue_summarize=not effective_summary,
+    )
+
+
+@router.get("/v1/reviews/stats", response_model=ReviewStats, tags=["reviews"])
+def review_stats(
+    _caller: Caller = Depends(require_api_key),
+):
+    """Return {pending, approved, rejected} review counts (desktop badge)."""
+    from contexthub.reviews.store import get_review_store
+
+    return ReviewStats(**get_review_store().stats())
+
+
+@router.get("/v1/reviews", response_model=ReviewPage, tags=["reviews"])
+def list_reviews(
+    status: str = Query("pending", description="Filter by status: pending|approved|rejected"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    caller: Caller = Depends(require_api_key),
+):
+    """List review requests (default: the pending queue) with vote counts."""
+    from contexthub.reviews.store import get_review_store
+
+    if status not in _REVIEW_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid status '{status}'. Must be one of: {', '.join(_REVIEW_STATUSES)}",
+        )
+
+    store = get_review_store()
+    rows = store.list_requests(status=status, limit=limit, offset=offset)
+    total = store.count_requests(status=status)
+    items = [
+        _row_to_review(r, store.votes_for(r["session_id"]), caller.user_id)
+        for r in rows
+    ]
+    return ReviewPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/v1/reviews/{session_id}", response_model=ReviewDetail, tags=["reviews"])
+def get_review(
+    session_id: str,
+    caller: Caller = Depends(require_api_key),
+):
+    """Return full review detail: request, votes, and a transcript preview.
+
+    The transcript is loaded from the blob store (the session is not indexed
+    while pending) so reviewers can read what they are approving.
+    """
+    from contexthub.reviews.store import get_review_store
+
+    store = get_review_store()
+    row = store.get_request(session_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Review for session '{session_id}' not found.")
+
+    review = _row_to_review(row, store.votes_for(session_id), caller.user_id)
+
+    preview = ""
+    messages: list[dict] = []
+    blob = get_blob_store()
+    raw = blob.get_session(author_id=row["author_id"], session_id=session_id)
+    if raw:
+        try:
+            envelope = json.loads(raw)
+            session_data = envelope.get("session") or {}
+            preview = session_data.get("preview", "")
+            messages = session_data.get("messages", [])
+        except Exception:
+            logger.exception("Failed to parse raw blob for review of session %s", session_id)
+
+    return ReviewDetail(review=review, preview=preview, messages=messages)
+
+
+@router.post("/v1/reviews/{session_id}/vote", response_model=Review, tags=["reviews"])
+def vote_review(
+    session_id: str,
+    body: ReviewVoteRequest,
+    request: Request,
+    caller: Caller = Depends(require_api_key),
+):
+    """Record an approve/reject vote and apply the resulting transition.
+
+    Rules:
+      - only identified callers (key:user_id:team) may vote;
+      - the author cannot vote on their own session (403);
+      - a reviewer's re-vote replaces their prior vote;
+      - any reject vote → 'rejected' (blob retained, never indexed);
+      - approve votes >= approvals_required → 'approved' → the deferred
+        integration runs (index chunks, catalog row, summarize/graph jobs).
+    """
+    from contexthub.reviews.store import get_review_store
+
+    store = get_review_store()
+    row = store.get_request(session_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Review for session '{session_id}' not found.")
+
+    if caller.user_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="An identified API key (key:user_id:team) is required to vote on reviews.",
+        )
+    if caller.user_id == row["author_id"]:
+        raise HTTPException(status_code=403, detail="Authors cannot vote on their own session.")
+    if row["status"] != "pending":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Review for session '{session_id}' is already {row['status']}.",
+        )
+
+    store.add_vote(
+        session_id=session_id,
+        reviewer_id=caller.user_id,
+        reviewer_name=None,
+        verdict=body.verdict,
+        comment=body.comment,
+    )
+
+    votes = store.votes_for(session_id)
+    approve_count = sum(1 for v in votes if v["verdict"] == "approve")
+    reject_count = sum(1 for v in votes if v["verdict"] == "reject")
+
+    if reject_count > 0:
+        store.set_status(session_id, "rejected")
+        logger.info("Session %s rejected in review (%d reject votes)", session_id, reject_count)
+    elif approve_count >= int(row.get("approvals_required") or 1):
+        job_store = getattr(request.app.state, "job_store", None)
+        _integrate_approved_session(session_id, row, job_store)
+        store.set_status(session_id, "approved")
+        logger.info(
+            "Session %s approved in review (%d/%d approvals) — integrated",
+            session_id, approve_count, int(row.get("approvals_required") or 1),
+        )
+
+    updated = store.get_request(session_id)
+    return _row_to_review(updated, store.votes_for(session_id), caller.user_id)
 
 
 # ---------------------------------------------------------------------------

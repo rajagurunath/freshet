@@ -86,6 +86,69 @@ export interface AssetPage {
   offset: number;
 }
 
+// ─── review types (PR-merge-style session approval) ──────────────────────────
+
+export type ReviewStatus = "pending" | "approved" | "rejected";
+export type ReviewVerdict = "approve" | "reject";
+
+export interface ReviewVoteRecord {
+  id: string;
+  sessionId: string;
+  reviewerId: string;
+  reviewerName?: string | null;
+  verdict: ReviewVerdict;
+  comment?: string | null;
+  createdAt: string;
+}
+
+export interface ReviewRecord {
+  sessionId: string;
+  authorId: string;
+  authorName?: string | null;
+  title: string;
+  category: string;
+  visibility: string;
+  summary?: string | null;
+  status: ReviewStatus;
+  approvalsRequired: number;
+  approveCount: number;
+  rejectCount: number;
+  myVote?: ReviewVerdict | null;
+  votes: ReviewVoteRecord[];
+  createdAt: string;
+  updatedAt?: string | null;
+  decidedAt?: string | null;
+}
+
+export interface ReviewPage {
+  items: ReviewRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ReviewMessage {
+  id: string;
+  role: "user" | "assistant" | "system" | "tool";
+  text: string;
+  thinking?: string | null;
+  toolName?: string | null;
+  timestamp?: string | null;
+  model?: string | null;
+}
+
+export interface ReviewDetailRecord {
+  review: ReviewRecord;
+  preview: string;
+  messages: ReviewMessage[];
+}
+
+export interface ReviewStats {
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
 export interface ProviderInfo {
   id: string;
   label: string;
@@ -507,6 +570,45 @@ export class ApiClient {
     const qs = opts ? this.buildQuery(opts as Record<string, unknown>) : "";
     const raw = await this.request<{ job_id: string }>("POST", `/v1/rules/mine${qs}`);
     return { jobId: raw.job_id };
+  }
+
+  /** List review requests (default: the pending queue). */
+  async listReviews(opts?: {
+    status?: ReviewStatus;
+    limit?: number;
+    offset?: number;
+  }): Promise<ReviewPage> {
+    const qs = opts ? this.buildQuery(opts as Record<string, unknown>) : "";
+    const raw = await this.request<unknown>("GET", `/v1/reviews${qs}`);
+    return camelify<ReviewPage>(raw);
+  }
+
+  /** Fetch full review detail: request, votes, and a transcript preview. */
+  async getReview(sessionId: string): Promise<ReviewDetailRecord> {
+    const raw = await this.request<unknown>(
+      "GET",
+      `/v1/reviews/${encodeURIComponent(sessionId)}`,
+    );
+    return camelify<ReviewDetailRecord>(raw);
+  }
+
+  /** Approve or reject a pending session (author self-votes are rejected). */
+  async voteReview(
+    sessionId: string,
+    verdict: ReviewVerdict,
+    comment?: string,
+  ): Promise<ReviewRecord> {
+    const raw = await this.request<unknown>(
+      "POST",
+      `/v1/reviews/${encodeURIComponent(sessionId)}/vote`,
+      { verdict, comment },
+    );
+    return camelify<ReviewRecord>(raw);
+  }
+
+  /** Review queue counts for the sidebar badge. */
+  async reviewStats(): Promise<ReviewStats> {
+    return this.request<ReviewStats>("GET", "/v1/reviews/stats");
   }
 
   /** List hub assets with optional kind/category filter and FTS search. */

@@ -475,6 +475,23 @@
           "default": null,
           "title": "Job Id"
         },
+        "review_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "pending",
+                "approved",
+                "rejected"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Status"
+        },
         "session_id": {
           "title": "Session Id",
           "type": "string"
@@ -1011,6 +1028,312 @@
         "citations"
       ],
       "title": "QueryResponse",
+      "type": "object"
+    },
+    "Review": {
+      "description": "A review request for a pushed session awaiting integration.",
+      "properties": {
+        "approvals_required": {
+          "default": 1,
+          "title": "Approvals Required",
+          "type": "integer"
+        },
+        "approve_count": {
+          "default": 0,
+          "title": "Approve Count",
+          "type": "integer"
+        },
+        "author_id": {
+          "title": "Author Id",
+          "type": "string"
+        },
+        "author_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author Name"
+        },
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "decided_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decided At"
+        },
+        "my_vote": {
+          "anyOf": [
+            {
+              "enum": [
+                "approve",
+                "reject"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "My Vote"
+        },
+        "reject_count": {
+          "default": 0,
+          "title": "Reject Count",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "status": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "visibility": {
+          "title": "Visibility",
+          "type": "string"
+        },
+        "votes": {
+          "items": {
+            "$ref": "#/$defs/ReviewVote"
+          },
+          "title": "Votes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "session_id",
+        "author_id",
+        "title",
+        "category",
+        "visibility",
+        "created_at"
+      ],
+      "title": "Review",
+      "type": "object"
+    },
+    "ReviewDetail": {
+      "description": "Full review detail: request + votes + transcript preview from the blob.",
+      "properties": {
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "preview": {
+          "default": "",
+          "title": "Preview",
+          "type": "string"
+        },
+        "review": {
+          "$ref": "#/$defs/Review"
+        }
+      },
+      "required": [
+        "review"
+      ],
+      "title": "ReviewDetail",
+      "type": "object"
+    },
+    "ReviewPage": {
+      "description": "Paginated list of review requests.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/Review"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "limit": {
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "integer"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total",
+        "limit",
+        "offset"
+      ],
+      "title": "ReviewPage",
+      "type": "object"
+    },
+    "ReviewStats": {
+      "description": "GET /v1/reviews/stats \u2014 counts for the desktop badge.",
+      "properties": {
+        "approved": {
+          "default": 0,
+          "title": "Approved",
+          "type": "integer"
+        },
+        "pending": {
+          "default": 0,
+          "title": "Pending",
+          "type": "integer"
+        },
+        "rejected": {
+          "default": 0,
+          "title": "Rejected",
+          "type": "integer"
+        }
+      },
+      "title": "ReviewStats",
+      "type": "object"
+    },
+    "ReviewVote": {
+      "description": "A single reviewer vote on a pending session.",
+      "properties": {
+        "comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "reviewer_id": {
+          "title": "Reviewer Id",
+          "type": "string"
+        },
+        "reviewer_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewer Name"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "reject"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "session_id",
+        "reviewer_id",
+        "verdict",
+        "created_at"
+      ],
+      "title": "ReviewVote",
+      "type": "object"
+    },
+    "ReviewVoteRequest": {
+      "description": "POST /v1/reviews/{session_id}/vote body.",
+      "properties": {
+        "comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment"
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "reject"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "verdict"
+      ],
+      "title": "ReviewVoteRequest",
       "type": "object"
     },
     "Rule": {

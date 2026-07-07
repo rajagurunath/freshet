@@ -95,6 +95,9 @@ class IngestResponse(BaseModel):
     created_at: Optional[str] = None  # ISO timestamp; preserved on skip
     updated_at: Optional[str] = None  # ISO timestamp; set on every write
     job_id: Optional[str] = None   # set when summarize=true; the enqueued job id
+    # "pending" when the session is held for review (REVIEW_REQUIRED=true and
+    # visibility != private); None when it was integrated immediately.
+    review_status: Optional[Literal["pending", "approved", "rejected"]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -442,6 +445,79 @@ class RulePage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ---------------------------------------------------------------------------
+# Reviews (PR-merge-style session approval)
+# ---------------------------------------------------------------------------
+
+ReviewStatusLiteral = Literal["pending", "approved", "rejected"]
+ReviewVerdictLiteral = Literal["approve", "reject"]
+
+
+class ReviewVote(BaseModel):
+    """A single reviewer vote on a pending session."""
+
+    id: str
+    session_id: str
+    reviewer_id: str
+    reviewer_name: Optional[str] = None
+    verdict: ReviewVerdictLiteral
+    comment: Optional[str] = None
+    created_at: str
+
+
+class Review(BaseModel):
+    """A review request for a pushed session awaiting integration."""
+
+    session_id: str
+    author_id: str
+    author_name: Optional[str] = None
+    title: str
+    category: str
+    visibility: str
+    summary: Optional[str] = None
+    status: ReviewStatusLiteral = "pending"
+    approvals_required: int = 1
+    approve_count: int = 0
+    reject_count: int = 0
+    my_vote: Optional[ReviewVerdictLiteral] = None
+    votes: list[ReviewVote] = Field(default_factory=list)
+    created_at: str
+    updated_at: Optional[str] = None
+    decided_at: Optional[str] = None
+
+
+class ReviewPage(BaseModel):
+    """Paginated list of review requests."""
+
+    items: list[Review]
+    total: int
+    limit: int
+    offset: int
+
+
+class ReviewDetail(BaseModel):
+    """Full review detail: request + votes + transcript preview from the blob."""
+
+    review: Review
+    preview: str = ""
+    messages: list[Message] = Field(default_factory=list)
+
+
+class ReviewVoteRequest(BaseModel):
+    """POST /v1/reviews/{session_id}/vote body."""
+
+    verdict: ReviewVerdictLiteral
+    comment: Optional[str] = None
+
+
+class ReviewStats(BaseModel):
+    """GET /v1/reviews/stats — counts for the desktop badge."""
+
+    pending: int = 0
+    approved: int = 0
+    rejected: int = 0
 
 
 # ---------------------------------------------------------------------------
