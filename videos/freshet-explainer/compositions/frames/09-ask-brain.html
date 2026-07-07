@@ -1,0 +1,380 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>09-ask-brain — source (runtime reads only the template)</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ============================================================
+           Frame 9 — Ask the company brain · typewriter-reveal (Adapt)
+           Canvas 1920x1080 · duration 7.808s · captions keep-out y <= 900
+           Palette: cream #FBFAF8 · tile #FCDCD1 · ink #1A1815 · coral #F2541B
+           Scene 1 (0.0-2.6s): query types into a minimal hairline bar
+           Scene 2 (2.6-5.6s): answer card slides up, two serif lines per-word
+           Scene 3 (5.6-7.808s): three citation chips cascade, middle glows coral
+           ============================================================ */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "Inter", -apple-system, sans-serif;
+          color: #1a1815;
+        }
+
+        /* --- background: warm paper swell + faint hairline grid (dim) --- */
+        .ab9-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse 120% 90% at 50% 34%,
+            #fdfcfa 0%,
+            #fbfaf8 46%,
+            #f4efe8 100%
+          );
+        }
+        .ab9-grid {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(26, 24, 21, 0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(26, 24, 21, 0.04) 1px, transparent 1px);
+          background-size: 96px 96px;
+          background-position: center top;
+        }
+
+        /* --- stage: centered column, all content within y <= 900 --- */
+        .ab9-stage {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        /* Scene 1 — minimal hairline query bar (foreground subject) */
+        .ab9-bar {
+          position: absolute;
+          top: 352px;
+          width: 900px;
+          height: 92px;
+          display: flex;
+          align-items: center;
+          padding: 0 36px;
+          background: #fbfaf8;
+          border: 1px solid rgba(26, 24, 21, 0.12);
+          border-radius: 12px;
+          box-shadow:
+            0 1px 3px rgba(26, 24, 21, 0.08),
+            0 4px 16px rgba(26, 24, 21, 0.04);
+          will-change: transform, opacity;
+        }
+        .ab9-bar-inner {
+          display: flex;
+          align-items: center;
+          white-space: nowrap;
+          overflow: hidden;
+        }
+        .ab9-bar-text {
+          font-family: "Inter", sans-serif;
+          font-size: 40px;
+          font-weight: 400;
+          letter-spacing: -0.005em;
+          color: #1a1815;
+        }
+        .ab9-caret {
+          display: inline-block;
+          width: 4px;
+          height: 42px;
+          margin-left: 4px;
+          background: #1a1815;
+          flex: none;
+        }
+
+        /* Scene 2 — answer card (foreground subject from Scene 2 on) */
+        .ab9-answer {
+          position: absolute;
+          top: 470px;
+          width: 900px;
+          padding: 34px 40px;
+          background: #fcdcd1;
+          border: 1px solid rgba(26, 24, 21, 0.12);
+          border-radius: 12px;
+          box-shadow:
+            0 1px 3px rgba(26, 24, 21, 0.08),
+            0 4px 16px rgba(26, 24, 21, 0.04);
+          will-change: transform, opacity;
+        }
+        .ab9-answer-line {
+          font-family: "EB Garamond", Georgia, serif;
+          font-size: 46px;
+          font-weight: 400;
+          line-height: 1.32;
+          letter-spacing: -0.01em;
+          color: #1a1815;
+          white-space: nowrap;
+        }
+        .ab9-aw {
+          display: inline-block;
+          will-change: transform, opacity;
+        }
+        .ab9-aw + .ab9-aw {
+          margin-left: 0.28em;
+        }
+
+        /* Scene 3 — citation chips (supporting -> focal) */
+        .ab9-chips {
+          position: absolute;
+          top: 718px;
+          display: flex;
+          gap: 24px;
+          justify-content: center;
+        }
+        .ab9-chip {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 6px;
+          min-width: 176px;
+          padding: 14px 22px;
+          background: #fbfaf8;
+          border: 1px solid rgba(26, 24, 21, 0.12);
+          border-radius: 8px;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity, box-shadow, border-color;
+        }
+        .ab9-chip-id {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 24px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: #1a1815;
+        }
+        .ab9-chip-author {
+          font-family: "Inter", sans-serif;
+          font-size: 20px;
+          font-weight: 400;
+          color: rgba(26, 24, 21, 0.68);
+        }
+      </style>
+
+      <div id="root" data-composition-id="09-ask-brain" data-width="1920" data-height="1080">
+        <!-- full-bleed ground: dedicated clip, never painted on #root -->
+        <div class="clip ab9-bg" data-start="0" data-duration="7.808" data-track-index="0">
+          <div class="ab9-grid"></div>
+        </div>
+
+        <div class="clip ab9-stage" data-start="0" data-duration="7.808" data-track-index="1">
+          <!-- Scene 1: query bar — types behind a blinking caret -->
+          <div class="ab9-bar">
+            <div class="ab9-bar-inner">
+              <span class="ab9-bar-text" id="ab9-qtext"></span><span
+                class="ab9-caret"
+                id="ab9-caret"
+              ></span>
+            </div>
+          </div>
+
+          <!-- Scene 2: answer card — two serif lines, per-word reveal -->
+          <div class="ab9-answer">
+            <div class="ab9-answer-line ab9-l1">
+              <span class="ab9-aw">We</span><span class="ab9-aw">locked</span><span
+                class="ab9-aw"
+                >annual</span
+              ><span class="ab9-aw">pricing</span>
+            </div>
+            <div class="ab9-answer-line ab9-l2">
+              <span class="ab9-aw">after</span><span class="ab9-aw">the</span><span
+                class="ab9-aw"
+                >renewal</span
+              ><span class="ab9-aw">review.</span>
+            </div>
+          </div>
+
+          <!-- Scene 3: three citation chips cascade in; middle gets keyword glow -->
+          <div class="ab9-chips">
+            <div class="ab9-chip" data-chip="0">
+              <span class="ab9-chip-id">sess_2b7e</span>
+              <span class="ab9-chip-author">M. Chen</span>
+            </div>
+            <div class="ab9-chip" data-chip="1">
+              <span class="ab9-chip-id">sess_9a41</span>
+              <span class="ab9-chip-author">R. Alvarez</span>
+            </div>
+            <div class="ab9-chip" data-chip="2">
+              <span class="ab9-chip-id">sess_5f18</span>
+              <span class="ab9-chip-author">T. Osei</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+
+          var DURATION = 7.808;
+          var root = document.querySelector('[data-composition-id="09-ask-brain"]');
+          var bar = root.querySelector(".ab9-bar");
+          var qtext = root.querySelector("#ab9-qtext");
+          var caret = root.querySelector("#ab9-caret");
+          var answer = root.querySelector(".ab9-answer");
+          var l1Words = root.querySelectorAll(".ab9-l1 .ab9-aw");
+          var l2Words = root.querySelectorAll(".ab9-l2 .ab9-aw");
+          var chips = root.querySelectorAll(".ab9-chip");
+          var chipMid = root.querySelector('.ab9-chip[data-chip="1"]');
+
+          var tl = gsap.timeline({ paused: true });
+
+          /* ---- Scene 1 (0.0-2.6s): query bar settles, hero visible <=0.5s ---- */
+          tl.fromTo(
+            bar,
+            { opacity: 0, y: 26 },
+            { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+            0.05
+          );
+
+          /* discrete-text-sequence: word-group states typed behind the caret,
+             timed to track the spoken question "what did we decide about pricing?" */
+          var QUERY_SEQUENCE = [
+            { t: 0.0, text: "" },
+            { t: 0.55, text: "What" },
+            { t: 0.75, text: "What did" },
+            { t: 0.95, text: "What did we" },
+            { t: 1.15, text: "What did we decide" },
+            { t: 1.4, text: "What did we decide about" },
+            { t: 1.85, text: "What did we decide about pricing?" },
+          ];
+          function textAt(time) {
+            for (var i = QUERY_SEQUENCE.length - 1; i >= 0; i--) {
+              if (time >= QUERY_SEQUENCE[i].t) return QUERY_SEQUENCE[i].text;
+            }
+            return "";
+          }
+
+          /* context-sensitive-cursor: deterministic sin blink, solid while
+             actively typing (TYPING_GRACE), single ink segment throughout */
+          var TYPING_GRACE = 0.22;
+          var BLINK_CYCLES = 8; // ~0.976s period over 7.808s
+          var lastQueryText = "";
+          var lastChangeTime = 0;
+
+          var queryDriver = { t: 0 };
+          tl.to(
+            queryDriver,
+            {
+              t: DURATION,
+              duration: DURATION,
+              ease: "none",
+              onUpdate: function () {
+                var txt = textAt(queryDriver.t);
+                if (txt !== lastQueryText) {
+                  qtext.textContent = txt;
+                  lastQueryText = txt;
+                  lastChangeTime = queryDriver.t;
+                }
+                var isTyping = queryDriver.t - lastChangeTime < TYPING_GRACE;
+                if (isTyping) {
+                  caret.style.opacity = "1";
+                } else {
+                  var phase = ((queryDriver.t / DURATION) * Math.PI * 2 * BLINK_CYCLES) % (Math.PI * 2);
+                  caret.style.opacity = Math.sin(phase) > 0 ? "1" : "0";
+                }
+              },
+            },
+            0
+          );
+
+          /* ---- Scene 2 (2.6-5.6s): answer card slides up beneath the bar ---- */
+          tl.fromTo(
+            answer,
+            { opacity: 0, y: 44 },
+            { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" },
+            2.6
+          );
+
+          /* per-word reveal, line 1 lands first, line 2 follows on the VO */
+          tl.fromTo(
+            l1Words,
+            { opacity: 0, y: 18 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", stagger: 0.15 },
+            2.95
+          );
+          tl.fromTo(
+            l2Words,
+            { opacity: 0, y: 18 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", stagger: 0.15 },
+            3.75
+          );
+
+          /* ---- Scene 3 (5.6-7.808s): citation chips cascade, one restrained stagger ---- */
+          tl.fromTo(
+            chips,
+            { opacity: 0, y: 26 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", stagger: 0.15 },
+            5.6
+          );
+
+          /* asr-keyword-glow: attack-sustain-decay-rest envelope on the middle
+             chip only — the single coral "voltage" moment in this frame */
+          var GLOW_START = 6.25;
+          var ATTACK = 0.25;
+          var SUSTAIN_END = 6.75;
+          var RELEASE = 0.3;
+          var REST_LEVEL = 0.3;
+          var MAX_BLUR = 26;
+          var MAX_SCALE_BOOST = 0.05;
+          var INK = { r: 26, g: 24, b: 21 };
+          var CORAL = { r: 242, g: 84, b: 27 };
+          function lerpChannel(a, b, t) {
+            return Math.round(a + (b - a) * t);
+          }
+          function envelope(time) {
+            var releaseEnd = SUSTAIN_END + RELEASE;
+            if (time < GLOW_START) return 0;
+            if (time < SUSTAIN_END) {
+              return Math.min((time - GLOW_START) / ATTACK, 1);
+            }
+            if (time < releaseEnd) {
+              var decay = (time - SUSTAIN_END) / RELEASE;
+              return 1 - decay * (1 - REST_LEVEL);
+            }
+            return REST_LEVEL;
+          }
+
+          var glowDriver = { t: 0 };
+          tl.to(
+            glowDriver,
+            {
+              t: DURATION,
+              duration: DURATION,
+              ease: "none",
+              onUpdate: function () {
+                var env = envelope(glowDriver.t);
+                var blur = MAX_BLUR * env;
+                var scale = 1 + MAX_SCALE_BOOST * env;
+                var r = lerpChannel(INK.r, CORAL.r, env);
+                var g = lerpChannel(INK.g, CORAL.g, env);
+                var b = lerpChannel(INK.b, CORAL.b, env);
+                chipMid.style.borderColor = "rgba(" + r + ", " + g + ", " + b + ", " + (0.35 + env * 0.65).toFixed(3) + ")";
+                chipMid.style.boxShadow =
+                  "0 0 " + blur.toFixed(1) + "px rgba(242, 84, 27, " + (0.45 * env).toFixed(3) + ")";
+                // gsap.set (not raw style.transform) — chipMid already has a GSAP-owned
+                // y-translate from the entrance tween; writing transform directly would
+                // clobber GSAP's cached transform. gsap.set composes scale into it safely.
+                gsap.set(chipMid, { scale: scale });
+              },
+            },
+            0
+          );
+
+          window.__timelines["09-ask-brain"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

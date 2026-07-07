@@ -1,0 +1,306 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>01-hook — source (runtime reads only the template)</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ============================================================
+           Frame 1 — Hook · kinetic-type-beats (sub-shape A: token swap)
+           Canvas 1920x1080 · duration 6s · captions keep-out y <= 900
+           Palette: cream #FBFAF8 · ink #1A1815 · coral #F2541B
+           ============================================================ */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "EB Garamond", Georgia, serif;
+          color: #1a1815;
+        }
+
+        /* --- background: warm paper swell + faint hairline grid (dim) --- */
+        .hk1-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse 120% 90% at 50% 36%,
+            #fdfcfa 0%,
+            #fbfaf8 46%,
+            #f4efe8 100%
+          );
+        }
+        .hk1-grid {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(26, 24, 21, 0.045) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(26, 24, 21, 0.045) 1px, transparent 1px);
+          background-size: 96px 96px;
+          background-position: center top;
+        }
+
+        /* --- stage: centered column in the upper 83% --- */
+        .hk1-stage {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding-top: 182px; /* stack bottom lands ~740px, well above 900 */
+        }
+
+        /* Scene 1 — two-line display serif headline (foreground subject) */
+        .hk1-headline {
+          text-align: center;
+          font-size: 140px; /* display 7.3cqw @1920 */
+          font-weight: 400;
+          line-height: 1.04;
+          letter-spacing: -0.022em;
+        }
+        .hk1-hl-line {
+          display: block;
+          white-space: nowrap;
+        }
+        .hk1-hl-word {
+          display: inline-block;
+          will-change: transform, opacity;
+        }
+        .hk1-hl-word + .hk1-hl-word {
+          margin-left: 0.24em;
+        }
+
+        /* Scene 2 — smaller serif line + drawn coral spike beside it */
+        .hk1-subline {
+          margin-top: 34px;
+          display: flex;
+          align-items: baseline;
+          font-size: 88px; /* headline 4.6cqw @1920 */
+          font-weight: 400;
+          line-height: 1.06;
+          letter-spacing: -0.018em;
+          color: rgba(26, 24, 21, 0.92);
+          white-space: nowrap;
+        }
+        .hk1-sub-word {
+          display: inline-block;
+          will-change: transform, opacity;
+        }
+        .hk1-sub-word + .hk1-sub-word {
+          margin-left: 0.26em;
+        }
+        .hk1-spike {
+          width: 62px;
+          height: 62px;
+          margin-left: 26px;
+          align-self: center;
+          flex: none;
+        }
+        .hk1-spike path {
+          fill: none;
+          stroke: #f2541b;
+          stroke-width: 13;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        /* Scene 3 — mono token pill (supporting -> focal) */
+        .hk1-pill {
+          margin-top: 58px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 22px 52px;
+          border: 1px solid rgba(26, 24, 21, 0.12);
+          border-radius: 9999px;
+          background: #fbfaf8;
+          box-shadow:
+            0 1px 3px rgba(26, 24, 21, 0.08),
+            0 4px 16px rgba(26, 24, 21, 0.04);
+          will-change: transform, opacity;
+        }
+        .hk1-token {
+          display: inline-block;
+          min-width: 320px; /* >= widest state ("Claude Code") — no edge jitter */
+          text-align: center;
+          white-space: nowrap;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 44px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: #1a1815;
+          transform-origin: 50% 50%;
+          will-change: transform, text-shadow, color;
+        }
+      </style>
+
+      <div id="root" data-composition-id="01-hook" data-width="1920" data-height="1080">
+        <!-- full-bleed ground: dedicated clip, never painted on #root -->
+        <div
+          class="clip hk1-bg"
+          data-start="0"
+          data-duration="6"
+          data-track-index="0"
+        >
+          <div class="hk1-grid"></div>
+        </div>
+
+        <div
+          class="clip hk1-stage"
+          data-start="0"
+          data-duration="6"
+          data-track-index="1"
+        >
+          <!-- Scene 1: per-word staggered reveal, long-tail settle -->
+          <div class="hk1-headline">
+            <span class="hk1-hl-line">
+              <span class="hk1-hl-word">Your</span>
+              <span class="hk1-hl-word">team&rsquo;s</span>
+            </span>
+            <span class="hk1-hl-line">
+              <span class="hk1-hl-word">sharpest</span>
+              <span class="hk1-hl-word">thinking</span>
+            </span>
+          </div>
+
+          <!-- Scene 2: second line lands on its spoken cue; spike draws on -->
+          <div class="hk1-subline">
+            <span class="hk1-sub-word">happens</span>
+            <span class="hk1-sub-word">inside</span>
+            <span class="hk1-sub-word">AI</span>
+            <span class="hk1-sub-word">sessions</span>
+            <svg class="hk1-spike" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <path class="hk1-spike-p1" d="M 50 10 L 50 90" />
+              <path class="hk1-spike-p2" d="M 15.4 30 L 84.6 70" />
+              <path class="hk1-spike-p3" d="M 84.6 30 L 15.4 70" />
+            </svg>
+          </div>
+
+          <!-- Scene 3: mono token pill — in-place hard-cut token cycle -->
+          <div class="hk1-pill">
+            <span class="hk1-token">Claude&nbsp;Code</span>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+
+          var root = document.querySelector('[data-composition-id="01-hook"]');
+          var hlWords = root.querySelectorAll(".hk1-hl-word");
+          var subWords = root.querySelectorAll(".hk1-sub-word");
+          var pill = root.querySelector(".hk1-pill");
+          var token = root.querySelector(".hk1-token");
+          var spikePaths = root.querySelectorAll(".hk1-spike path");
+
+          // svg-path-draw: measure each segment, dash it fully out of view
+          spikePaths.forEach(function (p) {
+            var len = p.getTotalLength();
+            p.style.strokeDasharray = String(len);
+            p.style.strokeDashoffset = String(len);
+          });
+
+          var tl = gsap.timeline({ paused: true });
+
+          /* ---- Scene 1 (0.0–2.2s): headline per-word staggered reveal ---- */
+          tl.fromTo(
+            hlWords,
+            { opacity: 0, y: 58 },
+            { opacity: 1, y: 0, duration: 0.95, ease: "power3.out", stagger: 0.17 },
+            0.1
+          );
+
+          /* ---- Scene 2 (2.2–3.4s): subline per-word reveal on its cue ---- */
+          tl.fromTo(
+            subWords,
+            { opacity: 0, y: 36 },
+            { opacity: 1, y: 0, duration: 0.72, ease: "power3.out", stagger: 0.13 },
+            2.2
+          );
+
+          // coral spike draws beside the line (staggered strokes, pen trace)
+          tl.to(root.querySelector(".hk1-spike-p1"), { strokeDashoffset: 0, duration: 0.34, ease: "power2.out" }, 2.9);
+          tl.to(root.querySelector(".hk1-spike-p2"), { strokeDashoffset: 0, duration: 0.32, ease: "power2.out" }, 3.08);
+          tl.to(root.querySelector(".hk1-spike-p3"), { strokeDashoffset: 0, duration: 0.26, ease: "power2.out" }, 3.26);
+
+          /* ---- Scene 3 (3.4–6.0s): pill enters, token cycles per spoken name ---- */
+          tl.fromTo(
+            pill,
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+            3.4
+          );
+
+          // discrete-text-sequence: instant hard-cut swaps at spoken cues
+          // (pill is invisible before 3.4s, so state 0 pre-loads the first token)
+          var SEQUENCE = [
+            { t: 0.0, text: "Claude Code" },
+            { t: 4.45, text: "Codex" },
+            { t: 5.15, text: "Kilo" },
+          ];
+          function textAt(time) {
+            for (var i = SEQUENCE.length - 1; i >= 0; i--) {
+              if (time >= SEQUENCE[i].t) return SEQUENCE[i].text;
+            }
+            return SEQUENCE[0].text;
+          }
+
+          // asr-keyword-glow: attack-and-sustain envelope on the final token
+          var GLOW_START = 5.35;
+          var ATTACK = 0.28;
+          var MAX_BLUR = 28;
+          var MAX_SCALE_BOOST = 0.06;
+          var INK = { r: 26, g: 24, b: 21 };
+          var CORAL = { r: 242, g: 84, b: 27 };
+          function lerpChannel(a, b, t) {
+            return Math.round(a + (b - a) * t);
+          }
+
+          var driver = { t: 0 };
+          var lastText = "";
+          tl.to(
+            driver,
+            {
+              t: 6,
+              duration: 6,
+              ease: "none",
+              onUpdate: function () {
+                // token swap only on state change (no per-frame DOM thrash)
+                var txt = textAt(driver.t);
+                if (txt !== lastText) {
+                  token.textContent = txt;
+                  lastText = txt;
+                }
+                // envelope: 0 before GLOW_START, linear attack, sustain to end
+                var env =
+                  driver.t <= GLOW_START
+                    ? 0
+                    : Math.min((driver.t - GLOW_START) / ATTACK, 1);
+                var blur = MAX_BLUR * env;
+                token.style.textShadow =
+                  "0 0 " + blur.toFixed(1) + "px rgba(242, 84, 27, " + (0.5 * env).toFixed(3) + ")";
+                token.style.transform = "scale(" + (1 + MAX_SCALE_BOOST * env).toFixed(4) + ")";
+                token.style.color =
+                  "rgb(" +
+                  lerpChannel(INK.r, CORAL.r, env) +
+                  ", " +
+                  lerpChannel(INK.g, CORAL.g, env) +
+                  ", " +
+                  lerpChannel(INK.b, CORAL.b, env) +
+                  ")";
+              },
+            },
+            0
+          );
+
+          window.__timelines["01-hook"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

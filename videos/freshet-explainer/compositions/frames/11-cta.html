@@ -1,0 +1,286 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>11-cta — source (runtime reads only the template)</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ============================================================
+           Frame 11 — CTA · kinetic-type-beats (Adapt: two beats, resolve
+           on the lockup instead of a token cycle)
+           Canvas 1920x1080 · duration 2.112s · captions keep-out y <= 900
+           Palette: cream #FBFAF8 · ink #1A1815 · coral #F2541B
+           Final frame — gentle fade-to-paper exit permitted in last ~0.3s.
+           ============================================================ */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "Inter", sans-serif;
+          color: #1a1815;
+        }
+
+        /* --- background: warm paper swell (dim, ambient) --- */
+        .f11-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse 120% 90% at 50% 40%,
+            #fdfcfa 0%,
+            #fbfaf8 46%,
+            #f4efe8 100%
+          );
+        }
+
+        /* --- ambient glow bloom, sits BEHIND the lockup --- */
+        .f11-glow {
+          position: absolute;
+          left: 50%;
+          top: 432px;
+          width: 900px;
+          height: 900px;
+          margin-left: -450px;
+          margin-top: -450px;
+          border-radius: 50%;
+          background: radial-gradient(
+            circle,
+            rgba(242, 84, 27, 0.28) 0%,
+            rgba(242, 84, 27, 0.12) 38%,
+            rgba(242, 84, 27, 0) 70%
+          );
+          opacity: 0;
+          transform-origin: 50% 50%;
+          pointer-events: none;
+          will-change: transform, opacity;
+        }
+
+        /* --- stage: centered column, lockup anchored ~y0.40 --- */
+        .f11-stage {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding-top: 350px; /* wordmark visual center ~432px; stack ends well above 900 */
+        }
+
+        /* Scene 1 — Freshet wordmark + coral spike (foreground subject) */
+        .f11-lockup {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          will-change: transform, opacity;
+          transform-origin: 50% 50%;
+        }
+        .f11-wordmark {
+          font-family: "EB Garamond", Georgia, serif;
+          font-size: 176px;
+          font-weight: 400;
+          line-height: 1;
+          letter-spacing: -0.024em;
+          color: #1a1815;
+          white-space: nowrap;
+        }
+        .f11-spike {
+          width: 66px;
+          height: 66px;
+          margin-left: 22px;
+          flex: none;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        .f11-spike path {
+          fill: none;
+          stroke: #f2541b;
+          stroke-width: 13;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        /* Scene 2 — tagline, per-word reveal beneath (supporting) */
+        .f11-tagline {
+          margin-top: 34px;
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          font-family: "Inter", sans-serif;
+          font-size: 46px;
+          font-weight: 400;
+          line-height: 1.3;
+          color: rgba(26, 24, 21, 0.92);
+          white-space: nowrap;
+        }
+        .f11-tag-word {
+          display: inline-block;
+          will-change: transform, opacity;
+        }
+        .f11-tag-word + .f11-tag-word {
+          margin-left: 0.28em;
+        }
+
+        /* Scene 3 — mono open-source sub-line (supporting, quiet) */
+        .f11-subline {
+          margin-top: 30px;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 27px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: rgba(26, 24, 21, 0.62);
+          white-space: nowrap;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+
+        /* Final-frame exit: gentle fade-to-paper wash over the last ~0.3s */
+        .f11-paper-fade {
+          position: absolute;
+          inset: 0;
+          background: #fbfaf8;
+          opacity: 0;
+          pointer-events: none;
+          will-change: opacity;
+        }
+      </style>
+
+      <div id="root" data-composition-id="11-cta" data-width="1920" data-height="1080">
+        <!-- full-bleed ground: dedicated clip, never painted on #root -->
+        <div
+          class="clip f11-bg"
+          data-start="0"
+          data-duration="2.112"
+          data-track-index="0"
+        ></div>
+
+        <!-- ambient glow, behind the lockup, its own track (blooms in Scene 3) -->
+        <div
+          class="clip f11-glow"
+          data-start="0"
+          data-duration="2.112"
+          data-track-index="1"
+        ></div>
+
+        <div
+          class="clip f11-stage"
+          data-start="0"
+          data-duration="2.112"
+          data-track-index="2"
+        >
+          <!-- Scene 1 (0.0-0.7s): wordmark spring-pops centered w/ coral spike -->
+          <div class="f11-lockup">
+            <span class="f11-wordmark">Freshet</span>
+            <svg class="f11-spike" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <path d="M 50 10 L 50 90" />
+              <path d="M 15.4 30 L 84.6 70" />
+              <path d="M 84.6 30 L 15.4 70" />
+            </svg>
+          </div>
+
+          <!-- Scene 2 (0.7-1.5s): tagline, per-word build beneath -->
+          <div class="f11-tagline">
+            <span class="f11-tag-word">Give</span>
+            <span class="f11-tag-word">your</span>
+            <span class="f11-tag-word">company</span>
+            <span class="f11-tag-word">a</span>
+            <span class="f11-tag-word">brain.</span>
+          </div>
+
+          <!-- Scene 3 (1.5-2.112s): mono open-source line fades up -->
+          <div class="f11-subline">open source &mdash; github.com/rajagurunath/context-hub</div>
+        </div>
+
+        <!-- final-frame exit only: fade-to-paper wash, last ~0.3s -->
+        <div
+          class="clip f11-paper-fade"
+          data-start="0"
+          data-duration="2.112"
+          data-track-index="3"
+        ></div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+
+          var root = document.querySelector('[data-composition-id="11-cta"]');
+          var lockup = root.querySelector(".f11-lockup");
+          var spike = root.querySelector(".f11-spike");
+          var glow = root.querySelector(".f11-glow");
+          var tagWords = root.querySelectorAll(".f11-tag-word");
+          var subline = root.querySelector(".f11-subline");
+          var paperFade = root.querySelector(".f11-paper-fade");
+
+          var tl = gsap.timeline({ paused: true });
+
+          /* ---- Scene 1 (0.0-0.7s): spring-pop-entrance on the lockup ---- */
+          tl.fromTo(
+            lockup,
+            { scale: 0.72, opacity: 0 },
+            { scale: 1, opacity: 1, duration: 0.42, ease: "power3.out" },
+            0
+          );
+
+          // spike-mark component behavior: fades + scales 0.92 -> 1, never spins
+          tl.fromTo(
+            spike,
+            { scale: 0.92, opacity: 0 },
+            { scale: 1, opacity: 1, duration: 0.32, ease: "power3.out" },
+            0.16
+          );
+
+          /* ---- Scene 2 (0.7-1.5s): tagline word-by-word assembly ----
+             dynamic-content-sequencing (word-by-word tagline build): each
+             word's start offset derives from the running word length, so a
+             longer word buys the next word a touch more air before it lands.
+             Deterministic — no Math.random. */
+          var TAG_BASE_GAP = 0.09;
+          var TAG_SEC_PER_CHAR = 0.012;
+          var TAG_WORD_DUR = 0.32;
+          var tagStart = 0.7;
+          tagWords.forEach(function (el, i) {
+            tl.fromTo(
+              el,
+              { opacity: 0, y: 22 },
+              { opacity: 1, y: 0, duration: TAG_WORD_DUR, ease: "power3.out" },
+              tagStart
+            );
+            var wordLen = el.textContent.length;
+            tagStart += TAG_BASE_GAP + wordLen * TAG_SEC_PER_CHAR;
+          });
+
+          /* ---- Scene 3 (1.5-2.112s): mono sub-line fades up quickly ---- */
+          tl.fromTo(
+            subline,
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" },
+            1.5
+          );
+
+          /* ambient-glow-bloom (bloom-and-hold — scene < 3s, no breathe):
+             blooms in behind the lockup as the closing beat, lands ~2.0s */
+          tl.fromTo(
+            glow,
+            { opacity: 0, scale: 0.86 },
+            { opacity: 0.35, scale: 1, duration: 0.5, ease: "power2.out" },
+            1.5
+          );
+
+          /* ---- final-frame exit only: gentle fade-to-paper, last ~0.3s ---- */
+          tl.fromTo(
+            paperFade,
+            { opacity: 0 },
+            { opacity: 0.82, duration: 0.3, ease: "power1.in" },
+            1.812
+          );
+
+          window.__timelines["11-cta"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

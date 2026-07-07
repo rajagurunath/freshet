@@ -1,0 +1,365 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Frame 2 — The knowledge dies. All runtime content lives inside <template>. -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ---- root (styled via #root, never a class — scoper rule) ---- */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "Inter", sans-serif;
+          color: #1a1815;
+        }
+
+        /* ---- full-bleed dimmed paper field (its own clip, never on #root) ---- */
+        .f02-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            120% 90% at 50% 38%,
+            #fbfaf8 0%,
+            #f6f3ee 58%,
+            #efebe3 100%
+          );
+        }
+        .f02-bgdim {
+          position: absolute;
+          inset: 0;
+          background: rgba(26, 24, 21, 0.06);
+          opacity: 0;
+        }
+
+        /* ---- stage ---- */
+        .f02-stage {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* kicker-spike (the frame's single coral moment = the ✱) */
+        .f02-kicker {
+          position: absolute;
+          left: 112px;
+          top: 88px;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 26px;
+          font-weight: 500;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: rgba(26, 24, 21, 0.72);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .f02-kicker .spike {
+          color: #f2541b;
+        }
+
+        /* headline — EB Garamond display, sentence case, negative tracking */
+        #f02-headwrap {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 216px;
+          text-align: center;
+          will-change: transform;
+        }
+        #f02-headline {
+          display: inline-block;
+          font-family: "EB Garamond", Georgia, serif;
+          font-weight: 400;
+          font-size: 124px;
+          line-height: 1.04;
+          letter-spacing: -0.022em;
+          color: #1a1815;
+          opacity: 0;
+          transform-origin: 50% 55%;
+          will-change: transform, filter, opacity;
+        }
+
+        /* transcript column — four dim mono lines, faint warm glow */
+        #f02-column {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 430px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        .f02-colinner {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 28px;
+        }
+        .f02-tl {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 27px;
+          font-weight: 400;
+          letter-spacing: 0.02em;
+          color: #1a1815;
+          opacity: 0;
+          text-shadow: 0 0 16px rgba(26, 24, 21, 0.16);
+          will-change: transform, opacity;
+        }
+
+        /* slam column (left zone, Scene 3) */
+        #f02-slamcol {
+          position: absolute;
+          left: 0;
+          top: 396px;
+          width: 1060px;
+          text-align: center;
+        }
+        .f02-slam {
+          font-family: "EB Garamond", Georgia, serif;
+          font-weight: 400;
+          font-size: 94px;
+          line-height: 1.06;
+          letter-spacing: -0.018em;
+          color: #1a1815;
+          margin-bottom: 22px;
+          opacity: 0;
+          will-change: transform, filter, opacity;
+        }
+
+        /* laptop silhouette + dead file tile (right 40%) */
+        #f02-laptop {
+          position: absolute;
+          left: 1070px;
+          top: 326px;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        #f02-jitter {
+          position: absolute;
+          left: 1205px;
+          top: 478px;
+          width: 250px;
+          height: 92px;
+          will-change: transform;
+        }
+        #f02-tile {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 14px;
+          background: #181615;
+          border: 1px solid rgba(251, 250, 248, 0.14);
+          border-radius: 8px;
+          box-shadow: 0 1px 3px rgba(26, 24, 21, 0.08), 0 4px 16px rgba(26, 24, 21, 0.04);
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        #f02-tile .fname {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 26px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: rgba(251, 250, 248, 0.88);
+        }
+      </style>
+
+      <div id="root" data-composition-id="02-knowledge-dies" data-width="1920" data-height="1080">
+        <!-- full-bleed ground on its own clip layer -->
+        <div class="clip f02-bg" data-start="0" data-duration="7" data-track-index="0">
+          <div class="f02-bgdim" id="f02-bgdim"></div>
+        </div>
+
+        <!-- content stage -->
+        <div class="clip f02-stage" data-start="0" data-duration="7" data-track-index="1">
+          <div class="f02-kicker" id="f02-kicker"><span class="spike">✱</span>&nbsp;Session over</div>
+
+          <!-- Scene 1: headline slam -->
+          <div id="f02-headwrap">
+            <div id="f02-headline">Then it dies&nbsp;—</div>
+          </div>
+
+          <!-- Scene 1: dim glowing transcript column -->
+          <div id="f02-column">
+            <div class="f02-colinner">
+              <div class="f02-tl" id="f02-tl0">&gt; why is checkout failing on retry?</div>
+              <div class="f02-tl" id="f02-tl1">· traced it to a stale cache key</div>
+              <div class="f02-tl" id="f02-tl2">&gt; fix: invalidate on session rotate</div>
+              <div class="f02-tl" id="f02-tl3">· decision: ship behind a flag</div>
+            </div>
+          </div>
+
+          <!-- Scene 3: three closers, left column -->
+          <div id="f02-slamcol">
+            <div class="f02-slam" id="f02-w1">Invisible.</div>
+            <div class="f02-slam" id="f02-w2">Unsearchable.</div>
+            <div class="f02-slam" id="f02-w3">Forgotten.</div>
+          </div>
+
+          <!-- Scene 2: hairline laptop silhouette -->
+          <svg id="f02-laptop" width="520" height="260" viewBox="0 0 520 260" fill="none">
+            <!-- dead screen -->
+            <rect x="130" y="14" width="260" height="172" rx="9"
+              stroke="rgba(26,24,21,0.30)" stroke-width="2" fill="rgba(26,24,21,0.03)" />
+            <rect x="146" y="30" width="228" height="140" rx="5"
+              stroke="rgba(26,24,21,0.12)" stroke-width="1.5" fill="none" />
+            <!-- deck -->
+            <path d="M100 200 L420 200 L446 236 Q446 246 434 246 L86 246 Q74 246 74 236 Z"
+              stroke="rgba(26,24,21,0.30)" stroke-width="2" fill="rgba(26,24,21,0.02)" />
+            <line x1="232" y1="222" x2="288" y2="222"
+              stroke="rgba(26,24,21,0.22)" stroke-width="2" />
+          </svg>
+
+          <!-- Scene 2→3: the dead file tile (focal) -->
+          <div id="f02-jitter">
+            <div id="f02-tile">
+              <svg width="22" height="28" viewBox="0 0 22 28" fill="none">
+                <path d="M2 3 Q2 1 4 1 L14 1 L20 7 L20 25 Q20 27 18 27 L4 27 Q2 27 2 25 Z"
+                  stroke="rgba(251,250,248,0.7)" stroke-width="1.6" fill="none" />
+                <path d="M14 1 L14 7 L20 7" stroke="rgba(251,250,248,0.7)" stroke-width="1.6" fill="none" />
+              </svg>
+              <span class="fname">session.jsonl</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        /* ============================================================
+           Frame 2 — The knowledge dies (7s)
+           Scene 1 (0.0–1.8)  headline slam + glowing transcript column
+           Scene 2 (1.8–3.6)  column collapses (scale-swap) → dead tile on laptop
+           Scene 3 (3.6–7.0)  three beat-slams, each dims the tile; jitter hold
+           One beat array drives every percussive hit (kinetic-beat-slam).
+           ============================================================ */
+        const BEATS = [0.22, 3.75, 4.7, 5.65];
+
+        /* ---- Scene 1 ---- */
+        // kicker eyebrow settles in quietly
+        tl.fromTo(
+          "#f02-kicker",
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+          0.05
+        );
+
+        // BEAT 0 — "Then it dies —" slams (scale + blur, hard attack)
+        tl.fromTo(
+          "#f02-headline",
+          { scale: 1.5, opacity: 0, filter: "blur(16px)" },
+          { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.55, ease: "power4.out" },
+          BEATS[0]
+        );
+
+        // transcript lines fade up dim, staggered
+        const lines = ["#f02-tl0", "#f02-tl1", "#f02-tl2", "#f02-tl3"];
+        lines.forEach((sel, i) => {
+          tl.fromTo(
+            sel,
+            { opacity: 0, y: 16 },
+            { opacity: 0.5, y: 0, duration: 0.45, ease: "power3.out" },
+            0.15 + i * 0.14
+          );
+          // faint glow shimmer — one finite pulse per line
+          tl.to(
+            sel,
+            { opacity: 0.66, duration: 0.26, yoyo: true, repeat: 1, ease: "sine.inOut" },
+            1.0 + i * 0.14
+          );
+        });
+
+        /* ---- Scene 2 — collapse into the dead file (scale-swap) ---- */
+        // layout shift: headline glides into the left 60%, steps down a size
+        tl.to("#f02-headwrap", { x: -430, y: -64, duration: 0.7, ease: "power3.inOut" }, 1.82);
+        tl.to("#f02-headline", { scale: 0.8, duration: 0.7, ease: "power3.inOut" }, 1.82);
+
+        // outgoing: transcript column rushes down-right into the tile's seat
+        tl.to(
+          "#f02-column",
+          { x: 370, y: 20, scale: 0.12, opacity: 0, duration: 0.5, ease: "power2.in" },
+          1.9
+        );
+
+        // laptop silhouette rises under it
+        tl.fromTo(
+          "#f02-laptop",
+          { opacity: 0, y: 26 },
+          { opacity: 0.9, y: 0, duration: 0.7, ease: "power3.out" },
+          2.05
+        );
+
+        // incoming: dead tile pops in, overlapping the column's fade-tail
+        tl.fromTo(
+          "#f02-tile",
+          { scale: 0.62, opacity: 0 },
+          { scale: 1, opacity: 0.95, duration: 0.6, ease: "power3.out" },
+          2.25
+        );
+
+        /* ---- Scene 3 — three closers on beats; each dims the tile ---- */
+        // field deepens under the loss
+        tl.to("#f02-bgdim", { opacity: 1, duration: 2.4, ease: "sine.inOut" }, 3.6);
+
+        // BEAT 1 — "Invisible." snaps from the left (expo whip)
+        tl.fromTo(
+          "#f02-w1",
+          { x: -300, opacity: 0, filter: "blur(10px)" },
+          { x: 0, opacity: 1, filter: "blur(0px)", duration: 0.45, ease: "expo.out" },
+          BEATS[1]
+        );
+        tl.to("#f02-tile", { opacity: 0.72, duration: 0.32, ease: "power2.out" }, BEATS[1] + 0.12);
+
+        // BEAT 2 — "Unsearchable." slams down through scale + blur
+        tl.fromTo(
+          "#f02-w2",
+          { scale: 1.42, opacity: 0, filter: "blur(14px)" },
+          { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.5, ease: "power4.out" },
+          BEATS[2]
+        );
+        tl.to("#f02-tile", { opacity: 0.52, duration: 0.32, ease: "power2.out" }, BEATS[2] + 0.12);
+
+        // BEAT 3 — "Forgotten." rises heavy with momentum
+        tl.fromTo(
+          "#f02-w3",
+          { y: 84, opacity: 0, rotation: 2 },
+          { y: 0, opacity: 1, rotation: 0, duration: 0.55, ease: "circ.out" },
+          BEATS[3]
+        );
+        tl.to("#f02-tile", { opacity: 0.32, duration: 0.36, ease: "power2.out" }, BEATS[3] + 0.12);
+        tl.to("#f02-laptop", { opacity: 0.55, duration: 0.5, ease: "power2.out" }, BEATS[3] + 0.12);
+
+        /* ---- long dead-file hold: subtle jitter only (sine-wave-loop, low amp) ----
+           Driven on the wrapper (#f02-jitter) so it never fights the tile's own tweens. */
+        const jitterEl = document.getElementById("f02-jitter");
+        const phase = { p: 0 };
+        tl.to(
+          phase,
+          {
+            p: Math.PI * 2 * 2, // 2 cycles across the 0.8s hold — a faint tremble
+            duration: 0.8,
+            ease: "none",
+            onUpdate: () => {
+              const y = Math.sin(phase.p) * 1.6;
+              const x = Math.sin(phase.p + Math.PI / 2) * 0.9;
+              jitterEl.style.transform = "translate(" + x + "px," + y + "px)";
+            },
+          },
+          6.2
+        );
+
+        window.__timelines["02-knowledge-dies"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

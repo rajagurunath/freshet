@@ -1,0 +1,572 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Frame 5 — Pipeline: local RAG index. All runtime content lives inside <template>. -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ---- root (styled via #root, never a class — scoper rule) ---- */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "Inter", sans-serif;
+          color: #1a1815;
+        }
+
+        /* ---- full-bleed paper field (its own clip, never on #root) ---- */
+        .f05-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(120% 90% at 42% 40%, #fbfaf8 0%, #f6f3ee 58%, #efebe3 100%);
+        }
+        .f05-grid {
+          position: absolute;
+          inset: 0;
+          opacity: 0.5;
+          background-image:
+            repeating-linear-gradient(to right, rgba(26, 24, 21, 0.035) 0 1px, transparent 1px 96px),
+            repeating-linear-gradient(to bottom, rgba(26, 24, 21, 0.035) 0 1px, transparent 1px 96px);
+        }
+
+        /* ---- stage ---- */
+        .f05-stage {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* kicker-spike (the frame's single always-on ✱, not the ration) */
+        .f05-kicker {
+          position: absolute;
+          left: 112px;
+          top: 88px;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 26px;
+          font-weight: 500;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: rgba(26, 24, 21, 0.72);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .f05-kicker .spike {
+          color: #f2541b;
+        }
+
+        /* rail + cylinder + tracks svg canvas, one coordinate space */
+        #f05-svg {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: visible;
+        }
+        #f05-svg path,
+        #f05-svg ellipse,
+        #f05-svg line {
+          fill: none;
+          stroke: rgba(26, 24, 21, 0.28);
+          stroke-width: 3;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        #f05-cyl-fill {
+          fill: rgba(242, 84, 27, 0.07);
+          stroke: none;
+          opacity: 0;
+        }
+        .f05-track-base {
+          stroke: rgba(26, 24, 21, 0.16);
+          stroke-width: 2;
+        }
+        .f05-funnel {
+          stroke: rgba(26, 24, 21, 0.24);
+          stroke-width: 2.5;
+        }
+
+        /* db label */
+        #f05-dblabel {
+          position: absolute;
+          left: 540px;
+          top: 664px;
+          width: 160px;
+          text-align: center;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 24px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: rgba(26, 24, 21, 0.62);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+
+        /* chunk tiles feeding the cylinder along the rail */
+        .f05-chunk {
+          position: absolute;
+          top: 548px;
+          width: 22px;
+          height: 22px;
+          border-radius: 5px;
+          background: #fcdcd1;
+          border: 1px solid rgba(26, 24, 21, 0.16);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        #f05-chunk0 { left: 320px; }
+        #f05-chunk1 { left: 356px; }
+        #f05-chunk2 { left: 392px; }
+
+        /* track labels */
+        .f05-tlabel {
+          position: absolute;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 24px;
+          font-weight: 500;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: rgba(26, 24, 21, 0.5);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        #f05-label-vec { left: 760px; top: 316px; }
+        #f05-label-key { left: 760px; top: 764px; }
+
+        /* upper track: embedding wave dots */
+        .f05-dot {
+          position: absolute;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: rgba(26, 24, 21, 0.55);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+
+        /* lower track: mono keyword tokens */
+        .f05-token {
+          position: absolute;
+          top: 716px;
+          padding: 10px 16px;
+          border-radius: 8px;
+          background: #fbfaf8;
+          border: 1px solid rgba(26, 24, 21, 0.14);
+          box-shadow: 0 1px 3px rgba(26, 24, 21, 0.06);
+          font-family: "JetBrains Mono", monospace;
+          font-size: 24px;
+          font-weight: 400;
+          letter-spacing: 0.01em;
+          color: rgba(26, 24, 21, 0.78);
+          white-space: nowrap;
+          opacity: 0;
+          will-change: transform, opacity, text-shadow;
+        }
+        .f05-token.f05-err {
+          display: inline-block;
+        }
+
+        /* ranked hybrid-list card */
+        #f05-card {
+          position: absolute;
+          left: 1420px;
+          top: 420px;
+          width: 380px;
+          height: 280px;
+          background: #fcdcd1;
+          border: 1px solid rgba(26, 24, 21, 0.14);
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(26, 24, 21, 0.08), 0 4px 16px rgba(26, 24, 21, 0.04);
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        #f05-cardtag {
+          position: absolute;
+          left: 1420px;
+          top: 378px;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 24px;
+          font-weight: 500;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: rgba(26, 24, 21, 0.5);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .f05-row {
+          position: absolute;
+          left: 1450px;
+          width: 320px;
+          height: 56px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 0 14px;
+          box-sizing: border-box;
+          background: rgba(251, 250, 248, 0.55);
+          border-bottom: 1px solid rgba(26, 24, 21, 0.1);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        #f05-row0 { top: 444px; }
+        #f05-row1 { top: 524px; }
+        #f05-row2 { top: 604px; }
+        .f05-rank {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 22px;
+          font-weight: 500;
+          color: rgba(242, 84, 27, 0.9);
+          width: 20px;
+          flex: none;
+        }
+        .f05-rowtext {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 24px;
+          font-weight: 400;
+          color: #1a1815;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        /* the frame's one accent glow — lands on the top result */
+        #f05-glow {
+          position: absolute;
+          left: 1450px;
+          top: 444px;
+          width: 320px;
+          height: 56px;
+          border-radius: 8px;
+          background: rgba(242, 84, 27, 0.1);
+          box-shadow: 0 0 34px rgba(242, 84, 27, 0.38);
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        /* RRF chip */
+        #f05-rrf {
+          position: absolute;
+          left: 1710px;
+          top: 660px;
+          padding: 7px 16px;
+          border-radius: 9999px;
+          background: #fbfaf8;
+          border: 1px solid rgba(26, 24, 21, 0.16);
+          font-family: "JetBrains Mono", monospace;
+          font-size: 22px;
+          font-weight: 500;
+          letter-spacing: 0.08em;
+          color: rgba(26, 24, 21, 0.68);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+      </style>
+
+      <div id="root" data-composition-id="05-local-rag" data-width="1920" data-height="1080">
+        <!-- full-bleed ground on its own clip layer -->
+        <div class="clip f05-bg" data-start="0" data-duration="8.256" data-track-index="0">
+          <div class="f05-grid"></div>
+        </div>
+
+        <!-- content stage -->
+        <div class="clip f05-stage" data-start="0" data-duration="8.256" data-track-index="1">
+          <div class="f05-kicker" id="f05-kicker"><span class="spike">✱</span>&nbsp;Hybrid index</div>
+
+          <!-- one shared coordinate space: rail, cylinder, track baselines, funnel -->
+          <svg id="f05-svg" viewBox="0 0 1920 1080">
+            <!-- pipeline rail — continues across the whole frame (stage continuity, frames 4–7) -->
+            <path id="f05-rail" d="M -20 560 L 1920 560" />
+
+            <!-- database cylinder (draws itself) -->
+            <ellipse id="f05-cyl-top" cx="620" cy="470" rx="90" ry="26" />
+            <ellipse id="f05-cyl-fill" cx="620" cy="560" rx="90" ry="116" />
+            <line id="f05-cyl-left" x1="530" y1="470" x2="530" y2="650" />
+            <line id="f05-cyl-right" x1="710" y1="470" x2="710" y2="650" />
+            <path id="f05-cyl-bottom" d="M 530 650 A 90 26 0 0 0 710 650" />
+
+            <!-- track baselines -->
+            <path id="f05-track-vec-base" class="f05-track-base" d="M 760 380 L 1740 380" />
+            <path id="f05-track-key-base" class="f05-track-base" d="M 760 740 L 1740 740" />
+
+            <!-- convergence funnel into the ranked card -->
+            <path id="f05-funnel-top" class="f05-funnel" d="M 1740 380 Q 1580 470 1420 472" />
+            <path id="f05-funnel-bot" class="f05-funnel" d="M 1740 740 Q 1580 650 1420 632" />
+          </svg>
+
+          <div id="f05-dblabel">index.db</div>
+
+          <!-- Scene 1: chunk tiles streaming into the cylinder -->
+          <div class="f05-chunk" id="f05-chunk0"></div>
+          <div class="f05-chunk" id="f05-chunk1"></div>
+          <div class="f05-chunk" id="f05-chunk2"></div>
+
+          <!-- Scene 2: upper track — vector / meaning -->
+          <div class="f05-tlabel" id="f05-label-vec">vector · meaning</div>
+          <div class="f05-dot" id="f05-dot0" style="left:760px; top:380px;"></div>
+          <div class="f05-dot" id="f05-dot1" style="left:835px; top:372px;"></div>
+          <div class="f05-dot" id="f05-dot2" style="left:911px; top:364px;"></div>
+          <div class="f05-dot" id="f05-dot3" style="left:986px; top:360px;"></div>
+          <div class="f05-dot" id="f05-dot4" style="left:1062px; top:364px;"></div>
+          <div class="f05-dot" id="f05-dot5" style="left:1137px; top:374px;"></div>
+          <div class="f05-dot" id="f05-dot6" style="left:1213px; top:386px;"></div>
+          <div class="f05-dot" id="f05-dot7" style="left:1288px; top:396px;"></div>
+          <div class="f05-dot" id="f05-dot8" style="left:1364px; top:400px;"></div>
+          <div class="f05-dot" id="f05-dot9" style="left:1439px; top:396px;"></div>
+          <div class="f05-dot" id="f05-dot10" style="left:1515px; top:386px;"></div>
+          <div class="f05-dot" id="f05-dot11" style="left:1590px; top:374px;"></div>
+          <div class="f05-dot" id="f05-dot12" style="left:1666px; top:364px;"></div>
+          <div class="f05-dot" id="f05-dot13" style="left:1741px; top:360px;"></div>
+
+          <!-- Scene 2: lower track — keyword / exact -->
+          <div class="f05-tlabel" id="f05-label-key">keyword · exact match</div>
+          <div class="f05-token" id="f05-tok0" style="left:760px;">auth.go:142</div>
+          <div class="f05-token" id="f05-tok1" style="left:962px;">config.yml</div>
+          <div class="f05-token f05-err" id="f05-tok2" style="left:1160px;">ERR_5021_FOO</div>
+          <div class="f05-token" id="f05-tok3" style="left:1408px;">retry_count</div>
+          <div class="f05-token" id="f05-tok4" style="left:1590px;">session_id</div>
+
+          <!-- Scene 3: the fused ranked-list card -->
+          <div id="f05-cardtag">ranked · hybrid</div>
+          <div id="f05-card"></div>
+          <div class="f05-row" id="f05-row0">
+            <div class="f05-rank">1</div>
+            <div class="f05-rowtext">auth.go:142</div>
+          </div>
+          <div class="f05-row" id="f05-row1">
+            <div class="f05-rank">2</div>
+            <div class="f05-rowtext">ERR_5021_FOO</div>
+          </div>
+          <div class="f05-row" id="f05-row2">
+            <div class="f05-rank">3</div>
+            <div class="f05-rowtext">config.yml</div>
+          </div>
+          <div id="f05-glow"></div>
+          <div id="f05-rrf">RRF</div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        /* ============================================================
+           Frame 5 — Pipeline: local RAG index (8.256s)
+           Shared pipeline-rail stage (frames 4–7): a hairline rail spans
+           the whole frame; this stage's mechanism (cylinder, two index
+           tracks, fused result) sits on it.
+           Scene 1 (0.0–2.0)  rail draws; chunks feed a self-drawing db cylinder
+           Scene 2 (2.0–5.8)  vector track (dots) then keyword track (tokens) reveal
+                               on their spoken cues; ERR_5021_FOO gets a keyword glow
+           Scene 3 (5.8–8.256) tracks converge (reverse cluster expansion) into a
+                               ranked hybrid-list card; RRF chip + accent glow; hold
+           ============================================================ */
+
+        /* ---- helper: measure + arm every path/ellipse/line for stroke-draw ---- */
+        function armDraw(el) {
+          const len = el.getTotalLength();
+          el.style.strokeDasharray = String(len);
+          el.style.strokeDashoffset = String(len);
+          return len;
+        }
+        const drawEls = [
+          "#f05-rail",
+          "#f05-cyl-top",
+          "#f05-cyl-left",
+          "#f05-cyl-right",
+          "#f05-cyl-bottom",
+          "#f05-track-vec-base",
+          "#f05-track-key-base",
+          "#f05-funnel-top",
+          "#f05-funnel-bot",
+        ];
+        drawEls.forEach((sel) => armDraw(document.querySelector(sel)));
+
+        /* ---- kicker settles in ---- */
+        tl.fromTo(
+          "#f05-kicker",
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+          0.05
+        );
+
+        /* ===================== Scene 1 (0.0–2.0) ===================== */
+        // rail draws left → right, continuing from the frame's left edge
+        tl.to("#f05-rail", { strokeDashoffset: 0, duration: 0.9, ease: "power2.out" }, 0.05);
+
+        // database cylinder — the foreground subject — starts drawing itself
+        // immediately alongside the rail, so it's forming well before t=0.5s
+        tl.to("#f05-cyl-top", { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" }, 0.15);
+        tl.to("#f05-cyl-left", { strokeDashoffset: 0, duration: 0.36, ease: "power2.out" }, 0.5);
+        tl.to("#f05-cyl-right", { strokeDashoffset: 0, duration: 0.36, ease: "power2.out" }, 0.54);
+        tl.to("#f05-cyl-bottom", { strokeDashoffset: 0, duration: 0.34, ease: "power2.out" }, 0.84);
+
+        // chunk tiles cascade in from the left along the rail toward the cylinder
+        const chunks = ["#f05-chunk0", "#f05-chunk1", "#f05-chunk2"];
+        chunks.forEach((sel, i) => {
+          tl.fromTo(
+            sel,
+            { x: -220, opacity: 0 },
+            { x: 0, opacity: 1, duration: 0.4, ease: "power3.out" },
+            0.35 + i * 0.14
+          );
+        });
+
+        // chunks are absorbed into the cylinder as it resolves
+        chunks.forEach((sel, i) => {
+          tl.to(sel, { opacity: 0, scale: 0.4, duration: 0.32, ease: "power2.in" }, 1.15 + i * 0.06);
+        });
+
+        // cylinder gets a soft fill + a single settle pulse + its label
+        tl.to("#f05-cyl-fill", { opacity: 1, duration: 0.5, ease: "power1.out" }, 1.28);
+        tl.to("#f05-svg", { scale: 1.03, duration: 0.18, ease: "power2.out" }, 1.28);
+        tl.to("#f05-svg", { scale: 1, duration: 0.24, ease: "power2.inOut" }, 1.46);
+        tl.fromTo(
+          "#f05-dblabel",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+          1.4
+        );
+
+        /* ===================== Scene 2 (2.0–5.8) ===================== */
+        // upper track — "vectors for meaning": label + staggered embedding dots
+        tl.to("#f05-track-vec-base", { strokeDashoffset: 0, duration: 0.4, ease: "power2.out" }, 2.05);
+        tl.fromTo(
+          "#f05-label-vec",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+          2.05
+        );
+        for (let i = 0; i < 14; i++) {
+          tl.fromTo(
+            `#f05-dot${i}`,
+            { opacity: 0, scale: 0.4 },
+            { opacity: 1, scale: 1, duration: 0.32, ease: "power3.out" },
+            2.15 + i * 0.045
+          );
+        }
+
+        // lower track — "keywords for exact error codes": label + staggered tokens
+        tl.to("#f05-track-key-base", { strokeDashoffset: 0, duration: 0.4, ease: "power2.out" }, 3.5);
+        tl.fromTo(
+          "#f05-label-key",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+          3.5
+        );
+        const tokens = ["#f05-tok0", "#f05-tok1", "#f05-tok2", "#f05-tok3", "#f05-tok4"];
+        tokens.forEach((sel, i) => {
+          tl.fromTo(
+            sel,
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.36, ease: "power3.out" },
+            3.55 + i * 0.16
+          );
+        });
+
+        // ERR_5021_FOO keyword glow — attack/sustain/release envelope on its spoken cue
+        // ("...exact error codes"), following the asr-keyword-glow recipe (single-word form).
+        const ATTACK_DUR = 0.18;
+        const RELEASE = 0.35;
+        const REST_LEVEL = 0.22;
+        const MAX_BLUR = 20;
+        const MAX_SCALE_BOOST = 0.08;
+        const WORD_START = 4.55;
+        const WORD_END = 5.15;
+
+        function envelope(time, start, end) {
+          const releaseEnd = end + RELEASE;
+          if (time < start) return 0;
+          if (time < end) return Math.min((time - start) / ATTACK_DUR, 1);
+          if (time < releaseEnd) {
+            const decay = (time - end) / RELEASE;
+            return 1 - decay * (1 - REST_LEVEL);
+          }
+          return REST_LEVEL;
+        }
+
+        const errEl = document.getElementById("f05-tok2");
+        const glowDriver = { t: 0 };
+        tl.to(
+          glowDriver,
+          {
+            t: 8.256,
+            duration: 8.256,
+            ease: "none",
+            onUpdate: () => {
+              const env = envelope(glowDriver.t, WORD_START, WORD_END);
+              const blur = MAX_BLUR * env;
+              const scale = 1 + MAX_SCALE_BOOST * env;
+              errEl.style.textShadow = `0 0 ${blur}px rgba(242, 84, 27, ${0.25 + env * 0.55})`;
+              errEl.style.transform = `scale(${scale})`;
+            },
+          },
+          0
+        );
+
+        /* ===================== Scene 3 (5.8–8.256) ===================== */
+        // both tracks recede as the result resolves (dim-by-position, not removed)
+        tl.to(
+          ["#f05-label-vec", "#f05-label-key", "#f05-track-vec-base", "#f05-track-key-base"].join(", "),
+          { opacity: 0.28, duration: 0.5, ease: "power2.out" },
+          5.8
+        );
+        [...tokens, ...Array.from({ length: 14 }, (_, i) => `#f05-dot${i}`)].forEach((sel) => {
+          tl.to(sel, { opacity: 0.22, duration: 0.5, ease: "power2.out" }, 5.8);
+        });
+
+        // funnel lines draw, converging the two tracks toward the card
+        tl.to("#f05-funnel-top", { strokeDashoffset: 0, duration: 0.45, ease: "power2.out" }, 5.85);
+        tl.to("#f05-funnel-bot", { strokeDashoffset: 0, duration: 0.45, ease: "power2.out" }, 5.9);
+
+        // the card frame appears
+        tl.fromTo(
+          "#f05-card",
+          { opacity: 0, scale: 0.94 },
+          { opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" },
+          5.95
+        );
+        tl.fromTo(
+          "#f05-cardtag",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+          5.95
+        );
+
+        // reverse cluster expansion: the three rows start scattered along the
+        // two tracks' end points and converge inward onto their stacked slot —
+        // center-outward-expansion inverted (spread → center, not center → spread).
+        const rows = [
+          { sel: "#f05-row0", startX: 260, startY: -170 }, // from the vector track end
+          { sel: "#f05-row1", startX: 260, startY: 0 },    // from the midline (the fused row)
+          { sel: "#f05-row2", startX: 260, startY: 170 },  // from the keyword track end
+        ];
+        rows.forEach((row, i) => {
+          tl.fromTo(
+            row.sel,
+            { x: row.startX, y: row.startY, opacity: 0, scale: 0.88 },
+            { x: 0, y: 0, opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" },
+            6.1 + i * 0.12
+          );
+        });
+
+        // RRF chip
+        tl.fromTo(
+          "#f05-rrf",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+          7.0
+        );
+
+        // the frame's one accent glow lands on the top (fused) result, then holds
+        tl.to("#f05-glow", { opacity: 1, duration: 0.4, ease: "power2.out" }, 7.3);
+
+        window.__timelines["05-local-rag"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

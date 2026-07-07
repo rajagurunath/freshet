@@ -1,0 +1,437 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Frame 3 — Name the idea. All runtime content lives inside <template>. -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ---- root (styled via #root, never a class — scoper rule) ---- */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "Inter", sans-serif;
+          color: #1a1815;
+        }
+
+        /* ---- full-bleed warm paper field + faint hairline grid (its own clip, never on #root) ---- */
+        .f03-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            120% 90% at 50% 40%,
+            #fbfaf8 0%,
+            #f6f3ee 56%,
+            #efebe3 100%
+          );
+        }
+        .f03-grid {
+          position: absolute;
+          inset: 0;
+          background-image:
+            repeating-linear-gradient(
+              0deg,
+              rgba(26, 24, 21, 0.045) 0px,
+              rgba(26, 24, 21, 0.045) 1px,
+              transparent 1px,
+              transparent 96px
+            ),
+            repeating-linear-gradient(
+              90deg,
+              rgba(26, 24, 21, 0.045) 0px,
+              rgba(26, 24, 21, 0.045) 1px,
+              transparent 1px,
+              transparent 96px
+            );
+        }
+
+        /* ---- stage ---- */
+        .f03-stage {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* ambient glow — un-triggered, sits behind the wordmark (Scene 3) */
+        #f03-glow {
+          position: absolute;
+          left: 510px;
+          top: 103px;
+          width: 900px;
+          height: 700px;
+          border-radius: 50%;
+          background: radial-gradient(
+            ellipse at center,
+            rgba(26, 24, 21, 0.22) 0%,
+            rgba(26, 24, 21, 0.08) 45%,
+            rgba(26, 24, 21, 0) 72%
+          );
+          opacity: 0;
+          pointer-events: none;
+          will-change: transform, opacity;
+        }
+
+        /* machine-boundary ring (Scene 2) */
+        #f03-ring {
+          position: absolute;
+          left: 420px;
+          top: 193px;
+          width: 1080px;
+          height: 520px;
+          overflow: visible;
+        }
+        #f03-ellipse {
+          fill: none;
+          stroke: rgba(26, 24, 21, 0.32);
+          stroke-width: 2.5;
+          stroke-linecap: round;
+        }
+
+        /* 3D scatter-assemble stage for the mono chunk tiles */
+        #f03-anchor {
+          position: absolute;
+          left: 960px;
+          top: 453px;
+          width: 0;
+          height: 0;
+          perspective: 1400px;
+        }
+        #f03-cloud {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 0;
+          height: 0;
+          transform-style: preserve-3d;
+          will-change: transform;
+        }
+        .f03-frag {
+          position: absolute;
+          top: 0;
+          left: 0;
+          display: grid;
+          place-items: center;
+          width: 112px;
+          height: 140px;
+          border-radius: 8px;
+          background: #fbfaf8;
+          border: 1px solid rgba(26, 24, 21, 0.14);
+          box-shadow: 0 1px 3px rgba(26, 24, 21, 0.08), 0 4px 16px rgba(26, 24, 21, 0.04);
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 700;
+          font-size: 60px;
+          color: #1a1815;
+          transform-style: preserve-3d;
+          backface-visibility: hidden;
+          will-change: transform, opacity;
+        }
+        /* the 8th fragment — a leftover chunk, dimmer, not part of the spelled word */
+        .f03-stray {
+          width: 70px;
+          height: 70px;
+          font-size: 30px;
+          font-weight: 500;
+          color: rgba(26, 24, 21, 0.5);
+          background: rgba(251, 250, 248, 0.75);
+          box-shadow: none;
+        }
+
+        /* the accent tick — the ONE coral moment: marks the boundary block */
+        #f03-tick {
+          position: absolute;
+          left: 643px;
+          top: 619px;
+          width: 6px;
+          height: 30px;
+          border-radius: 3px;
+          background: #f2541b;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+
+        /* mono labels beneath the ring */
+        .f03-label {
+          position: absolute;
+          left: 0;
+          right: 0;
+          text-align: center;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 26px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: rgba(26, 24, 21, 0.68);
+        }
+        #f03-label1 {
+          top: 723px;
+        }
+        #f03-label2 {
+          top: 774px;
+        }
+        .f03-label .w {
+          display: inline-block;
+          opacity: 0;
+          margin: 0 4px;
+          will-change: transform, opacity;
+        }
+      </style>
+
+      <div id="root" data-composition-id="03-freshet-intro" data-width="1920" data-height="1080">
+        <!-- full-bleed ground on its own clip layer -->
+        <div class="clip f03-bg" data-start="0" data-duration="7" data-track-index="0">
+          <div class="f03-grid"></div>
+        </div>
+
+        <!-- content stage -->
+        <div class="clip f03-stage" data-start="0" data-duration="7" data-track-index="1">
+          <!-- Scene 3: ambient glow blooming behind the resolved lockup -->
+          <div id="f03-glow"></div>
+
+          <!-- Scene 2: the machine-boundary ring -->
+          <svg id="f03-ring" viewBox="0 0 1080 520" xmlns="http://www.w3.org/2000/svg">
+            <ellipse id="f03-ellipse" cx="540" cy="260" rx="510" ry="230" />
+          </svg>
+
+          <!-- Scene 1: mono glyph "chunk" tiles scatter-assemble into "Freshet" -->
+          <div id="f03-anchor">
+            <div id="f03-cloud">
+              <div class="f03-frag" id="f03-frag0">F</div>
+              <div class="f03-frag" id="f03-frag1">R</div>
+              <div class="f03-frag" id="f03-frag2">E</div>
+              <div class="f03-frag" id="f03-frag3">S</div>
+              <div class="f03-frag" id="f03-frag4">H</div>
+              <div class="f03-frag" id="f03-frag5">E</div>
+              <div class="f03-frag" id="f03-frag6">T</div>
+              <div class="f03-frag f03-stray" id="f03-frag7">&middot;</div>
+            </div>
+          </div>
+
+          <!-- Scene 3: the accent tick blocking the stray chunk at the boundary -->
+          <div id="f03-tick"></div>
+
+          <!-- Scene 2 label -->
+          <div class="f03-label" id="f03-label1">
+            <span class="w">parses</span><span class="w">locally</span><span class="w">&middot;</span
+            ><span class="w">~/.claude</span><span class="w">&middot;</span
+            ><span class="w">~/.codex</span><span class="w">&middot;</span><span class="w">kilo</span>
+          </div>
+
+          <!-- Scene 3 label -->
+          <div class="f03-label" id="f03-label2">
+            <span class="w">nothing</span><span class="w">leaves</span><span class="w">without</span
+            ><span class="w">your</span><span class="w">say-so</span>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        /* ============================================================
+           Frame 3 — Name the idea (7s)
+           Scene 1 (0.0–2.0)  mono chunk tiles depth-scatter-assemble → "FRESHET"
+           Scene 2 (2.0–4.5)  hairline boundary ring draws on; mono label reveals
+           Scene 3 (4.5–7.0)  stray chunk glides to the ring edge and stops there,
+                               a coral tick marks the block; second label reveals;
+                               ambient glow blooms behind the lockup; hold still.
+           ============================================================ */
+
+        /* ---- Scene 1: depth-scatter-assemble (deterministic, index-derived) ---- */
+        const GOLDEN = Math.PI * (3 - Math.sqrt(5)); // ~2.39943 rad — even spread, no clumps
+        const RADIUS = 420;
+        const Z_NEAR = 260;
+        const Z_FAR = -260;
+        const TUMBLE = 65; // deg
+        const ASSEMBLE_DUR = 0.78;
+        const ASSEMBLE_EASE = "power3.out";
+        const STAGGER = 0.08;
+        const SEG_1_START = 0.05;
+        const CLOUD_SPIN_DEG = 22;
+        const CLOUD_SPIN_DUR = 1.4;
+
+        const frags = [
+          document.getElementById("f03-frag0"),
+          document.getElementById("f03-frag1"),
+          document.getElementById("f03-frag2"),
+          document.getElementById("f03-frag3"),
+          document.getElementById("f03-frag4"),
+          document.getElementById("f03-frag5"),
+          document.getElementById("f03-frag6"),
+          document.getElementById("f03-frag7"),
+        ];
+        const n = frags.length;
+
+        // Flat assembled targets — 7 letters spell "FRESHET" in a centered row;
+        // frag7 (the stray leftover chunk) rests off the row, still inside the ring.
+        const TARGETS = [
+          { x: -378, y: 0 },
+          { x: -252, y: 0 },
+          { x: -126, y: 0 },
+          { x: 0, y: 0 },
+          { x: 126, y: 0 },
+          { x: 252, y: 0 },
+          { x: 378, y: 0 },
+          { x: -260, y: 150 }, // frag7 resting point (pre-Scene-3)
+        ];
+
+        // Deterministic scattered cloud state, derived from index only.
+        const scatter = frags.map((el, i) => {
+          const a = i * GOLDEN;
+          const depthT = n > 1 ? i / (n - 1) : 0;
+          return {
+            x: Math.cos(a) * RADIUS,
+            y: Math.sin(a) * RADIUS,
+            z: Z_NEAR - depthT * (Z_NEAR - Z_FAR),
+            rotationX: Math.sin(a) * TUMBLE,
+            rotationY: Math.cos(a) * TUMBLE,
+          };
+        });
+
+        // Park every fragment in the cloud BEFORE any tween fires.
+        frags.forEach((el, i) => {
+          const s = scatter[i];
+          gsap.set(el, {
+            xPercent: -50,
+            yPercent: -50,
+            x: s.x,
+            y: s.y,
+            z: s.z,
+            rotationX: s.rotationX,
+            rotationY: s.rotationY,
+            opacity: 0,
+          });
+        });
+
+        // Cloud gives the scatter life before it locks (finite, ends by settle).
+        tl.to(
+          "#f03-cloud",
+          { rotationY: CLOUD_SPIN_DEG, duration: CLOUD_SPIN_DUR, ease: "power1.out" },
+          0,
+        );
+
+        // ASSEMBLE — each chunk flies from its cloud point to its flat target.
+        frags.forEach((el, i) => {
+          const t = TARGETS[i];
+          const isStray = i === n - 1;
+          tl.to(
+            el,
+            {
+              x: t.x,
+              y: t.y,
+              z: 0,
+              rotationX: 0,
+              rotationY: 0,
+              opacity: isStray ? 0.6 : 1,
+              duration: ASSEMBLE_DUR,
+              ease: ASSEMBLE_EASE,
+            },
+            SEG_1_START + i * STAGGER,
+          );
+        });
+
+        /* ---- Scene 2: boundary ring draws on (svg-path-draw) ---- */
+        const RING_DRAW_START = 2.0;
+        const RING_DRAW_DUR = 1.0;
+        const ellipse = document.getElementById("f03-ellipse");
+        const ringLen = ellipse.getTotalLength();
+        ellipse.style.strokeDasharray = `${ringLen}`;
+        ellipse.style.strokeDashoffset = `${ringLen}`;
+        tl.to(
+          ellipse,
+          { strokeDashoffset: 0, duration: RING_DRAW_DUR, ease: "power2.out" },
+          RING_DRAW_START,
+        );
+
+        // Per-word reveal for label 1 ("parses locally · ~/.claude · ~/.codex · kilo")
+        const LABEL1_START = 2.6;
+        const WORD_STAGGER = 0.12;
+        const WORD_DUR = 0.35;
+        const words1 = document.querySelectorAll("#f03-label1 .w");
+        words1.forEach((w, i) => {
+          tl.fromTo(
+            w,
+            { opacity: 0, y: 10 },
+            { opacity: 1, y: 0, duration: WORD_DUR, ease: "power2.out" },
+            LABEL1_START + i * WORD_STAGGER,
+          );
+        });
+
+        /* ---- Scene 3: stray chunk glides to the ring edge and stops ---- */
+        // Deterministic straight-line path: same direction as frag7's resting
+        // offset (-260,150) from the anchor, scaled out to the ellipse edge
+        // (rx=510, ry=230): k = 1 / sqrt((dx/rx)^2 + (dy/ry)^2) ≈ 1.2085.
+        const STRAY_GLIDE_START = 4.6;
+        const STRAY_GLIDE_DUR = 1.0;
+        tl.to(
+          "#f03-frag7",
+          {
+            x: -314,
+            y: 181,
+            opacity: 0.85,
+            duration: STRAY_GLIDE_DUR,
+            ease: "power2.inOut",
+          },
+          STRAY_GLIDE_START,
+        );
+
+        // The accent tick — the ONE coral moment — marks the block exactly as
+        // the chunk arrives at the boundary.
+        const TICK_START = STRAY_GLIDE_START + STRAY_GLIDE_DUR; // 5.6
+        tl.fromTo(
+          "#f03-tick",
+          { opacity: 0, scale: 0.4 },
+          { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(1.5)" },
+          TICK_START,
+        );
+
+        // Per-word reveal for label 2 ("nothing leaves without your say-so")
+        const LABEL2_START = 4.6;
+        const words2 = document.querySelectorAll("#f03-label2 .w");
+        words2.forEach((w, i) => {
+          tl.fromTo(
+            w,
+            { opacity: 0, y: 10 },
+            { opacity: 1, y: 0, duration: WORD_DUR, ease: "power2.out" },
+            LABEL2_START + i * 0.1,
+          );
+        });
+
+        // Ambient glow blooms softly behind the lockup, landing with the tile's
+        // stop — un-triggered, bounded breathe during the hold (no repeat/yoyo).
+        const GLOW_BLOOM_START = 4.5;
+        const GLOW_BLOOM_DUR = 1.0;
+        const GLOW_PEAK_OPACITY = 0.28;
+        const glow = document.getElementById("f03-glow");
+        tl.fromTo(
+          glow,
+          { opacity: 0, scale: 0.9 },
+          { opacity: GLOW_PEAK_OPACITY, scale: 1, duration: GLOW_BLOOM_DUR, ease: "power2.out" },
+          GLOW_BLOOM_START,
+        );
+        const glowPhase = { p: 0 };
+        const BREATHE_DUR = 7.0 - (GLOW_BLOOM_START + GLOW_BLOOM_DUR); // 1.5s hold
+        tl.to(
+          glowPhase,
+          {
+            p: Math.PI * 2 * 0.5,
+            duration: BREATHE_DUR,
+            ease: "none",
+            onUpdate: () => {
+              const s = Math.sin(glowPhase.p);
+              glow.style.opacity = String(GLOW_PEAK_OPACITY + s * 0.03);
+              glow.style.transform = `scale(${1 + s * 0.015})`;
+            },
+          },
+          GLOW_BLOOM_START + GLOW_BLOOM_DUR,
+        );
+
+        window.__timelines["03-freshet-intro"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "provider": "auto",
+  "speed": 1,
+  "lines": [
+    {
+      "id": "01",
+      "text": "Your team's sharpest thinking happens inside AI sessions — Claude Code. Codex. Kilo."
+    },
+    {
+      "id": "02",
+      "text": "Then it dies — a log file on one laptop. Invisible. Unsearchable. Forgotten."
+    },
+    {
+      "id": "03",
+      "text": "Freshet captures it. Everything runs on your machine — nothing leaves without your say-so."
+    },
+    {
+      "id": "04",
+      "text": "It parses every session locally — and scrubs secrets before anything else."
+    },
+    {
+      "id": "05",
+      "text": "Then it builds a private search index — vectors for meaning, keywords for exact error codes — fused into one hybrid search."
+    },
+    {
+      "id": "06",
+      "text": "A knowledge graph links the people, decisions, and pull requests behind every session."
+    },
+    {
+      "id": "07",
+      "text": "Found gold? Push it — the summary, or the full transcript — to the company hub."
+    },
+    {
+      "id": "08",
+      "text": "But nothing merges blind. Like a pull request, teammates review and approve — then it joins the company brain."
+    },
+    {
+      "id": "09",
+      "text": "Now anyone can ask — what did we decide about pricing? — and get an answer with citations to the real conversation."
+    },
+    {
+      "id": "10",
+      "text": "Knowledge stops evaporating. It compounds."
+    },
+    {
+      "id": "11",
+      "text": "Freshet. Give your company a brain."
+    }
+  ],
+  "bgm": {
+    "mode": "retrieve",
+    "query": "focused minimal electronic, warm, understated, low-key optimistic",
+    "blob": "Freshet turns the AI sessions your team already runs into a reviewed, cited company brain.",
+    "arc": "concept-explainer with process"
+  }
+}

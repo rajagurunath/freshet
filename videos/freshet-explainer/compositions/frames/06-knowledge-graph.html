@@ -1,0 +1,395 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>06-knowledge-graph — source (runtime reads only the template)</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ============================================================
+           Frame 6 — Pipeline: knowledge graph · constellation-hub
+           Canvas 1920x1080 · duration 6s · captions keep-out y <= 900
+           Palette: cream #FBFAF8 · ink #1A1815 · coral #F2541B (kicker only)
+           Stage continuity: shared pipeline rail (Frames 4-7), y = 460
+           ============================================================ */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "Inter", sans-serif;
+          color: #1a1815;
+        }
+
+        /* ---- full-bleed dimmed paper field (own clip, never on #root) ---- */
+        .f06-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse 120% 90% at 50% 40%,
+            #fdfcfa 0%,
+            #fbfaf8 46%,
+            #f4efe8 100%
+          );
+        }
+        .f06-grid {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(26, 24, 21, 0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(26, 24, 21, 0.04) 1px, transparent 1px);
+          background-size: 96px 96px;
+          background-position: center top;
+        }
+
+        /* ---- stage ---- */
+        .f06-stage {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* kicker-spike — the frame's single coral moment (the ✱) */
+        .f06-kicker {
+          position: absolute;
+          left: 112px;
+          top: 88px;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 26px;
+          font-weight: 500;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: rgba(26, 24, 21, 0.72);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .f06-kicker .spike {
+          color: #f2541b;
+        }
+
+        /* ---- camera wrapper: everything the push-in scales ---- */
+        #f06-camera {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+
+        /* pipeline rail — hairline, full width, continues off both edges */
+        #f06-rail-svg {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+        }
+        #f06-rail {
+          fill: none;
+          stroke: rgba(26, 24, 21, 0.18);
+          stroke-width: 2;
+          stroke-linecap: round;
+        }
+
+        /* ring wrapper — the DoF-blurred off-focus cluster (nodes + edges) */
+        #f06-ring {
+          position: absolute;
+          inset: 0;
+          --dof: 0px;
+          filter: blur(var(--dof));
+          will-change: filter;
+        }
+        #f06-edges {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+        }
+        .f06-edge {
+          fill: none;
+          stroke: rgba(26, 24, 21, 0.22);
+          stroke-width: 2;
+        }
+
+        /* main entity nodes — person / decision / PR */
+        .f06-node {
+          position: absolute;
+          width: 148px;
+          height: 148px;
+          border-radius: 50%;
+          background: #fbfaf8;
+          border: 1px solid rgba(26, 24, 21, 0.14);
+          box-shadow:
+            0 1px 3px rgba(26, 24, 21, 0.08),
+            0 4px 16px rgba(26, 24, 21, 0.04);
+          /* centering offset is folded into the GSAP tween (xPercent/yPercent)
+             below, never a static CSS transform — see gsap_css_transform_conflict */
+          transform-origin: 50% 50%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .f06-node svg {
+          width: 34px;
+          height: 34px;
+        }
+        .f06-node .lbl {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 22px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: rgba(26, 24, 21, 0.82);
+        }
+
+        /* secondary unlabeled filler nodes */
+        .f06-mini {
+          position: absolute;
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: #fcdcd1;
+          border: 1px solid rgba(26, 24, 21, 0.12);
+          transform-origin: 50% 50%;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+
+        /* core session hub — the focal node, stays sharp through the push-in */
+        #f06-hub {
+          position: absolute;
+          left: 960px;
+          top: 460px;
+          width: 210px;
+          height: 210px;
+          border-radius: 50%;
+          background: #fcdcd1;
+          border: 1px solid rgba(26, 24, 21, 0.2);
+          box-shadow:
+            0 1px 3px rgba(26, 24, 21, 0.08),
+            0 4px 16px rgba(26, 24, 21, 0.04);
+          /* centering offset folded into the GSAP tween (xPercent/yPercent) */
+          transform-origin: 50% 50%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          opacity: 0;
+          z-index: 5;
+          will-change: transform, opacity;
+        }
+        #f06-hub svg {
+          width: 30px;
+          height: 30px;
+        }
+        #f06-hub .lbl {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 38px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: #1a1815;
+        }
+      </style>
+
+      <div id="root" data-composition-id="06-knowledge-graph" data-width="1920" data-height="1080">
+        <!-- full-bleed ground on its own clip layer -->
+        <div class="clip f06-bg" data-start="0" data-duration="6" data-track-index="0">
+          <div class="f06-grid"></div>
+        </div>
+
+        <!-- content stage -->
+        <div class="clip f06-stage" data-start="0" data-duration="6" data-track-index="1">
+          <div class="f06-kicker" id="f06-kicker"><span class="spike">✱</span>&nbsp;Knowledge graph</div>
+
+          <div id="f06-camera">
+            <!-- pipeline rail: stage continuity with frames 4-7 -->
+            <svg id="f06-rail-svg" viewBox="0 0 1920 1080">
+              <path id="f06-rail" d="M0,460 L1920,460" data-len="1920" />
+            </svg>
+
+            <!-- ring: entity nodes + connecting edges (DoF-blurred off-focus cluster) -->
+            <div id="f06-ring">
+              <svg id="f06-edges" viewBox="0 0 1920 1080">
+                <line class="f06-edge" id="f06-edge-person" x1="960" y1="460" x2="960" y2="260" />
+                <line class="f06-edge" id="f06-edge-decision" x1="960" y1="460" x2="1220" y2="560" />
+                <line class="f06-edge" id="f06-edge-pr" x1="960" y1="460" x2="700" y2="560" />
+              </svg>
+
+              <!-- main entity nodes -->
+              <div class="f06-node" id="f06-node-person" style="left: 960px; top: 260px">
+                <svg viewBox="0 0 34 34" fill="none">
+                  <circle cx="17" cy="11" r="6" stroke="rgba(26,24,21,0.55)" stroke-width="1.7" />
+                  <path d="M5 29c1.6-6.4 6.6-9.6 12-9.6S27.4 22.6 29 29" stroke="rgba(26,24,21,0.55)" stroke-width="1.7" fill="none" stroke-linecap="round" />
+                </svg>
+                <span class="lbl">person</span>
+              </div>
+              <div class="f06-node" id="f06-node-decision" style="left: 1220px; top: 560px">
+                <svg viewBox="0 0 34 34" fill="none">
+                  <path d="M17 3 L31 17 L17 31 L3 17 Z" stroke="rgba(26,24,21,0.55)" stroke-width="1.7" fill="none" stroke-linejoin="round" />
+                </svg>
+                <span class="lbl">decision</span>
+              </div>
+              <div class="f06-node" id="f06-node-pr" style="left: 700px; top: 560px">
+                <svg viewBox="0 0 34 34" fill="none">
+                  <circle cx="9" cy="7" r="3.4" stroke="rgba(26,24,21,0.55)" stroke-width="1.7" />
+                  <circle cx="9" cy="27" r="3.4" stroke="rgba(26,24,21,0.55)" stroke-width="1.7" />
+                  <circle cx="25" cy="17" r="3.4" stroke="rgba(26,24,21,0.55)" stroke-width="1.7" />
+                  <path d="M9 10.4V23.6" stroke="rgba(26,24,21,0.55)" stroke-width="1.7" fill="none" />
+                  <path d="M9 10.4c0 7 4 8.4 12.6 8.6" stroke="rgba(26,24,21,0.55)" stroke-width="1.7" fill="none" />
+                </svg>
+                <span class="lbl">PR</span>
+              </div>
+
+              <!-- secondary unlabeled filler nodes -->
+              <div class="f06-mini" id="f06-mini-1" style="left: 1220px; top: 360px"></div>
+              <div class="f06-mini" id="f06-mini-2" style="left: 960px; top: 660px"></div>
+              <div class="f06-mini" id="f06-mini-3" style="left: 700px; top: 360px"></div>
+            </div>
+
+            <!-- core session hub — the focal node -->
+            <div id="f06-hub">
+              <svg viewBox="0 0 30 30" fill="none">
+                <rect x="4" y="6" width="22" height="18" rx="2.5" stroke="#1a1815" stroke-width="1.6" />
+                <path d="M9 12l4 3-4 3" stroke="#1a1815" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M16 18h5" stroke="#1a1815" stroke-width="1.6" stroke-linecap="round" />
+              </svg>
+              <span class="lbl">session</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        /* ============================================================
+           Frame 6 — Pipeline: knowledge graph (6s)
+           Scene 1 (0.0–1.5)  rail draws; session core hub springs in
+           Scene 2 (1.5–4.2)  person / decision / PR nodes spring into the
+                               ring on their spoken cue, edges draw to the
+                               core; three unlabeled nodes fill the ring
+           Scene 3 (4.2–6.0)  gentle push-in on the core, ring blurs (DoF),
+                               hold resolved on the hub
+           ============================================================ */
+
+        /* ---- Scene 1 — rail draw + hub spring-pop ---- */
+        const rail = document.getElementById("f06-rail");
+        const railLen = Number(rail.dataset.len);
+        gsap.set(rail, { strokeDasharray: railLen, strokeDashoffset: railLen });
+        tl.to(rail, { strokeDashoffset: 0, duration: 0.85, ease: "power2.out" }, 0);
+
+        tl.fromTo(
+          "#f06-kicker",
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+          0.05
+        );
+
+        // hero: session core hub — visible well before t<=0.5s
+        // xPercent/yPercent recenter the hub on its (left,top) anchor point;
+        // folded into the GSAP tween (not a static CSS transform) so the
+        // scale-from-0 pop never fights a CSS translate — see
+        // gsap_css_transform_conflict.
+        tl.fromTo(
+          "#f06-hub",
+          { scale: 0, opacity: 0, xPercent: -50, yPercent: -50 },
+          { scale: 1, opacity: 1, xPercent: -50, yPercent: -50, duration: 0.45, ease: "power3.out" },
+          0
+        );
+
+        /* ---- prep: edge lines get their measured dash length ---- */
+        const edges = document.querySelectorAll("#f06-edges .f06-edge");
+        edges.forEach((line) => {
+          const x1 = Number(line.getAttribute("x1"));
+          const y1 = Number(line.getAttribute("y1"));
+          const x2 = Number(line.getAttribute("x2"));
+          const y2 = Number(line.getAttribute("y2"));
+          const len = Math.hypot(x2 - x1, y2 - y1);
+          gsap.set(line, { strokeDasharray: len, strokeDashoffset: len });
+          line.dataset.len = String(len);
+        });
+
+        /* ---- Scene 2 — three named nodes spring in on cue, edges follow ---- */
+        // person — on "the people"
+        tl.fromTo(
+          "#f06-node-person",
+          { scale: 0, opacity: 0, xPercent: -50, yPercent: -50 },
+          { scale: 1, opacity: 1, xPercent: -50, yPercent: -50, duration: 0.45, ease: "power3.out" },
+          1.6
+        );
+        tl.to(
+          "#f06-edge-person",
+          { strokeDashoffset: 0, duration: 0.35, ease: "power2.out" },
+          1.9
+        );
+
+        // decision — on "decisions"
+        tl.fromTo(
+          "#f06-node-decision",
+          { scale: 0, opacity: 0, xPercent: -50, yPercent: -50 },
+          { scale: 1, opacity: 1, xPercent: -50, yPercent: -50, duration: 0.45, ease: "power3.out" },
+          2.5
+        );
+        tl.to(
+          "#f06-edge-decision",
+          { strokeDashoffset: 0, duration: 0.35, ease: "power2.out" },
+          2.8
+        );
+
+        // PR — on "pull requests"
+        tl.fromTo(
+          "#f06-node-pr",
+          { scale: 0, opacity: 0, xPercent: -50, yPercent: -50 },
+          { scale: 1, opacity: 1, xPercent: -50, yPercent: -50, duration: 0.45, ease: "power3.out" },
+          3.4
+        );
+        tl.to(
+          "#f06-edge-pr",
+          { strokeDashoffset: 0, duration: 0.35, ease: "power2.out" },
+          3.7
+        );
+
+        // three smaller unlabeled nodes fill the ring after
+        ["#f06-mini-1", "#f06-mini-2", "#f06-mini-3"].forEach((sel, i) => {
+          tl.fromTo(
+            sel,
+            { scale: 0, opacity: 0, xPercent: -50, yPercent: -50 },
+            { scale: 1, opacity: 1, xPercent: -50, yPercent: -50, duration: 0.35, ease: "power3.out" },
+            3.85 + i * 0.08
+          );
+        });
+
+        /* ---- Scene 3 — gentle push-in on the core, ring recedes into DoF ---- */
+        const camera = document.getElementById("f06-camera");
+        const cam = { scale: 1 };
+        tl.to(
+          cam,
+          {
+            scale: 1.12,
+            duration: 1.0,
+            ease: "power2.inOut",
+            onUpdate: () => {
+              camera.style.transform = "scale(" + cam.scale + ")";
+            },
+          },
+          4.2
+        );
+
+        // ring (nodes + edges) blurs + dims — the focal hub stays sharp
+        tl.to(
+          "#f06-ring",
+          { "--dof": "6px", opacity: 0.6, duration: 1.0, ease: "power2.inOut" },
+          4.2
+        );
+
+        // hold resolved on the hub through the tail (5.2–6.0s hold; no exit — mid-pipeline frame)
+        window.__timelines["06-knowledge-graph"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

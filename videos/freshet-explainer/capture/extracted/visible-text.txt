@@ -1,0 +1,18 @@
+Context Hub (branded "Freshet") — the company-wide context hub for the age of AI work.
+
+THE PROBLEM
+Every employee now spends hours a day talking to AI coding assistants — Claude Code, OpenAI Codex, Kilo Code. Those conversations are the richest, most decision-dense record of how work actually gets done: what was built, why, what was tried, what was decided. Today that knowledge dies on a laptop in a .jsonl file. When the engineer who made the call leaves, changes teams, or simply forgets, the reasoning is gone. Teams re-litigate decisions, re-debug solved problems, and re-ask questions the AI already answered.
+
+HOW IT WORKS — LOCAL FIRST
+A desktop app (Tauri 2 + React) watches the session folders each assistant already writes: ~/.claude/projects/**/*.jsonl for Claude Code, ~/.codex/sessions/ for Codex, VS Code global storage for Kilo. Parsing happens ENTIRELY LOCALLY. Nothing leaves the machine. Each raw transcript is normalized into a common schema, then converted into a local RAG:
+1. Secret redaction scrubs API keys, tokens, and credentials before anything else happens.
+2. Sessions are chunked (~1200-character sliding windows) and embedded into vectors.
+3. Chunks land in LanceDB with BOTH a vector index and a full-text keyword index — hybrid search merges the two with Reciprocal Rank Fusion, so exact identifiers (an error code, a function name) are found even when embeddings miss them.
+4. A GraphRAG pass extracts entities — repos, services, features, people, decisions, PRs, problems — and links them into a cross-session knowledge graph, so "the pricing decision" connects to the PR that shipped it and the person who made it.
+The result: you can browse, search, and summarize every AI session you've ever run, on your own machine, offline.
+
+PUSH THE ONES THAT MATTER — LIKE A PULL REQUEST
+Most sessions are noise; some are gold. When a session captures a real decision or a hard-won fix, you push it to the company hub — full transcript or just the high-quality summary. But pushed context does not go straight into the shared brain. Like a pull request, it enters a REVIEW QUEUE: one or more teammates read the summary, check the redaction, and vote. Approve, and the session is merged — chunked, embedded, indexed, and woven into the shared knowledge graph. Reject, and it never enters the index. Nothing becomes company knowledge without a human sign-off, so the shared brain stays high-signal and trustworthy.
+
+THE COMPANY BRAIN
+The hub stores raw sessions in S3, indexes them in a shared LanceDB store, and powers a single company-wide RAG agent — one agent everyone in the org can ask: "What did we decide about pricing?" "What's the status of the migration?" "Has anyone hit this error before?" Answers are grounded in real sessions and come back with citations — links to the exact conversations where the decision was made. Knowledge compounds instead of evaporating. The company gets a brain; the brain gets a memory; the memory gets receipts.

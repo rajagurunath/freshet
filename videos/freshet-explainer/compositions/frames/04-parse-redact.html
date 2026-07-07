@@ -1,0 +1,485 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Frame 4 — Pipeline: parse + redact. All runtime content lives inside <template>. -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ---- root (styled via #root, never a class — scoper rule) ---- */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "Inter", sans-serif;
+          color: #1a1815;
+        }
+
+        /* ---- full-bleed paper field + faint grid (its own clip, never on #root) ---- */
+        .f04-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            120% 90% at 62% 40%,
+            #fbfaf8 0%,
+            #f6f3ee 58%,
+            #efebe3 100%
+          );
+        }
+        .f04-grid {
+          position: absolute;
+          inset: 0;
+          opacity: 0.5;
+          background-image:
+            repeating-linear-gradient(to right, rgba(26, 24, 21, 0.045) 0 1px, transparent 1px 96px),
+            repeating-linear-gradient(to bottom, rgba(26, 24, 21, 0.045) 0 1px, transparent 1px 96px);
+        }
+
+        /* ---- stage ---- */
+        .f04-stage {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* kicker-spike (brand mark; the frame's coral voltage lives in the redaction reveal) */
+        .f04-kicker {
+          position: absolute;
+          left: 112px;
+          top: 88px;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 26px;
+          font-weight: 500;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: rgba(26, 24, 21, 0.72);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .f04-kicker .spike {
+          color: #f2541b;
+        }
+
+        /* ---- camera wrapper (coordinate-target-zoom) ---- */
+        .f04-zoom-outer {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+        .f04-zoom-inner {
+          position: absolute;
+          inset: 0;
+          will-change: transform;
+        }
+
+        /* rail (svg-path-draw) */
+        .f04-rail-svg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+        }
+        #f04-rail-path {
+          fill: none;
+          stroke: rgba(26, 24, 21, 0.22);
+          stroke-width: 2.5;
+          stroke-linecap: round;
+        }
+
+        /* source cards */
+        .f04-source {
+          position: absolute;
+          width: 160px;
+          height: 130px;
+          background: #fbfaf8;
+          border: 1px solid rgba(26, 24, 21, 0.12);
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(26, 24, 21, 0.08), 0 4px 16px rgba(26, 24, 21, 0.04);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        .f04-source svg {
+          width: 32px;
+          height: 32px;
+        }
+        .f04-source-label {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 21px;
+          font-weight: 500;
+          letter-spacing: 0.01em;
+          color: rgba(26, 24, 21, 0.75);
+        }
+
+        /* traveling line-tokens */
+        .f04-token {
+          position: absolute;
+          top: 553px;
+          width: 30px;
+          height: 12px;
+          border-radius: 6px;
+          background: rgba(26, 24, 21, 0.34);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+
+        /* jitter wrapper — carries the hold-frame tremble via plain transform, kept
+           separate from #f04-node so it never fights that element's own GSAP tweens */
+        .f04-jitter {
+          position: absolute;
+          left: 1180px;
+          top: 430px;
+          width: 460px;
+          height: 260px;
+          will-change: transform;
+        }
+
+        /* parser / redaction node — warm-navy code-surface (the focal) */
+        .f04-node {
+          position: absolute;
+          inset: 0;
+          background: #181615;
+          border: 1px solid rgba(251, 250, 248, 0.14);
+          border-radius: 8px;
+          box-shadow: 0 1px 3px rgba(26, 24, 21, 0.08), 0 4px 16px rgba(26, 24, 21, 0.04);
+          overflow: hidden;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        .f04-node-title {
+          height: 44px;
+          background: #1f1c1b;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 18px;
+          border-bottom: 1px solid rgba(251, 250, 248, 0.14);
+        }
+        .f04-node-dot {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: #5db872;
+        }
+        .f04-node-filename {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 19px;
+          letter-spacing: 0.02em;
+          color: rgba(251, 250, 248, 0.7);
+        }
+        .f04-node-body {
+          padding: 30px 28px;
+          display: flex;
+          flex-direction: column;
+          gap: 22px;
+        }
+        .f04-codeline {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 27px;
+          letter-spacing: 0.01em;
+          white-space: nowrap;
+          opacity: 0;
+        }
+        .f04-codeline .key {
+          color: #f2541b;
+        }
+        .f04-codeline .eq {
+          color: rgba(251, 250, 248, 0.5);
+        }
+        .f04-val-wrap {
+          position: relative;
+          display: inline-block;
+        }
+        .f04-val {
+          color: #5db8a6;
+        }
+        .f04-dots {
+          position: absolute;
+          left: 0;
+          top: 0;
+          color: rgba(251, 250, 248, 0.45);
+          opacity: 0;
+        }
+        .f04-strike {
+          position: absolute;
+          top: 50%;
+          left: -4%;
+          width: 108%;
+          height: 3px;
+          background: #f2541b;
+          transform-origin: left center;
+          transform: scaleX(0); /* matches the GSAP fromTo "from" state — rotation lives only in GSAP */
+          will-change: transform;
+        }
+
+        .f04-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          width: fit-content;
+          padding: 9px 16px;
+          border-radius: 9999px;
+          background: rgba(251, 250, 248, 0.06);
+          border: 1px solid rgba(251, 250, 248, 0.18);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .f04-badge-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #f2541b;
+        }
+        .f04-badge-text {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 19px;
+          font-weight: 500;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: rgba(251, 250, 248, 0.85);
+        }
+      </style>
+
+      <div id="root" data-composition-id="04-parse-redact" data-width="1920" data-height="1080">
+        <!-- full-bleed ground on its own clip layer -->
+        <div class="clip f04-bg" data-start="0" data-duration="6" data-track-index="0">
+          <div class="f04-grid"></div>
+        </div>
+
+        <!-- content stage -->
+        <div class="clip f04-stage" data-start="0" data-duration="6" data-track-index="1">
+          <div class="f04-kicker" id="f04-kicker"><span class="spike">✱</span>&nbsp;Stage 01 &middot; parse &amp; redact</div>
+
+          <div class="f04-zoom-outer" id="f04-zoom-outer">
+            <div class="f04-zoom-inner" id="f04-zoom-inner">
+              <!-- Scene 1: hairline rail, left→right -->
+              <svg class="f04-rail-svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+                <path id="f04-rail-path" d="M160 560 L1900 560" />
+              </svg>
+
+              <!-- Scene 1: three source cards -->
+              <div class="f04-source" id="f04-src0" style="left: 200px; top: 495px;">
+                <svg viewBox="0 0 34 34" fill="none">
+                  <path
+                    d="M3 9 Q3 6 6 6 L13 6 L16 9 L28 9 Q31 9 31 12 L31 25 Q31 28 28 28 L6 28 Q3 28 3 25 Z"
+                    stroke="rgba(26,24,21,0.45)"
+                    stroke-width="1.8"
+                  />
+                </svg>
+                <div class="f04-source-label">~/.claude</div>
+              </div>
+              <div class="f04-source" id="f04-src1" style="left: 400px; top: 495px;">
+                <svg viewBox="0 0 34 34" fill="none">
+                  <path
+                    d="M3 9 Q3 6 6 6 L13 6 L16 9 L28 9 Q31 9 31 12 L31 25 Q31 28 28 28 L6 28 Q3 28 3 25 Z"
+                    stroke="rgba(26,24,21,0.45)"
+                    stroke-width="1.8"
+                  />
+                </svg>
+                <div class="f04-source-label">~/.codex</div>
+              </div>
+              <div class="f04-source" id="f04-src2" style="left: 600px; top: 495px;">
+                <svg viewBox="0 0 34 34" fill="none">
+                  <path
+                    d="M3 9 Q3 6 6 6 L13 6 L16 9 L28 9 Q31 9 31 12 L31 25 Q31 28 28 28 L6 28 Q3 28 3 25 Z"
+                    stroke="rgba(26,24,21,0.45)"
+                    stroke-width="1.8"
+                  />
+                </svg>
+                <div class="f04-source-label">kilo</div>
+              </div>
+
+              <!-- Scene 2: streaming line-tokens -->
+              <div class="f04-token" id="f04-tok0" style="left: 330px;"></div>
+              <div class="f04-token" id="f04-tok1" style="left: 530px;"></div>
+              <div class="f04-token" id="f04-tok2" style="left: 730px;"></div>
+
+              <!-- Scene 2→3: parser / redaction node (focal) -->
+              <div class="f04-jitter" id="f04-jitter">
+                <div class="f04-node" id="f04-node">
+                  <div class="f04-node-title">
+                    <div class="f04-node-dot"></div>
+                    <div class="f04-node-filename">parser.log</div>
+                  </div>
+                  <div class="f04-node-body">
+                    <div class="f04-codeline" id="f04-codeline">
+                      <span class="key">API_KEY</span><span class="eq">=</span><span
+                        class="f04-val-wrap"
+                      >
+                        <span class="f04-val" id="f04-val">sk-live-4f8b21e9</span>
+                        <span class="f04-dots" id="f04-dots">•••••••••••••••••</span>
+                        <span class="f04-strike f04-strike-fwd" id="f04-strike-fwd"></span>
+                        <span class="f04-strike f04-strike-bwd" id="f04-strike-bwd"></span>
+                      </span>
+                    </div>
+                    <div class="f04-badge" id="f04-badge">
+                      <div class="f04-badge-dot"></div>
+                      <div class="f04-badge-text">redacted locally</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        /* ============================================================
+           Frame 4 — Pipeline: parse + redact (6s)
+           Scene 1 (0.0–1.5)  rail draws; three source cards cascade in
+           Scene 2 (1.5–3.5)  tokens stream along the rail into the parser
+                              node; gentle zoom-to-target; node pulses
+           Scene 3 (3.5–6.0)  secret value struck through, redacts to
+                              dots; "redacted locally" badge; hold
+           ============================================================ */
+
+        /* ---- Scene 1: rail draw (svg-path-draw, constant-speed pen) ---- */
+        const railPath = document.getElementById("f04-rail-path");
+        const railLen = railPath.getTotalLength();
+        railPath.style.strokeDasharray = String(railLen);
+        railPath.style.strokeDashoffset = String(railLen);
+        tl.to(railPath, { strokeDashoffset: 0, duration: 1.2, ease: "none" }, 0.05);
+
+        // kicker settles in quietly
+        tl.fromTo(
+          "#f04-kicker",
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+          0.1
+        );
+
+        // three source cards cascade in — short distance directly into slot
+        const sources = ["#f04-src0", "#f04-src1", "#f04-src2"];
+        sources.forEach((sel, i) => {
+          tl.fromTo(
+            sel,
+            { opacity: 0, x: -26, scale: 0.94 },
+            { opacity: 1, x: 0, scale: 1, duration: 0.42, ease: "power3.out" },
+            0.55 + i * 0.13
+          );
+        });
+
+        /* ---- hero visibility: parser node frame present early (empty shell) ---- */
+        tl.fromTo(
+          "#f04-node",
+          { opacity: 0, scale: 0.92 },
+          { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" },
+          0.3
+        );
+
+        /* ---- Scene 2: tokens stream from cards along the rail into the node ----
+           Each token's CSS `left` is its static launch position; the travel itself is
+           a GSAP `x` (transform) tween, keeping the animated property on the allowlist. */
+        const tokens = [
+          { sel: "#f04-tok0", start: 1.7, dur: 0.9, from: 330, to: 1170 },
+          { sel: "#f04-tok1", start: 1.85, dur: 0.85, from: 530, to: 1170 },
+          { sel: "#f04-tok2", start: 2.0, dur: 0.8, from: 730, to: 1170 },
+        ];
+        tokens.forEach((t) => {
+          tl.fromTo(
+            t.sel,
+            { opacity: 0, x: 0 },
+            { opacity: 1, duration: 0.18, ease: "power1.out" },
+            t.start
+          );
+          tl.fromTo(
+            t.sel,
+            { x: 0 },
+            { x: t.to - t.from, duration: t.dur, ease: "power1.inOut" },
+            t.start
+          );
+          tl.to(t.sel, { opacity: 0, duration: 0.16, ease: "power1.in" }, t.start + t.dur - 0.12);
+        });
+
+        // gentle camera zoom-to-target on the parser node (coordinate-target-zoom)
+        // node center (1410, 560); viewport center (960, 540); offset (450, 20) — baked from
+        // the fixed layout above, not measured at runtime.
+        const ZOOM_SCALE = 1.12;
+        tl.to("#f04-zoom-outer", { scale: ZOOM_SCALE, duration: 1.2, ease: "power3.inOut" }, 1.6);
+        tl.to("#f04-zoom-inner", { x: -450, y: -20, duration: 1.2, ease: "power3.inOut" }, 1.6);
+
+        // node pulses once on arrival
+        tl.to("#f04-node", { scale: 1.05, duration: 0.16, ease: "power2.out" }, 2.86);
+        tl.to("#f04-node", { scale: 1, duration: 0.22, ease: "power2.inOut" }, 3.02);
+
+        /* ---- Scene 3: secret struck through, redacts to dots, badge reveals ---- */
+        // the code line fades in ahead of the strike so it reads before it's redacted
+        tl.fromTo(
+          "#f04-codeline",
+          { opacity: 0, y: 6 },
+          { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" },
+          2.95
+        );
+
+        // accent marker sweep strikes the secret value (css-marker-patterns: sketchout)
+        // rotation is authored entirely in GSAP (never as a static CSS transform) so it
+        // never competes with the scaleX tween on the same element.
+        tl.fromTo(
+          "#f04-strike-fwd",
+          { scaleX: 0, rotation: -3 },
+          { scaleX: 1, rotation: -3, duration: 0.3, ease: "power2.out" },
+          3.5
+        );
+        tl.fromTo(
+          "#f04-strike-bwd",
+          { scaleX: 0, rotation: 3 },
+          { scaleX: 1, rotation: 3, duration: 0.3, ease: "power2.out" },
+          3.65
+        );
+
+        // value crossfades to redacted dots
+        tl.to("#f04-val", { opacity: 0, duration: 0.3, ease: "power2.out" }, 4.0);
+        tl.fromTo(
+          "#f04-dots",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.3, ease: "power2.out" },
+          4.0
+        );
+
+        // "redacted locally" badge reveals on cue
+        tl.fromTo(
+          "#f04-badge",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+          4.3
+        );
+
+        /* ---- hold: subtle jitter only (sine-wave-loop, low amplitude) ----
+           Driven on the wrapper (#f04-jitter) so it never fights the node's own
+           GSAP tweens (opacity/scale on #f04-node itself). */
+        const jitterEl = document.getElementById("f04-jitter");
+        const phase = { p: 0 };
+        tl.to(
+          phase,
+          {
+            p: Math.PI * 2 * 2,
+            duration: 1.0,
+            ease: "none",
+            onUpdate: () => {
+              const y = Math.sin(phase.p) * 1.4;
+              const x = Math.sin(phase.p + Math.PI / 2) * 0.8;
+              jitterEl.style.transform = "translate(" + x + "px," + y + "px)";
+            },
+          },
+          4.9
+        );
+
+        window.__timelines["04-parse-redact"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

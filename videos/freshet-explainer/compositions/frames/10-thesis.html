@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>10-thesis — source (runtime reads only the template)</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ============================================================
+           Frame 10 — Thesis · titlecard-reveal (Reproduce)
+           Canvas 1920x1080 · duration 3.029s · captions keep-out y <= 900
+           The deliberate held breather: one restrained move, then stillness.
+           Palette: cream #FBFAF8 · ink #1A1815 · coral #F2541B
+           ============================================================ */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: "EB Garamond", Georgia, serif;
+          color: #1a1815;
+        }
+
+        /* --- background: warm paper field + soft radial swell only ---
+             roles: "nothing else — the emptiness is the design" -->
+        .th-bg {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse 90% 70% at 50% 38%,
+            #fdfcfa 0%,
+            #fbfaf8 48%,
+            #f4efe8 100%
+          );
+        }
+
+        /* --- stage: the two lines, top-anchored so line 1 centers at y ≈ 0.40 --- */
+        .th-stage {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding-top: 380px; /* line 1 line-box centers ~y 432 (0.40 × 1080) */
+        }
+
+        .th-line1 {
+          text-align: center;
+          white-space: nowrap;
+          font-size: 100px; /* ~5.2cqw @1920 — stepped down from the length-based
+                                fit-to-measure rule (full sentence, not a short phrase) */
+          font-weight: 400;
+          line-height: 1.05;
+          letter-spacing: -0.02em;
+          color: #1a1815;
+          will-change: transform, opacity;
+        }
+
+        .th-line2 {
+          margin-top: 44px;
+          text-align: center;
+          white-space: nowrap;
+          font-size: 130px; /* slightly larger than line 1 — the accent punch */
+          font-weight: 400;
+          font-style: italic; /* the thesis stance — synthesized slant per frame.md */
+          line-height: 1.05;
+          letter-spacing: -0.02em;
+          color: #f2541b;
+          will-change: transform, opacity;
+        }
+      </style>
+
+      <div id="root" data-composition-id="10-thesis" data-width="1920" data-height="1080">
+        <!-- full-bleed ground: dedicated clip, never painted on #root -->
+        <div class="clip th-bg" data-start="0" data-duration="3.029" data-track-index="0"></div>
+
+        <div class="clip th-stage" data-start="0" data-duration="3.029" data-track-index="1">
+          <!-- Scene 1 (0.0–1.5s): the ONE restrained move — a single slide-up crossfade -->
+          <div class="th-line1">Knowledge stops evaporating.</div>
+
+          <!-- Scene 2 (1.5–3.029s): "It compounds." lands beneath on its cue, then stillness -->
+          <div class="th-line2">It compounds.</div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+
+          var root = document.querySelector('[data-composition-id="10-thesis"]');
+          var line1 = root.querySelector(".th-line1");
+          var line2 = root.querySelector(".th-line2");
+
+          var tl = gsap.timeline({ paused: true });
+
+          /* ---- Scene 1 (0.0–1.5s): single slide-up crossfade — the blueprint's
+                 one restrained move. Hero visible well before t=0.5s. ---- */
+          tl.fromTo(
+            line1,
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" },
+            0.08
+          );
+
+          /* ---- Scene 2 (1.5–3.029s): "It compounds." lands on its spoken cue,
+                 quieter settle, then absolute stillness to the end — no jitter,
+                 no drift. The held read against the prior motion is the beat. ---- */
+          tl.fromTo(
+            line2,
+            { opacity: 0, y: 26 },
+            { opacity: 1, y: 0, duration: 0.85, ease: "power3.out" },
+            1.5
+          );
+
+          window.__timelines["10-thesis"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
